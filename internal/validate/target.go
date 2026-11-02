@@ -9,7 +9,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Target is the partner request schema: a JSON Schema, or a schema inside an
+// Target is the target request schema: a JSON Schema, or a schema inside an
 // OpenAPI document selected with a JSON pointer after "#".
 type Target struct {
 	root   any            // whole document, for resolving $ref

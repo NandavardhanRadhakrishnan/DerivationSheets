@@ -40,11 +40,11 @@ func TestDisplayLayers(t *testing.T) {
 evidence = "hidden"
 
 [display.columns]
-send  = "Sent to the insurer as"
+send  = "Sent to the warehouse as"
 value = "Field"
 `, minimal+`
 [display.columns]
-send = "Sent to Acme as"
+send = "Sent to billing as"
 
 [display.sections]
 derived = "Calculated"
@@ -66,12 +66,12 @@ derived = "Calculated"
 		"sections.request": d.Sections["request"],
 	}
 	want := map[string]string{
-		"evidence":         "hidden",           // project
-		"columns.send":     "Sent to Acme as",  // sheet overrides project
-		"columns.value":    "Field",            // project
-		"columns.rule":     "Rule",             // default
-		"sections.derived": "Calculated",       // sheet
-		"sections.request": "From the request", // default
+		"evidence":         "hidden",             // project
+		"columns.send":     "Sent to billing as", // sheet overrides project
+		"columns.value":    "Field",              // project
+		"columns.rule":     "Rule",               // default
+		"sections.derived": "Calculated",         // sheet
+		"sections.request": "From the request",   // default
 	}
 	for k, got := range checks {
 		if got != want[k] {

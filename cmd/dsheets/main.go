@@ -53,7 +53,7 @@ var commands = []struct {
 	{"validate", "<workflow>", "check sheet.toml and its data; report errors with file and line", cmdValidate},
 	{"cases", "<workflow>", "generate cases.toml covering every rule, reject and situational condition", cmdCases},
 	{"render", "<workflow> --out sheet.html", "write the calculation sheet as one self-contained HTML file", cmdRender},
-	{"verify", "<workflow> --actual results.json", "compare actual partner payloads with cases.toml and record evidence", cmdVerify},
+	{"verify", "<workflow> --actual results.json", "compare actual output payloads with cases.toml and record evidence", cmdVerify},
 	{"eval", "<workflow> (--case ID | --input in.json | --request req.json)", "evaluate one input and print the payload and full trace", cmdEval},
 	{"serve", "<workflow> [--addr localhost:8080]", "serve the rendered sheet on localhost, re-rendered on each request", cmdServe},
 	{"schema", "", "print the JSON Schema for sheet.toml", cmdSchema},
@@ -82,7 +82,7 @@ func usage(w io.Writer) {
 	for _, c := range commands {
 		fmt.Fprintf(w, "  %s %-9s %s\n      %s\n", brand.Command, c.name, c.args, c.help)
 	}
-	fmt.Fprintf(w, "\nA workflow is a folder such as specs/premium-calculation containing %s.\nRun '%s <command> -h' for a command's flags.\n", sheet.FileName, brand.Command)
+	fmt.Fprintf(w, "\nA workflow is a folder such as specs/order-checkout containing %s.\nRun '%s <command> -h' for a command's flags.\n", sheet.FileName, brand.Command)
 }
 
 // parse parses flags that may come before or after positional arguments.
@@ -333,7 +333,7 @@ func buildPage(dir, evDir, mode, snap string, errw io.Writer) (*render.Page, err
 
 func cmdVerify(args []string, out, errw io.Writer) error {
 	fs := newFlags("verify", "<workflow> --actual results.json", errw)
-	actual := fs.String("actual", "", "actual partner payloads per case ID (required)")
+	actual := fs.String("actual", "", "actual output payloads per case ID (required)")
 	casesFlag := fs.String("cases", "", "cases file (default <workflow>/cases.toml)")
 	evDir := fs.String("evidence-dir", "", "evidence folder (default: .evidence at the repository root)")
 	dry := fs.Bool("dry-run", false, "compare without recording evidence")

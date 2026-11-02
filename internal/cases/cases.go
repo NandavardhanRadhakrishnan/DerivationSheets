@@ -1,5 +1,5 @@
 // Package cases generates and reads cases.toml: test inputs with expected
-// partner payloads that together cover every decision-table rule, reject,
+// output payloads that together cover every decision-table rule, reject,
 // situational condition, and isolate every intermediate row.
 package cases
 
@@ -276,7 +276,21 @@ func isolates(e *eval.Engine, a, b *candidate, r *sheet.Row, anc map[string]bool
 	if !oka || !okb || sheet.Equal(va, vb) {
 		return false
 	}
-	return !payloadEqual(a.res.Payload, b.res.Payload)
+	// The payloads must differ in a field that r feeds, so the difference is
+	// one that a wrong value in r would cause.
+	fa, fb := Flatten(a.res.Payload), Flatten(b.res.Payload)
+	desc := e.Graph.Descendants(r.ID)
+	for _, x := range e.Graph.Order {
+		if x.Send == nil || !desc[x.ID] {
+			continue
+		}
+		wa, ina := fa[x.Send.Field]
+		wb, inb := fb[x.Send.Field]
+		if ina && inb && !sheet.Equal(wa, wb) {
+			return true
+		}
+	}
+	return false
 }
 
 // isolate finds a candidate that, paired with a chosen case, isolates r. It
@@ -440,9 +454,12 @@ func datePool(ref time.Time, consts []float64) []any {
 	for y := range years {
 		ys = append(ys, y)
 	}
-	// Middle-of-range years first, so the first candidates look typical.
+	// Years near the middle of the candidates come first, so the first
+	// cases look typical.
+	sort.Ints(ys)
+	mid := ys[len(ys)/2]
 	sort.Slice(ys, func(i, j int) bool {
-		di, dj := math.Abs(float64(ys[i]-40)), math.Abs(float64(ys[j]-40))
+		di, dj := math.Abs(float64(ys[i]-mid)), math.Abs(float64(ys[j]-mid))
 		if di != dj {
 			return di < dj
 		}
@@ -458,16 +475,18 @@ func datePool(ref time.Time, consts []float64) []any {
 }
 
 // valuePool collects values for a string or number input from the cells that
-// test it: decision-table columns and lookup key columns.
+// test it: decision-table columns and lookup key columns. Lookup data gives
+// values inside the ranges it covers; decision-table comparisons also give a
+// value on each side of every bound, so rules such as "< 100" are reachable.
 func valuePool(s *sheet.Sheet, r *sheet.Row, consts []float64) []any {
-	var cells []sheet.Cell
+	var cells, tableCells []sheet.Cell
 	var keys []string
 	for _, x := range s.Rows {
 		if x.Table != nil {
 			if j := slices.Index(x.Table.Columns, r.ID); j >= 0 {
 				for _, rule := range x.Table.Rules {
 					if j < len(rule.Cells) {
-						cells = append(cells, rule.Cells[j])
+						tableCells = append(tableCells, rule.Cells[j])
 					}
 				}
 			}
@@ -488,7 +507,24 @@ func valuePool(s *sheet.Sheet, r *sheet.Row, consts []float64) []any {
 		}
 	}
 	var pool []any
-	for _, p := range analysis.Points(cells, nil, true) {
+	points := analysis.Points(cells, nil, true)
+	if len(tableCells) > 0 {
+		points = append(points, analysis.Points(tableCells, nil, false)...)
+	}
+	bounds := map[string]bool{}
+	for _, c := range append(cells, tableCells...) {
+		for _, v := range []any{c.Value, c.Lo, c.Hi} {
+			if v != nil {
+				bounds[sheet.FormatValue(v)] = true
+			}
+		}
+	}
+	// Values strictly inside a range read as more typical than its bounds,
+	// so they come first.
+	sort.SliceStable(points, func(i, j int) bool {
+		return !bounds[sheet.FormatValue(points[i])] && bounds[sheet.FormatValue(points[j])]
+	})
+	for _, p := range points {
 		if _, other := p.(analysis.Other); !other {
 			pool = appendUniq(pool, p)
 		}

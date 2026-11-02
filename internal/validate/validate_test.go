@@ -9,7 +9,7 @@ import (
 	"derivationsheets/internal/sheet"
 )
 
-var fixtureDir = filepath.Join("..", "..", "specs", "premium-calculation")
+var fixtureDir = filepath.Join("..", "..", "specs", "order-checkout")
 
 func fixtureText(t *testing.T) string {
 	t.Helper()
@@ -52,35 +52,35 @@ func TestMutations(t *testing.T) {
 		sev      Severity
 		line     string // text on the reported line, when the line matters
 	}{
-		{"duplicate id", `id     = "city"`, `id     = "dob"`, "id-duplicate", Error, `id     = "dob"`},
-		{"malformed id", `id     = "city"`, `id     = "City-Name"`, "id-malformed", Error, `"City-Name"`},
-		{"undefined in uses", `uses   = ["city"]`, `uses   = ["cty"]`, "uses-undefined", Error, `uses   = ["cty"]`},
-		{"undefined in expression", `formula = "net_premium + gst"`, `formula = "net_premium + gsst"`, "ref-undefined", Error, `gsst`},
-		{"undefined in lookup key", `key = ["city"] }`, `key = ["town"] }`, "ref-undefined", Error, `key = ["town"]`},
-		{"undefined in table column", `columns = ["is_smoker", "has_ped", "=>"]`, `columns = ["is_smoker", "has_pd", "=>"]`, "ref-undefined", Error, `has_pd`},
-		{"expression identifier missing from uses", `uses    = ["net_premium", "gst"]`, `uses    = ["net_premium"]`, "ref-not-in-uses", Error, `formula = "net_premium + gst"`},
-		{"circular dependency", `uses = ["is_smoker", "has_ped"]`, `uses = ["is_smoker", "has_ped", "medical_check"]`, "cycle", Error, ""},
-		{"no rule", `formula = "net_premium + gst"`, ``, "rule-missing", Error, ""},
-		{"several rules", `formula = "net_premium + gst"`, "formula = \"net_premium + gst\"\ntext = \"Add them\"", "rule-multiple", Error, `text = "Add them"`},
-		{"table missing case", `    [true,  true,  "High"],` + "\n", "", "table-missing-case", Error, ""},
-		{"table overlap", `[false, true,  "Elevated"],`, `["-",   true,  "Elevated"],`, "table-overlap", Error, ""},
-		{"situational without when", `  when      = "has_ped == true"` + "\n", "", "situational-no-when", Error, ""},
+		{"duplicate id", `id     = "country"`, `id     = "is_member"`, "id-duplicate", Error, `id     = "is_member"`},
+		{"malformed id", `id     = "country"`, `id     = "Country-Code"`, "id-malformed", Error, `"Country-Code"`},
+		{"undefined in uses", `uses   = ["country"]`, `uses   = ["contry"]`, "uses-undefined", Error, `uses   = ["contry"]`},
+		{"undefined in expression", `formula = "net_amount + sales_tax"`, `formula = "net_amount + sales_taxx"`, "ref-undefined", Error, `sales_taxx`},
+		{"undefined in lookup key", `key = ["country"] }`, `key = ["nation"] }`, "ref-undefined", Error, `key = ["nation"]`},
+		{"undefined in table column", `columns = ["is_member", "customer_years", "=>"]`, `columns = ["is_membr", "customer_years", "=>"]`, "ref-undefined", Error, `is_membr`},
+		{"expression identifier missing from uses", `uses    = ["net_amount", "sales_tax"]`, `uses    = ["net_amount"]`, "ref-not-in-uses", Error, `formula = "net_amount + sales_tax"`},
+		{"circular dependency", `uses = ["is_member", "customer_years"]`, `uses = ["is_member", "customer_years", "free_shipping"]`, "cycle", Error, ""},
+		{"no rule", `formula = "net_amount + sales_tax"`, ``, "rule-missing", Error, ""},
+		{"several rules", `formula = "net_amount + sales_tax"`, "formula = \"net_amount + sales_tax\"\ntext = \"Add them\"", "rule-multiple", Error, `text = "Add them"`},
+		{"table missing case", `    [true,  ">= 2", "Gold"],` + "\n", "", "table-missing-case", Error, ""},
+		{"table overlap", `[true,  "< 2",  "Silver"],`, `[true,  "-",    "Silver"],`, "table-overlap", Error, ""},
+		{"situational without when", `  when      = "zone != \"DOMESTIC\""` + "\n", "", "situational-no-when", Error, ""},
 		{"situational without otherwise", `  otherwise = "do-not-send"` + "\n", "", "situational-no-otherwise", Error, ""},
-		{"unused row", `formula = "net_premium + gst"
+		{"unused row", `formula = "net_amount + sales_tax"
 
   [row.send]
-  field = "totalPayable"
-  usage = "R"`, `formula = "net_premium + gst"`, "unused", Error, `id      = "total_payable"`},
-		{"text rule", `formula = "net_premium + gst"`, `text = "Net premium plus GST"`, "text-rule", Warning, `text = `},
-		{"open question", `name   = "Zone"`, "name   = \"Zone\"\nopen_questions = [\"Which zone for new cities?\"]", "open-question", Warning, `open_questions`},
-		{"schema: bad display", `title   = "Health policy premium"`, `title   = "Health policy premium"
+  field = "totalAmount"
+  usage = "R"`, `formula = "net_amount + sales_tax"`, "unused", Error, `id      = "total"`},
+		{"text rule", `formula = "net_amount + sales_tax"`, `text = "Net amount plus sales tax"`, "text-rule", Warning, `text = `},
+		{"open question", `name   = "Shipping zone"`, "name   = \"Shipping zone\"\nopen_questions = [\"Which zone for new countries?\"]", "open-question", Warning, `open_questions`},
+		{"schema: bad display", `title   = "Online order checkout"`, `title   = "Online order checkout"
 
 [display]
 evidence = "maybe"`, "schema", Error, `evidence = "maybe"`},
-		{"schema: unknown display column", `title   = "Health policy premium"`, `title   = "Health policy premium"
+		{"schema: unknown display column", `title   = "Online order checkout"`, `title   = "Online order checkout"
 
 [display.columns]
-send = "Sent to Acme as"
+send = "Sent to billing as"
 sent = "typo"`, "schema", Error, `[display.columns]`},
 		{"schema: bad usage", `  usage = "R"
   map   = { Standard`, `  usage = "X"
@@ -125,27 +125,28 @@ func TestTargetSchema(t *testing.T) {
 	dir := t.TempDir()
 	schema := `{
 	  "type": "object",
-	  "required": ["planCode", "netPremium", "policyTerm"],
+	  "required": ["shippingMethod", "netAmount", "currency"],
 	  "properties": {
-	    "planCode": {"type": "string"}, "sumInsured": {"type": "number"},
-	    "riskClassCode": {"type": "string"}, "waitingPeriodMonths": {"type": "number"},
-	    "underwritingType": {"type": "string"}, "netPremium": {"type": "number"},
-	    "gstAmount": {"type": "number"}, "policyTerm": {"type": "number"}
+	    "shippingMethod": {"type": "string"}, "subtotal": {"type": "number"},
+	    "loyaltyTier": {"type": "string"}, "discountAmount": {"type": "number"},
+	    "freeShipping": {"type": "boolean"}, "shippingCost": {"type": "number"},
+	    "customsValue": {"type": "number"}, "netAmount": {"type": "number"},
+	    "salesTax": {"type": "number"}, "currency": {"type": "string"}
 	  }
 	}`
-	if err := os.WriteFile(filepath.Join(dir, "partner.json"), []byte(schema), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "target.json"), []byte(schema), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	text := strings.Replace(fixtureText(t), `title   = "Health policy premium"`,
-		`title   = "Health policy premium"`+"\ntarget_schema = "+quote(filepath.ToSlash(filepath.Join(dir, "partner.json"))), 1)
+	text := strings.Replace(fixtureText(t), `title   = "Online order checkout"`,
+		`title   = "Online order checkout"`+"\ntarget_schema = "+quote(filepath.ToSlash(filepath.Join(dir, "target.json"))), 1)
 	rep := run(t, text)
 	var unknown, unsent bool
 	for _, d := range rep.Diagnostics {
 		t.Log(d)
-		if d.Code == "send-field-unknown" && strings.Contains(d.Message, "totalPayable") {
+		if d.Code == "send-field-unknown" && strings.Contains(d.Message, "totalAmount") {
 			unknown = true
 		}
-		if d.Code == "target-required-unsent" && strings.Contains(d.Message, "policyTerm") {
+		if d.Code == "target-required-unsent" && strings.Contains(d.Message, "currency") {
 			unsent = true
 		}
 	}

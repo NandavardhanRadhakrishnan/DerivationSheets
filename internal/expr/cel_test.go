@@ -7,32 +7,32 @@ import (
 )
 
 func TestCELEval(t *testing.T) {
-	e, err := NewCEL([]string{"base_premium", "loading", "net_premium", "gst_rate", "age", "dob", "request_time", "has_ped"})
+	e, err := NewCEL([]string{"subtotal", "discount_rate", "net_amount", "tax_rate", "years", "signup_date", "request_time", "is_member"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	rt, _ := time.Parse(time.RFC3339, "2026-11-02T10:00:00+05:30")
-	dob := time.Date(1980, 4, 12, 0, 0, 0, 0, time.UTC)
+	signup := time.Date(2020, 3, 15, 0, 0, 0, 0, time.UTC)
 	vars := map[string]any{
-		"base_premium": 15800.0, "loading": 0.35, "net_premium": 21330.0, "gst_rate": 0.18,
-		"age": 46.0, "dob": dob, "request_time": rt, "has_ped": true,
+		"subtotal": 80.0, "discount_rate": 0.1, "net_amount": 72.0, "tax_rate": 0.08,
+		"years": 6.0, "signup_date": signup, "request_time": rt, "is_member": true,
 	}
 	ctx := Context{RequestTime: rt, HasRequestTime: true}
 	cases := []struct {
 		src  string
 		want any
 	}{
-		{"round(base_premium * (1.0 + loading))", 21330.0},
-		{"round(net_premium * gst_rate)", 3839.0},
-		{"years_between(dob, request_time)", 46.0},
-		{"age > 65", false},
-		{"age >= 46", true},
-		{"base_premium * 2", 31600.0},
-		{"2 + loading", 2.35},
-		{"base_premium - 800", 15000.0},
+		{"round(subtotal * (1.0 - discount_rate))", 72.0},
+		{"round(net_amount * tax_rate)", 6.0},
+		{"years_between(signup_date, request_time)", 6.0},
+		{"years > 10", false},
+		{"years >= 6", true},
+		{"subtotal * 2", 160.0},
+		{"2 + discount_rate", 2.1},
+		{"subtotal - 8", 72.0},
 		{`"a1" + "2" == "a12"`, true},
-		{"has_ped == true", true},
-		{"years_between(dob, today())", 46.0},
+		{"is_member == true", true},
+		{"years_between(signup_date, today())", 6.0},
 	}
 	for _, c := range cases {
 		p, err := e.Compile(c.src)
@@ -51,11 +51,11 @@ func TestCELEval(t *testing.T) {
 
 func TestCELIdentifiers(t *testing.T) {
 	e, _ := NewCEL(nil)
-	got, err := e.Identifiers("round(net_premium * gst_rate) + [1,2].filter(x, x > age).size()")
+	got, err := e.Identifiers("round(net_amount * tax_rate) + [1,2].filter(x, x > years).size()")
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"net_premium", "gst_rate", "age"}
+	want := []string{"net_amount", "tax_rate", "years"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %v want %v", got, want)
 	}

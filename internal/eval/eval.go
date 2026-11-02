@@ -60,7 +60,7 @@ type Result struct {
 	Status  map[string]string
 	Steps   []*Step
 	ByRow   map[string]*Step
-	Payload map[string]any // partner payload; nested for dotted fields
+	Payload map[string]any // output payload sent to the target; nested for dotted fields
 	Sent    []SentField
 	Reject  *Rejection
 	Err     *Error
@@ -94,7 +94,7 @@ type SendStep struct {
 	Optional bool `json:"optional,omitempty"`
 }
 
-// SentField is one field of the partner payload.
+// SentField is one field of the output payload.
 type SentField struct {
 	Field    string
 	Row      string

@@ -37,7 +37,7 @@ var DefaultDisplay = Display{
 		"number":   "#",
 		"value":    "Value",
 		"rule":     "Rule",
-		"send":     "Sent to partner as",
+		"send":     "Sent as",
 		"evidence": "Evidence",
 	},
 	Sections: map[string]string{

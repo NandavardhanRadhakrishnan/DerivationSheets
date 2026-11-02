@@ -31,8 +31,8 @@ type Run struct {
 	// Rows holds evidence per row ID.
 	Rows map[string]*Tally `json:"rows"`
 	// Branches holds evidence per branch: decision-table rules
-	// ("risk_class:[true,true]"), rejects ("age:reject:AGE_LIMIT"), situational
-	// conditions ("waiting_period:send.when:true") and inline lookup values
+	// ("loyalty_tier:[true,>= 2]"), rejects ("zone:reject:DESTINATION_NOT_SERVED"),
+	// situational conditions ("customs_value:send.when:true") and inline lookup values
 	// ("loading:High"). Keys match the covers in cases.toml.
 	Branches map[string]*Tally `json:"branches"`
 	// Notes are run-level problems, such as cases with no result.

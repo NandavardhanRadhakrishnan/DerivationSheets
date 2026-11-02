@@ -12,7 +12,7 @@ import (
 
 func fixture(t *testing.T) *eval.Engine {
 	t.Helper()
-	s, err := sheet.Load(filepath.Join("..", "..", "specs", "premium-calculation"))
+	s, err := sheet.Load(filepath.Join("..", "..", "specs", "order-checkout"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,11 +47,11 @@ func TestGenerateCoversEverything(t *testing.T) {
 	}
 	// The acceptance criteria name these explicitly.
 	for _, k := range []string{
-		"risk_class:[false,false]", "risk_class:[false,true]", "risk_class:[true,false]", "risk_class:[true,true]",
-		"medical_check:[>= 46,-]", "medical_check:[-,High]", "medical_check:[-,-]",
-		"age:reject:AGE_LIMIT",
-		"waiting_period:send.when:true", "waiting_period:send.when:false",
-		"age:isolation", "zone:isolation", "base_premium:isolation", "loading:isolation",
+		"loyalty_tier:[false,< 2]", "loyalty_tier:[false,>= 2]", "loyalty_tier:[true,< 2]", "loyalty_tier:[true,>= 2]",
+		"free_shipping:[>= 100,-]", "free_shipping:[-,Gold]", "free_shipping:[-,-]",
+		"zone:reject:DESTINATION_NOT_SERVED",
+		"customs_value:send.when:true", "customs_value:send.when:false",
+		"customer_years:isolation", "zone:isolation", "discount_rate:isolation", "shipping_fee:isolation",
 	} {
 		if !covered[k] {
 			t.Errorf("%s not covered", k)
@@ -93,7 +93,7 @@ func TestWriteRead(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(f.Cases) != len(res.Cases) || f.Version != 1 || f.Sheet != "premium-calculation" {
+	if len(f.Cases) != len(res.Cases) || f.Version != 1 || f.Sheet != "order-checkout" {
 		t.Fatalf("read back %d cases, version %d, sheet %q", len(f.Cases), f.Version, f.Sheet)
 	}
 	for i, c := range f.Cases {

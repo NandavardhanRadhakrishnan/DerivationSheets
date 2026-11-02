@@ -217,7 +217,7 @@ type Reject struct {
 	Message string
 }
 
-// Send describes how a row is sent to the partner.
+// Send describes how a row is sent to the target.
 type Send struct {
 	Field     string
 	Usage     string

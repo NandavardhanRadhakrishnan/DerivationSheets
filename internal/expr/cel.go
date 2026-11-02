@@ -19,7 +19,7 @@ import (
 // a single number type, so every number is a CEL double: integer literals in
 // an expression are read as doubles (`x * 2` means `x * 2.0`), and the custom
 // functions return doubles. Without this, CEL's strict numeric rules would
-// reject `base_premium * 2`. Comparisons across int and double are also
+// reject `subtotal * 2`. Comparisons across int and double are also
 // enabled, for values such as size() that CEL itself returns as int.
 type CEL struct {
 	env   *cel.Env

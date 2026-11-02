@@ -1,4 +1,4 @@
-// Package verify compares actual partner payloads, captured by QA for each
+// Package verify compares actual output payloads, captured by QA for each
 // case, with the expected outputs in cases.toml, and turns the comparison
 // into evidence per row and per branch.
 package verify
@@ -27,7 +27,7 @@ type Actual struct {
 // ReadResults reads results.json. Accepted shapes:
 //
 //	{ "cases": { "<case-id>": { "payload": { ... } } } }
-//	{ "<case-id>": { "reject": "AGE_LIMIT" } }
+//	{ "<case-id>": { "reject": "DESTINATION_NOT_SERVED" } }
 //	{ "<case-id>": { ...payload fields... } }
 //
 // An entry is a bare payload unless its only key is "payload" or "reject".

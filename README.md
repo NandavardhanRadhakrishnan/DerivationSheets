@@ -1,8 +1,10 @@
 # DerivationSheets
 
-A derivation sheet documents how an API turns an incoming request into a call
-to a partner API: which values are derived from which, which fields are sent
-only under certain conditions, and where lookups come from. The same document
+A derivation sheet documents how a service turns an incoming request into a
+call to another system: which values are derived from which, which fields are
+sent only under certain conditions, and where lookups come from. The target can
+be anything a request is passed on to: another service in the same team,
+another team's API, or an external system in a different organisation. The same document
 serves as the specification at design time, as generated test cases during
 build and test, and, with evidence, as a readable view in production.
 
@@ -18,17 +20,23 @@ Requires Go 1.27 or later.
 ```sh
 go build -o bin/dsheets ./cmd/dsheets
 
-bin/dsheets validate specs/premium-calculation
-bin/dsheets cases    specs/premium-calculation          # writes cases.toml
-bin/dsheets eval     specs/premium-calculation --case risk-class-high
-bin/dsheets verify   specs/premium-calculation --actual examples/results.json
-bin/dsheets render   specs/premium-calculation --out sheet.html
-bin/dsheets serve    specs/premium-calculation          # http://localhost:8080/
+bin/dsheets validate specs/order-checkout
+bin/dsheets cases    specs/order-checkout          # writes cases.toml
+bin/dsheets eval     specs/order-checkout --case loyalty-tier-gold
+bin/dsheets verify   specs/order-checkout --actual examples/results.json
+bin/dsheets render   specs/order-checkout --out sheet.html
+bin/dsheets serve    specs/order-checkout          # http://localhost:8080/
 ```
 
-`examples/results.json` changes one partner value (`netPremium` in case
-`risk-class-high`), so `verify` reports a contradiction and exits with code 1.
-The rendered sheet then marks Net premium as contradicted. `examples/sheet.html`
+The example workflow, `specs/order-checkout`, prices an online order: a
+loyalty tier from membership and years as a customer, a discount, free
+shipping rules, a shipping fee looked up by zone, method and weight, a customs
+value sent only for orders leaving the country, sales tax, and a reject for
+destinations that are not served.
+
+`examples/results.json` changes one output value (`shippingCost` in case
+`isolate-zone`), so `verify` reports a contradiction and exits with code 1.
+The rendered sheet then marks Shipping cost as contradicted. `examples/sheet.html`
 is that render.
 
 ## Commands
@@ -38,7 +46,7 @@ is that render.
 | `validate <workflow> [--json]` | Checks `sheet.toml` and its data. Reports errors and warnings with file and line. Exits 1 on errors. |
 | `cases <workflow>` | Writes `cases.toml`: the smallest practical set of cases that covers every decision-table rule, reject, both sides of every situational `when`, and isolation pairs for rows that are not sent. |
 | `eval <workflow> --case ID` | Evaluates one input and prints every row's value, which table rule or lookup entry fired, rejects, and send decisions. Inputs can also come from `--input` (values by row ID) or `--request` and `--context` (read by source path). `--json` prints the result and trace as JSON. |
-| `verify <workflow> --actual results.json` | Compares the partner payloads QA captured with the expected values, then records evidence per row and per decision-table cell. Contradictions name the case and the field. Exits 1 on contradictions. |
+| `verify <workflow> --actual results.json` | Compares the output payloads that tests captured with the expected values, then records evidence per row and per decision-table cell. Contradictions name the case and the field. Exits 1 on contradictions. |
 | `render <workflow> --out sheet.html` | Writes one self-contained HTML file with the latest evidence for the sheet's version merged in. Works offline and prints on A4 or Letter landscape. `--evidence shown\|hidden` sets the initial state of the page's evidence switch; `--no-evidence` leaves evidence out entirely. |
 | `serve <workflow>` | Serves the same page on localhost, re-rendered on every request, so edits show on reload. Takes the same evidence flags. |
 | `schema` | Prints the JSON Schema for `sheet.toml`. |
@@ -78,7 +86,7 @@ evidence = "hidden"            # initial state of the evidence switch: "shown" (
 number   = "#"
 value    = "Value"
 rule     = "Rule"
-send     = "Sent to Acme as"   # often names the partner, so set it per sheet
+send     = "Sent as"           # can name the target, e.g. "Sent to billing as"
 evidence = "Evidence"
 
 [display.sections]
@@ -95,13 +103,13 @@ script, and a printed page shows whatever state is on screen.
 
 ## results.json
 
-`verify` reads the actual partner payloads keyed by case ID:
+`verify` reads the actual output payloads, keyed by case ID:
 
 ```json
 {
   "cases": {
-    "risk-class-high":  { "payload": { "riskClassCode": "HIGH", "netPremium": 12879 } },
-    "reject-age-limit": { "reject": "AGE_LIMIT" }
+    "loyalty-tier-gold":             { "payload": { "loyaltyTier": "GLD", "totalAmount": 96 } },
+    "reject-destination-not-served": { "reject": "DESTINATION_NOT_SERVED" }
   }
 }
 ```

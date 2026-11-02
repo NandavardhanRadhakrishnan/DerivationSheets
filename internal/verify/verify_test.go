@@ -16,7 +16,7 @@ import (
 
 func setup(t *testing.T) (*eval.Engine, *cases.File) {
 	t.Helper()
-	s, err := sheet.Load(filepath.Join("..", "..", "specs", "premium-calculation"))
+	s, err := sheet.Load(filepath.Join("..", "..", "specs", "order-checkout"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,41 +72,41 @@ func TestAllMatch(t *testing.T) {
 			t.Errorf("row %s is %s", r.ID, st.State)
 		}
 	}
-	if st := evidence.BranchStatus(rep.Run, "age:reject:AGE_LIMIT"); st.State != evidence.Verified {
-		t.Errorf("age reject is %s", st.State)
+	if st := evidence.BranchStatus(rep.Run, "zone:reject:DESTINATION_NOT_SERVED"); st.State != evidence.Verified {
+		t.Errorf("zone reject is %s", st.State)
 	}
 }
 
 func TestOneValueChanged(t *testing.T) {
 	e, cf := setup(t)
 	res := perfect(cf)
-	// Change riskClassCode in the first case that sends HIGH.
+	// Change loyaltyTier in the first case that sends GLD.
 	var target string
 	for _, c := range cf.Cases {
 		for _, f := range c.Expected {
-			if f.Name == "riskClassCode" && f.Value == "HIGH" && target == "" {
+			if f.Name == "loyaltyTier" && f.Value == "GLD" && target == "" {
 				target = c.ID
 			}
 		}
 	}
-	res[target].(map[string]any)["payload"].(map[string]any)["riskClassCode"] = "ELV"
+	res[target].(map[string]any)["payload"].(map[string]any)["loyaltyTier"] = "SLV"
 	results, _ := ReadResults(write(t, res))
 	rep := Verify(e, cf, results, "results.json", time.Now())
 	t.Log(rep.Problems)
-	if len(rep.Problems) != 1 || !strings.Contains(rep.Problems[0], target) || !strings.Contains(rep.Problems[0], "riskClassCode") {
-		t.Fatalf("problems = %v; want one naming case %q and field riskClassCode", rep.Problems, target)
+	if len(rep.Problems) != 1 || !strings.Contains(rep.Problems[0], target) || !strings.Contains(rep.Problems[0], "loyaltyTier") {
+		t.Fatalf("problems = %v; want one naming case %q and field loyaltyTier", rep.Problems, target)
 	}
-	if st := evidence.RowStatus(rep.Run, "risk_class", nil); st.State != evidence.Contradicted {
-		t.Errorf("risk_class is %s", st.State)
+	if st := evidence.RowStatus(rep.Run, "loyalty_tier", nil); st.State != evidence.Contradicted {
+		t.Errorf("loyalty_tier is %s", st.State)
 	}
-	if st := evidence.BranchStatus(rep.Run, "risk_class:[true,true]"); st.State != evidence.Contradicted {
-		t.Errorf("cell [true,true] is %s", st.State)
+	if st := evidence.BranchStatus(rep.Run, "loyalty_tier:[true,>= 2]"); st.State != evidence.Contradicted {
+		t.Errorf("cell [true,>= 2] is %s", st.State)
 	}
-	if st := evidence.BranchStatus(rep.Run, "risk_class:[false,false]"); st.State != evidence.Verified {
-		t.Errorf("cell [false,false] is %s", st.State)
+	if st := evidence.BranchStatus(rep.Run, "loyalty_tier:[false,< 2]"); st.State != evidence.Verified {
+		t.Errorf("cell [false,< 2] is %s", st.State)
 	}
 	// Rows upstream, and rows whose own outputs matched, stay verified.
-	for _, id := range []string{"is_smoker", "has_ped", "loading", "net_premium", "medical_check"} {
+	for _, id := range []string{"is_member", "customer_years", "discount_rate", "discount", "free_shipping", "net_amount"} {
 		if st := evidence.RowStatus(rep.Run, id, nil); st.State != evidence.Verified {
 			t.Errorf("%s is %s", id, st.State)
 		}
@@ -123,17 +123,17 @@ func TestSentWhenItShouldNotBe(t *testing.T) {
 		}
 		has := false
 		for _, f := range c.Expected {
-			has = has || f.Name == "waitingPeriodMonths"
+			has = has || f.Name == "customsValue"
 		}
 		if !has {
 			target = c.ID
 			break
 		}
 	}
-	res[target].(map[string]any)["payload"].(map[string]any)["waitingPeriodMonths"] = 24
+	res[target].(map[string]any)["payload"].(map[string]any)["customsValue"] = 94
 	results, _ := ReadResults(write(t, res))
 	rep := Verify(e, cf, results, "results.json", time.Now())
-	if st := evidence.BranchStatus(rep.Run, "waiting_period:send.when:false"); st.State != evidence.Contradicted {
+	if st := evidence.BranchStatus(rep.Run, "customs_value:send.when:false"); st.State != evidence.Contradicted {
 		t.Errorf("send.when:false is %s; problems %v", st.State, rep.Problems)
 	}
 }

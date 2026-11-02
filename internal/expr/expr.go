@@ -41,6 +41,6 @@ type FunctionDoc struct {
 // CustomFunctions documents the functions every engine must provide.
 var CustomFunctions = []FunctionDoc{
 	{"round(x)", "Rounds a number to the nearest whole number, halves away from zero. Returns a number."},
-	{"years_between(a, b)", "Whole years from date or datetime a to b, counting a year only once its anniversary is reached. Used for ages."},
+	{"years_between(a, b)", "Whole years from date or datetime a to b, counting a year only once its anniversary is reached. Used for ages, tenures and similar durations."},
 	{"today()", "The date of context.request_time, in that time's own offset. Never the real clock. A sheet that calls today() needs a row with source context.request_time."},
 }

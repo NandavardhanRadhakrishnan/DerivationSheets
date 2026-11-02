@@ -10,7 +10,7 @@ for `sheet.toml` in any editor that uses Taplo.
      ```toml
      #:schema ../../schema/sheet.schema.json
      ```
-     The fixture `specs/premium-calculation/sheet.toml` does this.
+     The fixture `specs/order-checkout/sheet.toml` does this.
    - **Per repository:** the `.taplo.toml` at the repository root attaches the
      schema to `specs/**/sheet.toml`. The extension picks it up automatically.
 3. Reload the window. Typing `[[row]]` and then a key offers completions, and an

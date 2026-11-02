@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="DerivationSheets">
 <link rel="icon" href="data:,">
-<title>Health policy premium</title>
+<title>Online order checkout</title>
 <style>:root {
   --bg: #ffffff;
   --fg: #1b1b1b;
@@ -246,42 +246,80 @@ h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; margin:
 <input type="checkbox" id="show-evidence" class="ev-toggle" checked>
 <header class="head">
   <div class="head-top">
-    <div class="kicker">Derivation sheet · <code>premium-calculation</code> · version 1</div>
+    <div class="kicker">Derivation sheet · <code>order-checkout</code> · version 1</div>
     <label for="show-evidence" class="ev-switch" title="Show or hide evidence from tests and traces"><span class="track"><span class="knob"></span></span>Show evidence</label>
   </div>
-  <h1>Health policy premium</h1>
+  <h1>Online order checkout</h1>
   <p class="meta"><span class="evd">Tests: 7 cases from results.json, run 2 Nov 2026<span class="sep"> · </span></span>Database and config snapshot: 2 Nov 2026</p>
 </header>
 
 <table class="sheet">
   <colgroup>
     <col class="c-num"><col class="c-value">
-    <col class="c-grid"><col class="c-grid"><col class="c-grid"><col class="c-grid"><col class="c-grid"><col class="c-grid"><col class="c-grid"><col class="c-grid"><col class="c-grid"><col class="c-grid"><col class="c-grid"><col class="c-grid"><col class="c-grid"><col class="c-grid">
+    <col class="c-grid"><col class="c-grid"><col class="c-grid"><col class="c-grid"><col class="c-grid"><col class="c-grid"><col class="c-grid"><col class="c-grid"><col class="c-grid"><col class="c-grid"><col class="c-grid"><col class="c-grid"><col class="c-grid"><col class="c-grid"><col class="c-grid"><col class="c-grid"><col class="c-grid">
     <col class="c-rule"><col class="c-send">
   </colgroup>
   <thead>
     <tr>
       <th class="num">#</th>
       <th class="value">Value</th>
-      <th class="gh" title="uses line 1">1</th><th class="gh" title="uses line 2">2</th><th class="gh" title="uses line 3">3</th><th class="gh" title="uses line 4">4</th><th class="gh" title="uses line 5">5</th><th class="gh" title="uses line 6">6</th><th class="gh" title="uses line 7">7</th><th class="gh" title="uses line 8">8</th><th class="gh" title="uses line 9">9</th><th class="gh" title="uses line 10">10</th><th class="gh" title="uses line 12">12</th><th class="gh" title="uses line 13">13</th><th class="gh" title="uses line 15">15</th><th class="gh" title="uses line 16">16</th>
+      <th class="gh" title="uses line 1">1</th><th class="gh" title="uses line 2">2</th><th class="gh" title="uses line 3">3</th><th class="gh" title="uses line 4">4</th><th class="gh" title="uses line 5">5</th><th class="gh" title="uses line 6">6</th><th class="gh" title="uses line 7">7</th><th class="gh" title="uses line 8">8</th><th class="gh" title="uses line 9">9</th><th class="gh" title="uses line 10">10</th><th class="gh" title="uses line 11">11</th><th class="gh" title="uses line 12">12</th><th class="gh" title="uses line 13">13</th><th class="gh" title="uses line 14">14</th><th class="gh" title="uses line 15">15</th><th class="gh" title="uses line 17">17</th><th class="gh" title="uses line 18">18</th>
       <th class="rule">Rule</th>
-      <th class="send">Sent to partner as</th>
+      <th class="send">Sent as</th>
       <th class="ev evd">Evidence</th>
     </tr>
   </thead>
   
   <tbody class="section">
-    <tr class="sec"><th colspan="19">From the request</th></tr>
+    <tr class="sec"><th colspan="22">From the request</th></tr>
     
-    <tr class="row" id="row-dob" data-id="dob" data-deps="">
+    <tr class="row" id="row-signup_date" data-id="signup_date" data-deps="">
       <td class="num">1</td>
       <td class="value">
-        <div class="name">Date of birth</div>
-        <div class="sub"><code>dob</code></div>
-        <div class="sub src-path"><code>request.<wbr>applicant.<wbr>dob</code></div>
+        <div class="name">Signup date</div>
+        <div class="sub"><code>signup_date</code></div>
+        <div class="sub src-path"><code>request.<wbr>customer.<wbr>signupDate</code></div>
         
       </td>
-      <td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
+      <td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
+      <td class="rule">
+        
+        
+      </td>
+      <td class="send">
+        
+      </td>
+      <td class="ev evd verified">● 6</td>
+    </tr>
+    
+    <tr class="row" id="row-is_member" data-id="is_member" data-deps="">
+      <td class="num">2</td>
+      <td class="value">
+        <div class="name">Member</div>
+        <div class="sub"><code>is_member</code></div>
+        <div class="sub src-path"><code>request.<wbr>customer.<wbr>isMember</code></div>
+        
+      </td>
+      <td class="g"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
+      <td class="rule">
+        
+        
+      </td>
+      <td class="send">
+        
+      </td>
+      <td class="ev evd verified">● 6</td>
+    </tr>
+    
+    <tr class="row" id="row-country" data-id="country" data-deps="">
+      <td class="num">3</td>
+      <td class="value">
+        <div class="name">Destination country</div>
+        <div class="sub"><code>country</code></div>
+        <div class="sub src-path"><code>request.<wbr>shipping.<wbr>country</code></div>
+        
+      </td>
+      <td class="g"></td><td class="g"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
       <td class="rule">
         
         
@@ -292,79 +330,22 @@ h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; margin:
       <td class="ev evd verified">● 7</td>
     </tr>
     
-    <tr class="row" id="row-city" data-id="city" data-deps="">
-      <td class="num">2</td>
-      <td class="value">
-        <div class="name">City</div>
-        <div class="sub"><code>city</code></div>
-        <div class="sub src-path"><code>request.<wbr>applicant.<wbr>city</code></div>
-        
-      </td>
-      <td class="g"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
-      <td class="rule">
-        
-        
-      </td>
-      <td class="send">
-        
-      </td>
-      <td class="ev evd verified">● 6</td>
-    </tr>
-    
-    <tr class="row" id="row-is_smoker" data-id="is_smoker" data-deps="">
-      <td class="num">3</td>
-      <td class="value">
-        <div class="name">Smoker</div>
-        <div class="sub"><code>is_smoker</code></div>
-        <div class="sub src-path"><code>request.<wbr>applicant.<wbr>isSmoker</code></div>
-        
-      </td>
-      <td class="g"></td><td class="g"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
-      <td class="rule">
-        
-        
-      </td>
-      <td class="send">
-        
-      </td>
-      <td class="ev evd verified">● 6</td>
-    </tr>
-    
-    <tr class="row" id="row-has_ped" data-id="has_ped" data-deps="">
+    <tr class="row" id="row-shipping_method" data-id="shipping_method" data-deps="">
       <td class="num">4</td>
       <td class="value">
-        <div class="name">Has pre-existing disease</div>
-        <div class="sub"><code>has_ped</code></div>
-        <div class="sub src-path"><code>request.<wbr>medical.<wbr>hasPED</code></div>
+        <div class="name">Shipping method</div>
+        <div class="sub"><code>shipping_method</code></div>
+        <div class="sub src-path"><code>request.<wbr>shipping.<wbr>method</code></div>
         
       </td>
-      <td class="g"></td><td class="g"></td><td class="g"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
+      <td class="g"></td><td class="g"></td><td class="g"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
       <td class="rule">
         
         
       </td>
       <td class="send">
         
-      </td>
-      <td class="ev evd verified">● 6</td>
-    </tr>
-    
-    <tr class="row" id="row-plan" data-id="plan" data-deps="">
-      <td class="num">5</td>
-      <td class="value">
-        <div class="name">Plan</div>
-        <div class="sub"><code>plan</code></div>
-        <div class="sub src-path"><code>request.<wbr>policy.<wbr>planCode</code></div>
-        
-      </td>
-      <td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
-      <td class="rule">
-        
-        
-      </td>
-      <td class="send">
-        
-          <div class="field"><code>planCode</code></div>
+          <div class="field"><code>shippingMethod</code></div>
           <div class="usage"><b>R</b></div>
           
         
@@ -372,22 +353,41 @@ h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; margin:
       <td class="ev evd verified">● 6</td>
     </tr>
     
-    <tr class="row" id="row-sum_insured" data-id="sum_insured" data-deps="">
-      <td class="num">6</td>
+    <tr class="row" id="row-weight_kg" data-id="weight_kg" data-deps="">
+      <td class="num">5</td>
       <td class="value">
-        <div class="name">Sum insured</div>
-        <div class="sub"><code>sum_insured</code></div>
-        <div class="sub src-path"><code>request.<wbr>policy.<wbr>sumInsured</code></div>
+        <div class="name">Parcel weight (kg)</div>
+        <div class="sub"><code>weight_kg</code></div>
+        <div class="sub src-path"><code>request.<wbr>order.<wbr>weightKg</code></div>
         
       </td>
-      <td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
+      <td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
       <td class="rule">
         
         
       </td>
       <td class="send">
         
-          <div class="field"><code>sumInsured</code></div>
+      </td>
+      <td class="ev evd verified">● 6</td>
+    </tr>
+    
+    <tr class="row" id="row-subtotal" data-id="subtotal" data-deps="">
+      <td class="num">6</td>
+      <td class="value">
+        <div class="name">Subtotal</div>
+        <div class="sub"><code>subtotal</code></div>
+        <div class="sub src-path"><code>request.<wbr>order.<wbr>subtotal</code></div>
+        
+      </td>
+      <td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
+      <td class="rule">
+        
+        
+      </td>
+      <td class="send">
+        
+          <div class="field"><code>subtotal</code></div>
           <div class="usage"><b>R</b></div>
           
         
@@ -398,7 +398,7 @@ h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; margin:
   </tbody>
   
   <tbody class="section">
-    <tr class="sec"><th colspan="19">From context</th></tr>
+    <tr class="sec"><th colspan="22">From context</th></tr>
     
     <tr class="row" id="row-request_time" data-id="request_time" data-deps="">
       <td class="num">7</td>
@@ -408,7 +408,7 @@ h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; margin:
         <div class="sub src-path"><code>context.<wbr>request_time</code></div>
         
       </td>
-      <td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
+      <td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
       <td class="rule">
         
         
@@ -416,26 +416,45 @@ h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; margin:
       <td class="send">
         
       </td>
-      <td class="ev evd verified">● 7</td>
+      <td class="ev evd verified">● 6</td>
     </tr>
     
   </tbody>
   
   <tbody class="section">
-    <tr class="sec"><th colspan="19">Derived</th></tr>
+    <tr class="sec"><th colspan="22">Derived</th></tr>
     
-    <tr class="row" id="row-age" data-id="age" data-deps="dob request_time">
+    <tr class="row" id="row-customer_years" data-id="customer_years" data-deps="signup_date request_time">
       <td class="num">8</td>
       <td class="value">
-        <div class="name">Age</div>
-        <div class="sub"><code>age</code></div>
+        <div class="name">Years as customer</div>
+        <div class="sub"><code>customer_years</code></div>
         
         
       </td>
-      <td class="g" title="line 8 uses line 1">●</td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g" title="line 8 uses line 7">●</td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
+      <td class="g" title="line 8 uses line 1">●</td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g" title="line 8 uses line 7">●</td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
       <td class="rule">
-        <span class="formula"><span class="fn">years_between</span>(<span class="ref" title="dob">Date of birth<sup>1</sup></span>, <span class="ref" title="request_time">Request time<sup>7</sup></span>)</span>
-        <div class="reject"><span class="ref" title="age">Age<sup>8</sup></span> &gt; 65 → reject <code>AGE_LIMIT</code></div>
+        <span class="formula"><span class="fn">years_between</span>(<span class="ref" title="signup_date">Signup date<sup>1</sup></span>, <span class="ref" title="request_time">Request time<sup>7</sup></span>)</span>
+        
+      </td>
+      <td class="send">
+        
+      </td>
+      <td class="ev evd verified">● 6</td>
+    </tr>
+    
+    <tr class="row" id="row-zone" data-id="zone" data-deps="country">
+      <td class="num">9</td>
+      <td class="value">
+        <div class="name">Shipping zone</div>
+        <div class="sub"><code>zone</code></div>
+        
+        
+      </td>
+      <td class="g"></td><td class="g"></td><td class="g" title="line 9 uses line 3">●</td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
+      <td class="rule">
+        Look up by <span class="ref" title="country">Destination country<sup>3</sup></span>: <span class="cases"><span class="case">US <b>DOMESTIC</b></span> <span class="sep">·</span> <span class="case">CA <b>REGIONAL</b></span> <span class="sep">·</span> <span class="case">MX <b>REGIONAL</b></span> <span class="sep">·</span> <span class="case">GB <b>INTERNATIONAL</b></span> <span class="sep">·</span> <span class="case">DE <b>INTERNATIONAL</b></span> <span class="sep">·</span> <span class="case">IN <b>INTERNATIONAL</b></span> <span class="sep">·</span> <span class="case">JP <b>INTERNATIONAL</b></span> <span class="sep">·</span> <span class="case">AQ <b>NONE</b></span></span> <span class="src"><span class="src-kind">DB</span> shipping_zones</span>
+        <div class="reject"><span class="ref" title="zone">Shipping zone<sup>9</sup></span> = <span class="lit">&#34;NONE&#34;</span> → reject <code>DESTINATION_NOT_SERVED</code></div>
       </td>
       <td class="send">
         
@@ -443,148 +462,129 @@ h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; margin:
       <td class="ev evd verified">● 7</td>
     </tr>
     
-    <tr class="row" id="row-zone" data-id="zone" data-deps="city">
-      <td class="num">9</td>
-      <td class="value">
-        <div class="name">Zone</div>
-        <div class="sub"><code>zone</code></div>
-        
-        
-      </td>
-      <td class="g"></td><td class="g" title="line 9 uses line 2">●</td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
-      <td class="rule">
-        Look up by <span class="ref" title="city">City<sup>2</sup></span>: <span class="cases"><span class="case">Mumbai <b>A</b></span> <span class="sep">·</span> <span class="case">Delhi <b>A</b></span> <span class="sep">·</span> <span class="case">Bengaluru <b>A</b></span> <span class="sep">·</span> <span class="case">Pune <b>B</b></span> <span class="sep">·</span> <span class="case">Nagpur <b>B</b></span></span> <span class="src"><span class="src-kind">DB</span> city_zones</span>
-        
-      </td>
-      <td class="send">
-        
-      </td>
-      <td class="ev evd verified">● 6</td>
-    </tr>
-    
-    <tr class="row" id="row-risk_class" data-id="risk_class" data-deps="is_smoker has_ped">
+    <tr class="row" id="row-loyalty_tier" data-id="loyalty_tier" data-deps="is_member customer_years">
       <td class="num">10</td>
       <td class="value">
-        <div class="name">Risk class</div>
-        <div class="sub"><code>risk_class</code></div>
+        <div class="name">Loyalty tier</div>
+        <div class="sub"><code>loyalty_tier</code></div>
         
         
       </td>
-      <td class="g"></td><td class="g"></td><td class="g" title="line 10 uses line 3">●</td><td class="g" title="line 10 uses line 4">●</td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
+      <td class="g"></td><td class="g" title="line 10 uses line 2">●</td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g" title="line 10 uses line 8">●</td><td class="g"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
       <td class="rule">
-        <table class="g2"><thead><tr><th class="corner"><span class="ref" title="is_smoker">Smoker<sup>3</sup></span> ╲ <span class="ref" title="has_ped">Has pre-existing disease<sup>4</sup></span></th><th>Yes</th><th>No</th></tr></thead><tbody><tr><th>Yes</th><td class="verified" title="rule 4">High</td><td class="verified" title="rule 3">Elevated</td></tr><tr><th>No</th><td class="verified" title="rule 2">Elevated</td><td class="verified" title="rule 1">Standard</td></tr></tbody></table>
+        <table class="g2"><thead><tr><th class="corner"><span class="ref" title="is_member">Member<sup>2</sup></span> ╲ <span class="ref" title="customer_years">Years as customer<sup>8</sup></span></th><th>&lt; 2</th><th>≥ 2</th></tr></thead><tbody><tr><th>Yes</th><td class="verified" title="rule 3">Silver</td><td class="verified" title="rule 4">Gold</td></tr><tr><th>No</th><td class="verified" title="rule 1">Standard</td><td class="verified" title="rule 2">Silver</td></tr></tbody></table>
         
       </td>
       <td class="send">
         
-          <div class="field"><code>riskClassCode</code></div>
+          <div class="field"><code>loyaltyTier</code></div>
           <div class="usage"><b>R</b></div>
-          <div class="map">Standard→<code>STD</code> · Elevated→<code>ELV</code> · High→<code>HIGH</code></div>
+          <div class="map">Standard→<code>STD</code> · Silver→<code>SLV</code> · Gold→<code>GLD</code></div>
         
       </td>
       <td class="ev evd verified">● 6</td>
     </tr>
     
-    <tr class="row" id="row-waiting_period" data-id="waiting_period" data-deps="has_ped plan">
+    <tr class="row" id="row-discount_rate" data-id="discount_rate" data-deps="loyalty_tier">
       <td class="num">11</td>
       <td class="value">
-        <div class="name">Waiting period</div>
-        <div class="sub"><code>waiting_period</code></div>
+        <div class="name">Discount rate</div>
+        <div class="sub"><code>discount_rate</code></div>
         
         
       </td>
-      <td class="g"></td><td class="g"></td><td class="g"></td><td class="g" title="line 11 uses line 4">●</td><td class="g" title="line 11 uses line 5">●</td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
+      <td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g" title="line 11 uses line 10">●</td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
       <td class="rule">
-        Look up by <span class="ref" title="plan">Plan<sup>5</sup></span>: <span class="cases"><span class="case">GOLD <b>24</b></span> <span class="sep">·</span> <span class="case">SILVER <b>36</b></span></span> <span class="src"><span class="src-kind">DB</span> plan_ped_waiting</span>
+        <span class="cases"><span class="case verified">Standard <b>0</b></span> <span class="sep">·</span> <span class="case verified">Silver <b>0.05</b></span> <span class="sep">·</span> <span class="case verified">Gold <b>0.1</b></span></span> <span class="src"><span class="src-kind">config</span> pricing.discount</span>
         
       </td>
       <td class="send">
         
-          <div class="field"><code>waitingPeriodMonths</code></div>
-          <div class="usage"><b>S</b> · required when <span class="ref" title="has_ped">Has pre-existing disease<sup>4</sup></span> = <span class="lit">true</span>; otherwise do not send</div>
+      </td>
+      <td class="ev evd verified">● 6</td>
+    </tr>
+    
+    <tr class="row" id="row-discount" data-id="discount" data-deps="subtotal discount_rate">
+      <td class="num">12</td>
+      <td class="value">
+        <div class="name">Discount</div>
+        <div class="sub"><code>discount</code></div>
+        
+        
+      </td>
+      <td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g" title="line 12 uses line 6">●</td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g" title="line 12 uses line 11">●</td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
+      <td class="rule">
+        <span class="formula"><span class="fn">round</span>(<span class="ref" title="subtotal">Subtotal<sup>6</sup></span> × <span class="ref" title="discount_rate">Discount rate<sup>11</sup></span>)</span>
+        
+      </td>
+      <td class="send">
+        
+          <div class="field"><code>discountAmount</code></div>
+          <div class="usage"><b>R</b></div>
           
         
       </td>
       <td class="ev evd verified">● 6</td>
     </tr>
     
-    <tr class="row" id="row-base_premium" data-id="base_premium" data-deps="plan age zone sum_insured">
-      <td class="num">12</td>
-      <td class="value">
-        <div class="name">Base premium</div>
-        <div class="sub"><code>base_premium</code></div>
-        
-        
-      </td>
-      <td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g" title="line 12 uses line 5">●</td><td class="g" title="line 12 uses line 6">●</td><td class="g"></td><td class="g" title="line 12 uses line 8">●</td><td class="g" title="line 12 uses line 9">●</td><td class="g"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
-      <td class="rule">
-        Look up by <span class="ref" title="plan">Plan<sup>5</sup></span>, <span class="ref" title="age">Age<sup>8</sup></span>, <span class="ref" title="zone">Zone<sup>9</sup></span> and <span class="ref" title="sum_insured">Sum insured<sup>6</sup></span> <span class="src"><span class="src-kind">DB</span> plan_rates</span> <span class="muted">48 entries in data/plan_rates.csv</span>
-        
-      </td>
-      <td class="send">
-        
-      </td>
-      <td class="ev evd verified">● 6</td>
-    </tr>
-    
-    <tr class="row" id="row-loading" data-id="loading" data-deps="risk_class">
+    <tr class="row" id="row-free_shipping" data-id="free_shipping" data-deps="subtotal loyalty_tier">
       <td class="num">13</td>
       <td class="value">
-        <div class="name">Loading</div>
-        <div class="sub"><code>loading</code></div>
+        <div class="name">Free shipping</div>
+        <div class="sub"><code>free_shipping</code></div>
         
         
       </td>
-      <td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g" title="line 13 uses line 10">●</td><td class="g"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
+      <td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g" title="line 13 uses line 6">●</td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g" title="line 13 uses line 10">●</td><td class="g"></td><td class="g"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
       <td class="rule">
-        <span class="cases"><span class="case verified">Standard <b>0</b></span> <span class="sep">·</span> <span class="case verified">Elevated <b>0.15</b></span> <span class="sep">·</span> <span class="case verified">High <b>0.35</b></span></span> <span class="src"><span class="src-kind">config</span> pricing.loading</span>
+        <table class="g2"><thead><tr><th class="corner"><span class="ref" title="subtotal">Subtotal<sup>6</sup></span> ╲ <span class="ref" title="loyalty_tier">Loyalty tier<sup>10</sup></span></th><th>Standard</th><th>Silver</th><th>Gold</th></tr></thead><tbody><tr><th>&lt; 100</th><td class="verified" title="rule 3">No</td><td class="verified" title="rule 3">No</td><td class="verified" title="rule 2">Yes</td></tr><tr><th>≥ 100</th><td class="verified" title="rule 1">Yes</td><td class="verified" title="rule 1">Yes</td><td class="verified" title="rule 1">Yes</td></tr></tbody></table> <span class="tag">first match</span>
         
       </td>
       <td class="send">
+        
+          <div class="field"><code>freeShipping</code></div>
+          <div class="usage"><b>R</b></div>
+          
         
       </td>
       <td class="ev evd verified">● 6</td>
     </tr>
     
-    <tr class="row" id="row-medical_check" data-id="medical_check" data-deps="age risk_class">
+    <tr class="row" id="row-shipping_fee" data-id="shipping_fee" data-deps="zone shipping_method weight_kg">
       <td class="num">14</td>
       <td class="value">
-        <div class="name">Medical check</div>
-        <div class="sub"><code>medical_check</code></div>
+        <div class="name">Shipping fee</div>
+        <div class="sub"><code>shipping_fee</code></div>
         
         
       </td>
-      <td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g" title="line 14 uses line 8">●</td><td class="g"></td><td class="g" title="line 14 uses line 10">●</td><td class="g"></td><td class="g"></td><td class="g shaded"></td><td class="g shaded"></td>
+      <td class="g"></td><td class="g"></td><td class="g"></td><td class="g" title="line 14 uses line 4">●</td><td class="g" title="line 14 uses line 5">●</td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g" title="line 14 uses line 9">●</td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
       <td class="rule">
-        <table class="g2"><thead><tr><th class="corner"><span class="ref" title="age">Age<sup>8</sup></span> ╲ <span class="ref" title="risk_class">Risk class<sup>10</sup></span></th><th>Standard</th><th>Elevated</th><th>High</th></tr></thead><tbody><tr><th>&lt; 46</th><td class="verified" title="rule 3">No</td><td class="verified" title="rule 3">No</td><td class="verified" title="rule 2">Yes</td></tr><tr><th>≥ 46</th><td class="verified" title="rule 1">Yes</td><td class="verified" title="rule 1">Yes</td><td class="verified" title="rule 1">Yes</td></tr></tbody></table> <span class="tag">first match</span>
+        Look up by <span class="ref" title="zone">Shipping zone<sup>9</sup></span>, <span class="ref" title="shipping_method">Shipping method<sup>4</sup></span> and <span class="ref" title="weight_kg">Parcel weight (kg)<sup>5</sup></span> <span class="src"><span class="src-kind">DB</span> shipping_rates</span> <span class="muted">18 entries in data/shipping_rates.csv</span>
         
       </td>
       <td class="send">
-        
-          <div class="field"><code>underwritingType</code></div>
-          <div class="usage"><b>R</b></div>
-          <div class="map">Yes→<code>MANUAL</code> · No→<code>STP</code></div>
         
       </td>
       <td class="ev evd verified">● 6</td>
     </tr>
     
-    <tr class="row" id="row-net_premium" data-id="net_premium" data-deps="base_premium loading">
+    <tr class="row" id="row-shipping_cost" data-id="shipping_cost" data-deps="free_shipping shipping_fee">
       <td class="num">15</td>
       <td class="value">
-        <div class="name">Net premium</div>
-        <div class="sub"><code>net_premium</code></div>
+        <div class="name">Shipping cost</div>
+        <div class="sub"><code>shipping_cost</code></div>
         
         
       </td>
-      <td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g" title="line 15 uses line 12">●</td><td class="g" title="line 15 uses line 13">●</td><td class="g shaded"></td><td class="g shaded"></td>
+      <td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g" title="line 15 uses line 13">●</td><td class="g" title="line 15 uses line 14">●</td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
       <td class="rule">
-        <span class="formula"><span class="fn">round</span>(<span class="ref" title="base_premium">Base premium<sup>12</sup></span> × (1.0 + <span class="ref" title="loading">Loading<sup>13</sup></span>))</span>
+        <span class="formula"><span class="ref" title="free_shipping">Free shipping<sup>13</sup></span> ? 0 : <span class="ref" title="shipping_fee">Shipping fee<sup>14</sup></span></span>
         
       </td>
       <td class="send">
         
-          <div class="field"><code>netPremium</code></div>
+          <div class="field"><code>shippingCost</code></div>
           <div class="usage"><b>R</b></div>
           
         
@@ -592,22 +592,45 @@ h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; margin:
       <td class="ev evd contradicted">✕ 1</td>
     </tr>
     
-    <tr class="row" id="row-gst" data-id="gst" data-deps="net_premium">
+    <tr class="row" id="row-customs_value" data-id="customs_value" data-deps="subtotal discount zone">
       <td class="num">16</td>
       <td class="value">
-        <div class="name">GST</div>
-        <div class="sub"><code>gst</code></div>
+        <div class="name">Customs value</div>
+        <div class="sub"><code>customs_value</code></div>
         
         
       </td>
-      <td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g" title="line 16 uses line 15">●</td><td class="g shaded"></td>
+      <td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g" title="line 16 uses line 6">●</td><td class="g"></td><td class="g"></td><td class="g" title="line 16 uses line 9">●</td><td class="g"></td><td class="g"></td><td class="g" title="line 16 uses line 12">●</td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g shaded"></td><td class="g shaded"></td>
       <td class="rule">
-        <span class="formula"><span class="fn">round</span>(<span class="ref" title="net_premium">Net premium<sup>15</sup></span> × <span class="ref" title="gst_rate">GST rate</span>)</span> <span class="src"><span class="src-kind">config</span> tax.gst_rate = 0.18</span>
+        <span class="formula"><span class="ref" title="subtotal">Subtotal<sup>6</sup></span> − <span class="ref" title="discount">Discount<sup>12</sup></span></span>
         
       </td>
       <td class="send">
         
-          <div class="field"><code>gstAmount</code></div>
+          <div class="field"><code>customsValue</code></div>
+          <div class="usage"><b>S</b> · required when <span class="ref" title="zone">Shipping zone<sup>9</sup></span> ≠ <span class="lit">&#34;DOMESTIC&#34;</span>; otherwise do not send</div>
+          
+        
+      </td>
+      <td class="ev evd verified">● 6</td>
+    </tr>
+    
+    <tr class="row" id="row-net_amount" data-id="net_amount" data-deps="subtotal discount shipping_cost">
+      <td class="num">17</td>
+      <td class="value">
+        <div class="name">Net amount</div>
+        <div class="sub"><code>net_amount</code></div>
+        
+        
+      </td>
+      <td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g" title="line 17 uses line 6">●</td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g" title="line 17 uses line 12">●</td><td class="g"></td><td class="g"></td><td class="g" title="line 17 uses line 15">●</td><td class="g shaded"></td><td class="g shaded"></td>
+      <td class="rule">
+        <span class="formula"><span class="ref" title="subtotal">Subtotal<sup>6</sup></span> − <span class="ref" title="discount">Discount<sup>12</sup></span> + <span class="ref" title="shipping_cost">Shipping cost<sup>15</sup></span></span>
+        
+      </td>
+      <td class="send">
+        
+          <div class="field"><code>netAmount</code></div>
           <div class="usage"><b>R</b></div>
           
         
@@ -615,22 +638,45 @@ h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; margin:
       <td class="ev evd verified">● 6</td>
     </tr>
     
-    <tr class="row" id="row-total_payable" data-id="total_payable" data-deps="net_premium gst">
-      <td class="num">17</td>
+    <tr class="row" id="row-sales_tax" data-id="sales_tax" data-deps="net_amount">
+      <td class="num">18</td>
       <td class="value">
-        <div class="name">Total payable</div>
-        <div class="sub"><code>total_payable</code></div>
+        <div class="name">Sales tax</div>
+        <div class="sub"><code>sales_tax</code></div>
         
         
       </td>
-      <td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g" title="line 17 uses line 15">●</td><td class="g" title="line 17 uses line 16">●</td>
+      <td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g" title="line 18 uses line 17">●</td><td class="g shaded"></td>
       <td class="rule">
-        <span class="formula"><span class="ref" title="net_premium">Net premium<sup>15</sup></span> + <span class="ref" title="gst">GST<sup>16</sup></span></span>
+        <span class="formula"><span class="fn">round</span>(<span class="ref" title="net_amount">Net amount<sup>17</sup></span> × <span class="ref" title="sales_tax_rate">Sales tax rate</span>)</span> <span class="src"><span class="src-kind">config</span> tax.sales_tax_rate = 0.08</span>
         
       </td>
       <td class="send">
         
-          <div class="field"><code>totalPayable</code></div>
+          <div class="field"><code>salesTax</code></div>
+          <div class="usage"><b>R</b></div>
+          
+        
+      </td>
+      <td class="ev evd verified">● 6</td>
+    </tr>
+    
+    <tr class="row" id="row-total" data-id="total" data-deps="net_amount sales_tax">
+      <td class="num">19</td>
+      <td class="value">
+        <div class="name">Order total</div>
+        <div class="sub"><code>total</code></div>
+        
+        
+      </td>
+      <td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g" title="line 19 uses line 17">●</td><td class="g" title="line 19 uses line 18">●</td>
+      <td class="rule">
+        <span class="formula"><span class="ref" title="net_amount">Net amount<sup>17</sup></span> + <span class="ref" title="sales_tax">Sales tax<sup>18</sup></span></span>
+        
+      </td>
+      <td class="send">
+        
+          <div class="field"><code>totalAmount</code></div>
           <div class="usage"><b>R</b></div>
           
         
@@ -647,7 +693,7 @@ h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; margin:
   
   <div class="evd">
   <h2 class="danger-h">Contradicted</h2>
-  <ul><li><span class="ln">15</span> <b>Net premium</b>: case <code>risk-class-high</code>, field <code>netPremium</code>: expected <b>12879</b>, got <b>12500</b></li></ul>
+  <ul><li><span class="ln">15</span> <b>Shipping cost</b>: case <code>isolate-zone</code>, field <code>shippingCost</code>: expected <b>18</b>, got <b>15</b></li></ul>
   </div>
   
   
@@ -668,7 +714,7 @@ h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; margin:
     <dt><span class="src"><span class="src-kind">DB</span> table</span></dt><dd>A database table or config key. Sources that feed a single line appear inside that line’s rule.</dd>
   </dl>
 </section>
-<footer class="foot">Generated by DerivationSheets on 2 Nov 2026 21:18. Row numbers may change between versions; row IDs do not.</footer>
+<footer class="foot">Generated by DerivationSheets on 2 Nov 2026 21:42. Row numbers may change between versions; row IDs do not.</footer>
 <script>// Hovering a row tints what it depends on (transitively) and what depends on
 // it. The sheet reads fully without this script.
 (function () {

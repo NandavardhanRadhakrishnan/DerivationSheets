@@ -1,11 +1,11 @@
 {
   "cases": {
-    "risk-class-standard": { "payload": { "planCode": "GOLD", "sumInsured": 100000, "riskClassCode": "STD", "underwritingType": "STP", "netPremium": 9540, "gstAmount": 1717, "totalPayable": 11257 } },
-    "risk-class-high": { "payload": { "planCode": "GOLD", "sumInsured": 100000, "riskClassCode": "HIGH", "waitingPeriodMonths": 24, "underwritingType": "MANUAL", "netPremium": 12500, "gstAmount": 2318, "totalPayable": 15197 } },
-    "risk-class-elevated": { "payload": { "planCode": "GOLD", "sumInsured": 100000, "riskClassCode": "ELV", "waitingPeriodMonths": 24, "underwritingType": "MANUAL", "netPremium": 14628, "gstAmount": 2633, "totalPayable": 17261 } },
-    "risk-class-elevated-2": { "payload": { "planCode": "GOLD", "sumInsured": 100000, "riskClassCode": "ELV", "underwritingType": "STP", "netPremium": 10971, "gstAmount": 1975, "totalPayable": 12946 } },
-    "reject-age-limit": { "reject": "AGE_LIMIT" },
-    "isolate-age": { "payload": { "planCode": "GOLD", "sumInsured": 100000, "riskClassCode": "STD", "underwritingType": "STP", "netPremium": 7000, "gstAmount": 1260, "totalPayable": 8260 } },
-    "isolate-zone": { "payload": { "planCode": "GOLD", "sumInsured": 100000, "riskClassCode": "STD", "underwritingType": "STP", "netPremium": 8300, "gstAmount": 1494, "totalPayable": 9794 } }
+    "loyalty-tier-silver": { "payload": { "shippingMethod": "STANDARD", "subtotal": 99, "loyaltyTier": "SLV", "discountAmount": 5, "freeShipping": false, "shippingCost": 9, "netAmount": 103, "salesTax": 8, "totalAmount": 111 } },
+    "loyalty-tier-gold": { "payload": { "shippingMethod": "STANDARD", "subtotal": 99, "loyaltyTier": "GLD", "discountAmount": 10, "freeShipping": true, "shippingCost": 0, "customsValue": 89, "netAmount": 89, "salesTax": 7, "totalAmount": 96 } },
+    "loyalty-tier-standard": { "payload": { "shippingMethod": "STANDARD", "subtotal": 101, "loyaltyTier": "STD", "discountAmount": 0, "freeShipping": true, "shippingCost": 0, "netAmount": 101, "salesTax": 8, "totalAmount": 109 } },
+    "reject-destination-not-served": { "reject": "DESTINATION_NOT_SERVED" },
+    "loyalty-tier-silver-2": { "payload": { "shippingMethod": "STANDARD", "subtotal": 99, "loyaltyTier": "SLV", "discountAmount": 5, "freeShipping": false, "shippingCost": 9, "netAmount": 103, "salesTax": 8, "totalAmount": 111 } },
+    "isolate-customer-years": { "payload": { "shippingMethod": "STANDARD", "subtotal": 99, "loyaltyTier": "STD", "discountAmount": 0, "freeShipping": false, "shippingCost": 9, "netAmount": 108, "salesTax": 9, "totalAmount": 117 } },
+    "isolate-zone": { "payload": { "shippingMethod": "STANDARD", "subtotal": 99, "loyaltyTier": "SLV", "discountAmount": 5, "freeShipping": false, "shippingCost": 15, "customsValue": 94, "netAmount": 112, "salesTax": 9, "totalAmount": 121 } }
   }
 }

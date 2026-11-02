@@ -9,7 +9,7 @@ import (
 
 func fixture(t *testing.T) *Engine {
 	t.Helper()
-	s, err := sheet.Load(filepath.Join("..", "..", "specs", "premium-calculation"))
+	s, err := sheet.Load(filepath.Join("..", "..", "specs", "order-checkout"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -23,22 +23,26 @@ func fixture(t *testing.T) *Engine {
 	return e
 }
 
+// baseInput is a member since 2020 shipping 3 kg express to Canada.
 func baseInput() Input {
 	return Input{
-		"dob": "1980-04-12", "city": "Pune", "is_smoker": true, "has_ped": true,
-		"plan": "GOLD", "sum_insured": int64(500000), "request_time": "2026-11-02T10:00:00+05:30",
+		"signup_date": "2020-03-15", "is_member": true, "country": "CA", "shipping_method": "EXPRESS",
+		"weight_kg": int64(3), "subtotal": int64(80), "request_time": "2026-11-02T10:00:00+05:30",
 	}
 }
 
-func TestSmokerWithPED(t *testing.T) {
+func TestGoldMemberAbroad(t *testing.T) {
 	res := fixture(t).Evaluate(baseInput())
 	if res.Err != nil || res.Reject != nil {
 		t.Fatalf("err=%v reject=%v", res.Err, res.Reject)
 	}
+	// 6 years and a member: Gold, 10% off 80 = 8, free shipping for Gold,
+	// net 72, tax round(72 * 0.08) = 6, total 78. Canada is not domestic, so
+	// the customs value is sent.
 	want := map[string]any{
-		"planCode": "GOLD", "sumInsured": 500000.0, "riskClassCode": "HIGH",
-		"waitingPeriodMonths": 24.0, "underwritingType": "MANUAL",
-		"netPremium": 21330.0, "gstAmount": 3839.0, "totalPayable": 25169.0,
+		"shippingMethod": "EXPRESS", "subtotal": 80.0, "loyaltyTier": "GLD", "discountAmount": 8.0,
+		"freeShipping": true, "shippingCost": 0.0, "customsValue": 72.0,
+		"netAmount": 72.0, "salesTax": 6.0, "totalAmount": 78.0,
 	}
 	for k, v := range want {
 		if !sheet.Equal(res.Payload[k], v) {
@@ -52,40 +56,43 @@ func TestSmokerWithPED(t *testing.T) {
 	if len(res.Steps) != len(fixture(t).Sheet.Rows) {
 		t.Errorf("trace has %d steps, want one per row", len(res.Steps))
 	}
-	if st := res.ByRow["risk_class"]; st.TableRule != 4 || st.TableKey != "[true,true]" {
-		t.Errorf("risk_class fired rule %d %s", st.TableRule, st.TableKey)
+	if st := res.ByRow["loyalty_tier"]; st.TableRule != 4 || st.TableKey != "[true,>= 2]" {
+		t.Errorf("loyalty_tier fired rule %d %s", st.TableRule, st.TableKey)
 	}
-	if st := res.ByRow["medical_check"]; st.TableRule != 1 {
-		t.Errorf("medical_check fired rule %d, want 1", st.TableRule)
+	if st := res.ByRow["free_shipping"]; st.TableRule != 2 {
+		t.Errorf("free_shipping fired rule %d, want 2", st.TableRule)
+	}
+	if st := res.ByRow["shipping_fee"]; st.LookupAt != "data/shipping_rates.csv:12" || !sheet.Equal(st.Value, 36.0) {
+		t.Errorf("shipping_fee looked up %v at %s", st.Value, st.LookupAt)
 	}
 }
 
-func TestAgeReject(t *testing.T) {
+func TestDestinationReject(t *testing.T) {
 	in := baseInput()
-	in["dob"] = "1950-01-01"
+	in["country"] = "AQ"
 	res := fixture(t).Evaluate(in)
-	if res.Reject == nil || res.Reject.Code != "AGE_LIMIT" {
+	if res.Reject == nil || res.Reject.Code != "DESTINATION_NOT_SERVED" {
 		t.Fatalf("reject = %+v, err = %v", res.Reject, res.Err)
 	}
 }
 
 func TestSituationalSend(t *testing.T) {
 	in := baseInput()
-	in["has_ped"] = false
+	in["country"] = "US"
 	res := fixture(t).Evaluate(in)
-	if _, ok := res.Payload["waitingPeriodMonths"]; ok {
-		t.Error("waitingPeriodMonths sent when has_ped is false")
+	if _, ok := res.Payload["customsValue"]; ok {
+		t.Error("customsValue sent for a domestic order")
 	}
-	if st := res.ByRow["waiting_period"].Send; st == nil || st.When == nil || *st.When {
+	if st := res.ByRow["customs_value"].Send; st == nil || st.When == nil || *st.When {
 		t.Errorf("send trace = %+v", st)
 	}
 }
 
 func TestMissingInput(t *testing.T) {
 	in := baseInput()
-	delete(in, "city")
+	delete(in, "country")
 	res := fixture(t).Evaluate(in)
-	if res.Reject == nil || res.Reject.Code != MissingInputCode || res.Reject.Row != "city" {
+	if res.Reject == nil || res.Reject.Code != MissingInputCode || res.Reject.Row != "country" {
 		t.Fatalf("reject = %+v", res.Reject)
 	}
 }

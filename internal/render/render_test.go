@@ -17,7 +17,7 @@ import (
 
 func engine(t *testing.T) *eval.Engine {
 	t.Helper()
-	s, err := sheet.Load(filepath.Join("..", "..", "specs", "premium-calculation"))
+	s, err := sheet.Load(filepath.Join("..", "..", "specs", "order-checkout"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,11 +60,11 @@ func TestLayout(t *testing.T) {
 	if strings.Contains(page, "From database and config") {
 		t.Error("db/config section shown although no source feeds more than one line")
 	}
-	if rowHTML(page, "gst_rate") != "" {
-		t.Error("gst_rate shown as its own line; it feeds only GST")
+	if rowHTML(page, "sales_tax_rate") != "" {
+		t.Error("sales_tax_rate shown as its own line; it feeds only sales tax")
 	}
-	if !strings.Contains(rowHTML(page, "gst"), "tax.gst_rate = 0.18") {
-		t.Error("GST rule lacks the config source tag")
+	if !strings.Contains(rowHTML(page, "sales_tax"), "tax.sales_tax_rate = 0.08") {
+		t.Error("sales tax rule lacks the config source tag")
 	}
 	// Every dot is left of the staircase: no dot in a shaded cell.
 	if strings.Contains(page, `class="g shaded" title=`) {
@@ -72,8 +72,8 @@ func TestLayout(t *testing.T) {
 	}
 	// Row IDs are visible, rule forms match the spec.
 	for _, want := range []string{
-		`<code>risk_class</code>`, `class="g2"`, "first match", "years_between", "reject <code>AGE_LIMIT</code>",
-		"waitingPeriodMonths", "required when", "otherwise do not send", "48 entries in data/plan_rates.csv",
+		`<code>loyalty_tier</code>`, `class="g2"`, "first match", "years_between", "reject <code>DESTINATION_NOT_SERVED</code>",
+		"customsValue", "required when", "otherwise do not send", "18 entries in data/shipping_rates.csv",
 	} {
 		if !strings.Contains(page, want) {
 			t.Errorf("page lacks %q", want)
@@ -102,27 +102,27 @@ func TestEvidenceMerged(t *testing.T) {
 		for _, f := range c.Expected {
 			p[f.Name] = f.Value
 		}
-		if c.ID == "risk-class-high" {
-			p["riskClassCode"] = "ELV"
+		if c.ID == "loyalty-tier-gold" {
+			p["loyaltyTier"] = "SLV"
 		}
 		results[c.ID] = verify.Actual{Payload: p}
 	}
 	// Drop the reject case, so the reject branch is never exercised.
-	delete(results, "reject-age-limit")
+	delete(results, "reject-destination-not-served")
 	rep := verify.Verify(e, cf, results, "results.json", time.Now())
 	page := renderPage(t, e, rep.Run)
 
-	risk := rowHTML(page, "risk_class")
-	if !strings.Contains(risk, `class="ev evd contradicted"`) || !strings.Contains(risk, "✕") {
-		t.Error("risk_class row not shown as contradicted")
+	tier := rowHTML(page, "loyalty_tier")
+	if !strings.Contains(tier, `class="ev evd contradicted"`) || !strings.Contains(tier, "✕") {
+		t.Error("loyalty_tier row not shown as contradicted")
 	}
-	if !regexp.MustCompile(`<td class="contradicted" title="rule 4">High <span class="mark evd contradicted"`).MatchString(risk) {
-		t.Error("contradicted cell [true,true] not marked inside the grid")
+	if !regexp.MustCompile(`<td class="contradicted" title="rule 4">Gold <span class="mark evd contradicted"`).MatchString(tier) {
+		t.Error("contradicted cell [true,>= 2] not marked inside the grid")
 	}
-	if age := rowHTML(page, "age"); !strings.Contains(age, `class="ev evd partly"`) || !strings.Contains(age, "◐") || !strings.Contains(age, "mark evd unexercised") {
-		t.Error("age row should be partly verified with its reject marked unexercised")
+	if zone := rowHTML(page, "zone"); !strings.Contains(zone, `class="ev evd partly"`) || !strings.Contains(zone, "◐") || !strings.Contains(zone, "mark evd unexercised") {
+		t.Error("zone row should be partly verified with its reject marked unexercised")
 	}
-	if !strings.Contains(page, "case <code>risk-class-high</code>, field <code>riskClassCode</code>") {
+	if !strings.Contains(page, "case <code>loyalty-tier-gold</code>, field <code>loyaltyTier</code>") {
 		t.Error("contradiction note does not name case and field")
 	}
 	if !strings.Contains(page, "Tests: 6 cases from results.json") {
@@ -163,16 +163,16 @@ func TestEvidenceSwitch(t *testing.T) {
 func TestConfiguredLabels(t *testing.T) {
 	e := engine(t)
 	e.Sheet.Display = sheet.DefaultDisplay.Merge(sheet.Display{
-		Columns:  map[string]string{"send": "Sent to Acme as", "value": "Field"},
+		Columns:  map[string]string{"send": "Sent to billing as", "value": "Field"},
 		Sections: map[string]string{"derived": "Calculated"},
 	})
 	page := renderPage(t, e, nil)
-	for _, want := range []string{`<th class="send">Sent to Acme as</th>`, `<th class="value">Field</th>`, `<th class="rule">Rule</th>`, `>Calculated</th>`} {
+	for _, want := range []string{`<th class="send">Sent to billing as</th>`, `<th class="value">Field</th>`, `<th class="rule">Rule</th>`, `>Calculated</th>`} {
 		if !strings.Contains(page, want) {
 			t.Errorf("page lacks %s", want)
 		}
 	}
-	if strings.Contains(page, "Sent to partner as") {
+	if strings.Contains(page, "<th class=\"send\">Sent as</th>") {
 		t.Error("default send label still present")
 	}
 }
