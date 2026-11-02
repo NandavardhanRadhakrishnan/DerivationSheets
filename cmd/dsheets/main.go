@@ -263,6 +263,7 @@ func cmdRender(args []string, out, errw io.Writer) error {
 	noEv := fs.Bool("no-evidence", false, "leave evidence out of the page entirely")
 	evMode := fs.String("evidence", "", "initial state of the page's evidence switch: shown or hidden (default: the sheet's display.evidence)")
 	snap := fs.String("snapshot-date", "", "date of the database and config snapshot, YYYY-MM-DD (default: newest file in data/)")
+	check := fs.Bool("check", false, "flows only: mark missing and unfit fields, and list what each team has to agree")
 	pos, err := parse(fs, args)
 	if err != nil {
 		return err
@@ -275,9 +276,12 @@ func cmdRender(args []string, out, errw io.Writer) error {
 		fs.Usage()
 		return errUsage
 	}
+	if *check && !isFlow(dir) {
+		return fmt.Errorf("--check applies to flows; %s is a sheet (use validate and verify for sheets)", dir)
+	}
 	if isFlow(dir) {
 		var buf bytes.Buffer
-		if err := flowPage(dir, &buf, errw); err != nil {
+		if err := flowPage(dir, *check, &buf, errw); err != nil {
 			return err
 		}
 		if *outFlag == "-" {
@@ -521,6 +525,7 @@ func cmdServe(args []string, out, errw io.Writer) error {
 	evDir := fs.String("evidence-dir", "", "evidence folder (default: .evidence at the repository root)")
 	evMode := fs.String("evidence", "", "initial state of the evidence switch: shown or hidden (default: the sheet's display.evidence)")
 	noEv := fs.Bool("no-evidence", false, "leave evidence out of the page entirely")
+	check := fs.Bool("check", false, "flows only: mark missing and unfit fields, and list what each team has to agree")
 	pos, err := parse(fs, args)
 	if err != nil {
 		return err
@@ -542,7 +547,7 @@ func cmdServe(args []string, out, errw io.Writer) error {
 		var msgs bytes.Buffer
 		if isFlow(dir) {
 			var buf bytes.Buffer
-			if err := flowPage(dir, &buf, &msgs); err != nil {
+			if err := flowPage(dir, *check, &buf, &msgs); err != nil {
 				w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 				w.WriteHeader(http.StatusUnprocessableEntity)
 				fmt.Fprintf(w, "%s%v\n", msgs.String(), err)

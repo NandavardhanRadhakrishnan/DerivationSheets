@@ -122,6 +122,8 @@ dt.missing { color: var(--danger); }
   .b-head, td.b, .s-head, td.s { min-width: 0; }
   .agenda, .legend { break-inside: avoid; }
 }
+
+.legend { margin-top: 14px; }
 </style>
 </head>
 <body>
@@ -129,7 +131,7 @@ dt.missing { color: var(--danger); }
 <header class="head">
   <div class="kicker">Flow · <code>checkout-to-payment</code> · version 1</div>
   <h1>Step 2 · Storefront adds its Kafka topic</h1>
-  <p class="meta">3 interfaces, 2 team steps · 2 missing · 2 warnings · 18 carried<span class="sep"> · </span>End-to-end sheet: <code>../../../specs/order-checkout/sheet.toml</code></p>
+  <p class="meta">End-to-end sheet: <code>../../../specs/order-checkout/sheet.toml</code></p>
 </header>
 
 <div class="scroll">
@@ -167,8 +169,8 @@ dt.missing { color: var(--danger); }
         <div class="hmeta">Kafka topic · Orders team</div>
         <div class="badges">
           <span class="badge existing">existing</span>
-          <span class="count missing">✕ 1</span>
-          <span class="count warning">⚠ 2</span>
+          
+          
         </div>
         
       </th>
@@ -189,7 +191,7 @@ dt.missing { color: var(--danger); }
         <div class="hmeta">API request · Payments team</div>
         <div class="badges">
           <span class="badge proposed">proposed</span>
-          <span class="count missing">✕ 1</span>
+          
           
         </div>
         
@@ -214,22 +216,22 @@ dt.missing { color: var(--danger); }
     
     <tr>
       <td class="value"><div class="name">Destination country</div><div class="id"><code>country</code></div></td>
-      <td class="b carried"><code>shipping.country</code></td><td class="s transit" title="passes through">→</td><td class="b carried"><code>country</code> <span class="auto" title="matched by name; list it under carries to make it explicit">≈</span></td><td class="s transit" title="passes through">→</td><td class="b "></td>
+      <td class="b carried"><code>shipping.country</code></td><td class="s transit" title="passes through">→</td><td class="b carried"><code>country</code></td><td class="s transit" title="passes through">→</td><td class="b "></td>
     </tr>
     
     <tr>
       <td class="value"><div class="name">Shipping method</div><div class="id"><code>shipping_method</code></div></td>
-      <td class="b carried"><code>shipping.method</code></td><td class="s transit" title="passes through">→</td><td class="b missing" title="not in the interface; ask Orders team to add it; needed by Shipping fee (step 2), the output"><span class="mark">✕</span> add <code>shippingMethod</code></td><td class="s transit" title="passes through">→</td><td class="b carried"><code>shippingMethod</code> <span class="usage">R</span></td>
+      <td class="b carried"><code>shipping.method</code></td><td class="s transit" title="passes through">→</td><td class="b "></td><td class="s transit" title="passes through">→</td><td class="b carried"><code>shippingMethod</code> <span class="usage">R</span></td>
     </tr>
     
     <tr>
       <td class="value"><div class="name">Parcel weight (kg)</div><div class="id"><code>weight_kg</code></div></td>
-      <td class="b carried"><code>order.weightKg</code></td><td class="s transit" title="passes through">→</td><td class="b warning" title="optional, but the flow always needs Parcel weight (kg)"><code>weightKg</code> <span class="auto" title="matched by name; list it under carries to make it explicit">≈</span> <span class="mark">⚠</span></td><td class="s transit" title="passes through">→</td><td class="b "></td>
+      <td class="b carried"><code>order.weightKg</code></td><td class="s transit" title="passes through">→</td><td class="b carried"><code>weightKg</code></td><td class="s transit" title="passes through">→</td><td class="b "></td>
     </tr>
     
     <tr>
       <td class="value"><div class="name">Subtotal</div><div class="id"><code>subtotal</code></div></td>
-      <td class="b carried"><code>order.subtotal</code></td><td class="s transit" title="passes through">→</td><td class="b carried"><code>subtotal</code> <span class="auto" title="matched by name; list it under carries to make it explicit">≈</span></td><td class="s transit" title="passes through">→</td><td class="b carried"><code>subtotal</code> <span class="usage">R</span></td>
+      <td class="b carried"><code>order.subtotal</code></td><td class="s transit" title="passes through">→</td><td class="b carried"><code>subtotal</code></td><td class="s transit" title="passes through">→</td><td class="b carried"><code>subtotal</code> <span class="usage">R</span></td>
     </tr>
     
   </tbody>
@@ -249,7 +251,7 @@ dt.missing { color: var(--danger); }
     
     <tr>
       <td class="value"><div class="name">Loyalty tier</div><div class="id"><code>loyalty_tier</code></div></td>
-      <td class="b "></td><td class="s computed">decision table on Member, Years as customer <span class="muted">(4 rules)</span></td><td class="b warning" title="allows STANDARD, SILVER, GOLD, but Loyalty tier can be Standard, Silver, Gold"><code>loyaltyTier</code> <span class="auto" title="matched by name; list it under carries to make it explicit">≈</span> <span class="mark">⚠</span></td><td class="s transit" title="passes through">→</td><td class="b carried"><code>loyaltyTier</code> <span class="usage">R</span></td>
+      <td class="b "></td><td class="s computed">decision table on Member, Years as customer <span class="muted">(4 rules)</span></td><td class="b carried"><code>loyaltyTier</code></td><td class="s transit" title="passes through">→</td><td class="b carried"><code>loyaltyTier</code> <span class="usage">R</span></td>
     </tr>
     
     <tr>
@@ -303,46 +305,15 @@ dt.missing { color: var(--danger); }
 </div>
 
 
-<section class="agenda">
-  <h2>To agree</h2>
-  <p class="hint">Grouped by the team that owns each interface, as interface, field and reason. ✕ is a field the flow needs and the interface lacks; ⚠ is a field that exists but does not fit.</p>
-  <div class="teams">
-  
-    <div class="team-block">
-      <h3>Orders team</h3>
-      <ul><li class="missing"><span class="mark">✕</span> <code class="in">order-placed</code> <code>shippingMethod</code>: missing; needed by Shipping fee (step 2), the output</li><li class="warning"><span class="mark">⚠</span> <code class="in">order-placed</code> <code>weightKg</code>: optional, but the flow always needs Parcel weight (kg)</li><li class="warning"><span class="mark">⚠</span> <code class="in">order-placed</code> <code>loyaltyTier</code>: allows STANDARD, SILVER, GOLD, but Loyalty tier can be Standard, Silver, Gold</li></ul>
-    </div>
-  
-    <div class="team-block">
-      <h3>Payments team</h3>
-      <ul><li class="missing"><span class="mark">✕</span> <code class="in">payment-request</code> <code>currency</code>: required, but nothing in the flow produces it</li></ul>
-    </div>
-  
-  </div>
-</section>
-
-
-
-<section class="unused-list">
-  <h2>Fields this flow does not use</h2>
-  <dl><dt><code>checkout-request</code></dt><dd>customer.id, order.giftMessage</dd><dt><code>order-placed</code></dt><dd>orderId, customerId, placedAt</dd></dl>
-</section>
-
 
 
 <section class="legend">
-  <h2>How to read this flow</h2>
   <dl>
-    <dt>Shaded columns</dt><dd>Boundaries, by their role in the flow: Input, Handoff, Call request, Call response, Output. Each shows the interface, its kind and its owner.</dd>
-    <dt>Step columns</dt><dd>What each team computes, by its role: Producer (builds a handoff or the output), Caller, Callee, or Caller (continued) after its call returns.</dd>
-    <dt><code>field</code></dt><dd>The interface carries this value under that field. <span class="auto">≈</span> means it was matched by name rather than listed under <code>carries</code>.</dd>
-    <dt class="missing">✕ add <code>field</code></dt><dd>The value must cross this boundary, but the interface has no field for it.</dd>
-    <dt class="warning"><code>field</code> ⚠</dt><dd>The field exists but does not fit: optional when always needed, a different type, or values outside its enum.</dd>
-    <dt class="unused"><code>field</code></dt><dd>Carried, but nothing after this point needs it.</dd>
+    <dt>Shaded columns</dt><dd>Boundaries: the interface, its kind and its owner. The columns between them are what each team computes.</dd>
+    <dt><code>field</code></dt><dd>The interface carries this value under that field.</dd>
     <dt>→ / ↷ kept</dt><dd>The value passes through a step, or the caller keeps it across a call instead of sending it.</dd>
   </dl>
 </section>
 
-<footer class="foot">Generated by DerivationSheets on 2 Nov 2026 23:08. Each team's step is detailed in the end-to-end derivation sheet.</footer>
 </body>
 </html>

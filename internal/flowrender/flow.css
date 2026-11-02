@@ -114,3 +114,5 @@ dt.missing { color: var(--danger); }
   .b-head, td.b, .s-head, td.s { min-width: 0; }
   .agenda, .legend { break-inside: avoid; }
 }
+
+.legend { margin-top: 14px; }

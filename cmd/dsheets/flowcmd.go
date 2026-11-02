@@ -155,7 +155,7 @@ func cmdFetch(args []string, out, errw io.Writer) error {
 
 func cmdSlice(args []string, out, errw io.Writer) error {
 	fs := newFlags("slice", "<flow> [--out flow.html] [--strict]", errw)
-	outFile := fs.String("out", "", "also write the horizontal flow view to this HTML file")
+	outFile := fs.String("out", "", "also write the flow view, with the review marked, to this HTML file")
 	strict := fs.Bool("strict", false, "exit 1 when any boundary has missing fields or warnings")
 	offline := fs.Bool("offline", false, "do not fetch git sources; use what is already fetched")
 	pos, err := parse(fs, args)
@@ -256,10 +256,11 @@ func printAnalysis(w io.Writer, a *flow.Analysis) {
 	fmt.Fprintf(w, "\n%d carried, %d missing, %d warnings, %d unused\n", c[flow.Carried], c[flow.Missing], c[flow.Warn], c[flow.Unused])
 }
 
-// writeFlowView writes the horizontal flow view.
+// writeFlowView writes the horizontal flow view in check mode: slice is the
+// review command.
 func writeFlowView(path string, a *flow.Analysis) error {
 	var buf bytes.Buffer
-	if err := flowrender.Write(&buf, flowrender.Build(a, time.Now())); err != nil {
+	if err := flowrender.Write(&buf, flowrender.Build(a, time.Now(), true)); err != nil {
 		return err
 	}
 	if path == "-" {
@@ -269,8 +270,9 @@ func writeFlowView(path string, a *flow.Analysis) error {
 	return os.WriteFile(path, buf.Bytes(), 0o644)
 }
 
-// flowPage analyses a flow and renders it, printing problems to errw.
-func flowPage(dir string, w io.Writer, errw io.Writer) error {
+// flowPage analyses a flow and renders it, printing problems to errw. check
+// adds the review layer to the plain view.
+func flowPage(dir string, check bool, w io.Writer, errw io.Writer) error {
 	a, err := loadFlow(dir, false, false)
 	if err != nil {
 		return err
@@ -279,5 +281,5 @@ func flowPage(dir string, w io.Writer, errw io.Writer) error {
 		printAnalysis(errw, a)
 		return errFailed
 	}
-	return flowrender.Write(w, flowrender.Build(a, time.Now()))
+	return flowrender.Write(w, flowrender.Build(a, time.Now(), check))
 }

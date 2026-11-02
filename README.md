@@ -47,9 +47,9 @@ is that render.
 | `cases <workflow>` | Writes `cases.toml`: the smallest practical set of cases that covers every decision-table rule, reject, both sides of every situational `when`, and isolation pairs for rows that are not sent. |
 | `eval <workflow> --case ID` | Evaluates one input and prints every row's value, which table rule or lookup entry fired, rejects, and send decisions. Inputs can also come from `--input` (values by row ID) or `--request` and `--context` (read by source path). `--json` prints the result and trace as JSON. |
 | `verify <workflow> --actual results.json` | Compares the output payloads that tests captured with the expected values, then records evidence per row and per decision-table cell. Contradictions name the case and the field. Exits 1 on contradictions. |
-| `render <workflow\|flow> --out page.html` | Writes one self-contained HTML file with the latest evidence for the sheet's version merged in. Works offline and prints on A4 or Letter landscape. `--evidence shown\|hidden` sets the initial state of the page's evidence switch; `--no-evidence` leaves evidence out entirely. |
+| `render <workflow\|flow> --out page.html` | Writes one self-contained HTML file with the latest evidence for the sheet's version merged in. Works offline and prints on A4 or Letter landscape. `--evidence shown\|hidden` sets the initial state of the page's evidence switch; `--no-evidence` leaves evidence out entirely. For a flow, draws it left to right; `--check` adds the review (missing and unfit fields, and what each team has to agree). |
 | `serve <workflow>` | Serves the same page on localhost, re-rendered on every request, so edits show on reload. Takes the same evidence flags. |
-| `slice <flow> [--out flow.html]` | Places each row of a flow in a team's step and reports, for every boundary, which fields are carried, missing, unfit or unused. See [docs/flows.md](docs/flows.md). |
+| `slice <flow> [--out flow.html]` | Places each row of a flow in a team's step and reports, for every boundary, which fields are carried, missing, unfit or unused. `--out` writes the view with the review marked. See [docs/flows.md](docs/flows.md). |
 | `interface import <schema> --out <file>` | Imports an interface from OpenAPI (a request or response body), Avro or JSON Schema. |
 | `fetch <flow>` | Clones or updates the other teams' repositories a flow refers to. |
 | `schema [sheet\|flow\|interface]` | Prints a JSON Schema. |
@@ -62,9 +62,9 @@ When a transformation crosses several teams (API calls, Kafka topics), a
 **flow** slices the end-to-end sheet at each team's boundary. The product
 manager writes the input, the output and the derivation; each team brings
 its existing interfaces, imported from OpenAPI, Avro or JSON Schema, and
-names the rows it computes. `dsheets slice` then reports what every
-boundary must carry, and `render` draws the flow left to right with an
-agenda of what each team has to change. Interfaces can live in each team's
+names the rows it computes. `render` draws the flow left to right, and
+`dsheets slice` (or `render --check`) reports what every boundary must
+carry and what each team has to change. Interfaces can live in each team's
 own repository, pinned by git tag.
 
 ```sh

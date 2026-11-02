@@ -16,9 +16,10 @@ someone else. A **flow** lets everyone agree on those boundaries:
    add, fields that don't fit, fields nobody uses.
 
 ```sh
-dsheets slice  flows/checkout-to-payment                  # boundary report
-dsheets render flows/checkout-to-payment --out flow.html  # horizontal view
-dsheets serve  flows/checkout-to-payment                  # same view on localhost
+dsheets render flows/checkout-to-payment --out flow.html          # the flow, drawn left to right
+dsheets serve  flows/checkout-to-payment                          # same view on localhost
+dsheets slice  flows/checkout-to-payment                          # boundary report, for review
+dsheets render flows/checkout-to-payment --check --out flow.html  # the view with the review marked
 ```
 
 ## Interfaces
@@ -161,11 +162,16 @@ orders   = { path = "../../../orders-contracts" }   # a local checkout
 | ⚠ | The field exists but doesn't fit: optional when always needed, a different type, or values outside its enum |
 | ○ | Carried but not needed after this point, or not used by the flow at all |
 
-The horizontal view puts interfaces in shaded columns and each team's step
-between them. Each row follows one value: where it enters, where it is
-computed (with its rule), and every boundary it crosses (→ passes through,
-↷ kept by the caller across a call). Below the table, **To agree** groups
-every ✕ and ⚠ by the team that owns the interface.
+`render` and `serve` draw the flow left to right: interfaces in shaded
+columns, each team's step between them. Each row follows one value: where
+it enters, where it is computed (with its rule), and every field that
+carries it (→ passes through, ↷ kept by the caller across a call). By
+default that is all the page shows; it is a picture of the flow.
+
+`--check` adds the review: ✕ and ⚠ marked in the table, counts in the
+headers, a **To agree** list grouping every ✕ and ⚠ by the team that owns
+the interface, and the fields nobody uses. `slice --out` always writes the
+checked view.
 
 `slice --strict` exits 1 while anything is missing or doesn't fit, so a CI
 job can hold a flow until every team has agreed.

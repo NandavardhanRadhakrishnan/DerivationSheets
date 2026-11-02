@@ -1,8 +1,11 @@
 // Package flowrender draws a flow horizontally: one row per value, and
 // columns alternating between interfaces (boundaries) and the team steps
-// between them, from the input on the left to the output on the right. It
-// also lists what each team has to change, as the agenda for agreeing the
-// interfaces.
+// between them, from the input on the left to the output on the right.
+//
+// By default the page is a plain visualization: who computes what, and
+// which field carries each value. Check mode adds the review: missing and
+// unfit fields marked in the table, counts, the "To agree" list grouped by
+// owning team, and the fields nobody uses.
 package flowrender
 
 import (
@@ -45,6 +48,8 @@ type Page struct {
 	Agenda    []AgendaTeam
 	Unused    []UnusedLine
 	CSS       template.CSS
+	// Check is set in check mode.
+	Check bool
 }
 
 // Column is a boundary or a step. Both have the same three header lines:
@@ -103,12 +108,13 @@ type UnusedLine struct {
 	Fields    string
 }
 
-// Build computes the page for an analysis without errors.
-func Build(a *flow.Analysis, now time.Time) *Page {
+// Build computes the page for an analysis without errors. check adds the
+// review layer to the plain visualization.
+func Build(a *flow.Analysis, now time.Time, check bool) *Page {
 	f, s := a.Flow, a.Sheet
 	p := &Page{
 		Product: brand.Product, Title: f.Title, Slug: f.Slug, Version: f.Version,
-		Generated: now.Format("2 Jan 2006 15:04"), CSS: template.CSS(pageCSS),
+		Generated: now.Format("2 Jan 2006 15:04"), CSS: template.CSS(pageCSS), Check: check,
 	}
 	if p.Title == "" {
 		p.Title = f.Slug
@@ -147,6 +153,9 @@ func Build(a *flow.Analysis, now time.Time) *Page {
 			}
 			col.Path = b.Iface.Ref
 			for _, it := range b.Items {
+				if !check {
+					break
+				}
 				switch it.Status {
 				case flow.Missing:
 					col.Missing++
@@ -169,7 +178,7 @@ func Build(a *flow.Analysis, now time.Time) *Page {
 			if i > 0 {
 				row.Cells = append(row.Cells, stepCell(a, i-1, r, names))
 			}
-			row.Cells = append(row.Cells, boundaryCell(b, r))
+			row.Cells = append(row.Cells, boundaryCell(b, r, check))
 		}
 		if r.IsInput() {
 			request = append(request, row)
@@ -182,6 +191,9 @@ func Build(a *flow.Analysis, now time.Time) *Page {
 	}
 	if len(derived) > 0 {
 		p.Groups = append(p.Groups, Group{Title: "Derived", Rows: derived})
+	}
+	if !check {
+		return p
 	}
 	p.Agenda = agenda(a)
 	for _, b := range a.Boundaries {
@@ -210,13 +222,25 @@ func itemFor(b *flow.Boundary, row string) *flow.Item {
 	return nil
 }
 
-func boundaryCell(b *flow.Boundary, r *sheet.Row) Cell {
+func boundaryCell(b *flow.Boundary, r *sheet.Row, check bool) Cell {
 	c := Cell{Boundary: true}
 	it := itemFor(b, r.ID)
 	if it == nil {
 		return c
 	}
 	field := "<code>" + html.EscapeString(it.Field) + "</code>"
+	if !check {
+		// The plain view shows what the interface carries, and nothing else.
+		if it.Status == flow.Missing {
+			return c
+		}
+		c.Class = "carried"
+		c.HTML = template.HTML(field)
+		if b.Role == flow.RoleOutput && r.Send != nil {
+			c.HTML += template.HTML(` <span class="usage">` + html.EscapeString(r.Send.Usage) + `</span>`)
+		}
+		return c
+	}
 	auto := ""
 	if it.Auto {
 		auto = ` <span class="auto" title="matched by name; list it under carries to make it explicit">≈</span>`
