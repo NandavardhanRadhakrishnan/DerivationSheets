@@ -7,3 +7,15 @@ include = ["specs/**/sheet.toml"]
 
 [rule.schema]
 path = "./schema/sheet.schema.json"
+
+[[rule]]
+include = ["flows/**/flow.toml"]
+
+[rule.schema]
+path = "./schema/flow.schema.json"
+
+[[rule]]
+include = ["interfaces/**/*.toml"]
+
+[rule.schema]
+path = "./schema/interface.schema.json"

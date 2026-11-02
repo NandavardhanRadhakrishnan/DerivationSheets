@@ -143,52 +143,15 @@ func (c *checker) line(r *sheet.Row, keys ...string) int {
 
 // checkSchema validates the decoded TOML against the embedded JSON Schema.
 func (c *checker) checkSchema() {
-	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(schema.Sheet))
+	problems, err := SchemaProblems(schema.Sheet, c.s.Raw)
 	if err != nil {
-		c.add(Error, "internal", nil, 0, "embedded schema: %v", err)
+		c.add(Error, "internal", nil, 0, "schema check: %v", err)
 		return
 	}
-	comp := jsonschema.NewCompiler()
-	const url = "sheet.schema.json"
-	if err := comp.AddResource(url, doc); err != nil {
-		c.add(Error, "internal", nil, 0, "embedded schema: %v", err)
-		return
-	}
-	sch, err := comp.Compile(url)
-	if err != nil {
-		c.add(Error, "internal", nil, 0, "embedded schema: %v", err)
-		return
-	}
-	// Round-trip through JSON so TOML dates and integers become JSON types.
-	b, err := json.Marshal(c.s.Raw)
-	if err != nil {
-		c.add(Error, "internal", nil, 0, "cannot convert sheet for schema check: %v", err)
-		return
-	}
-	inst, err := jsonschema.UnmarshalJSON(bytes.NewReader(b))
-	if err != nil {
-		return
-	}
-	verr, ok := sch.Validate(inst).(*jsonschema.ValidationError)
-	if !ok || verr == nil {
-		return
-	}
-	var leaves []*jsonschema.ValidationError
-	var walk func(e *jsonschema.ValidationError)
-	walk = func(e *jsonschema.ValidationError) {
-		if len(e.Causes) == 0 {
-			leaves = append(leaves, e)
-		}
-		for _, ce := range e.Causes {
-			walk(ce)
-		}
-	}
-	walk(verr)
-	printer := message.NewPrinter(language.English)
 	seen := map[string]bool{}
-	for _, u := range leaves {
-		msg := u.ErrorKind.LocalizedString(printer)
-		loc := u.InstanceLocation
+	for _, u := range problems {
+		msg := u.Message
+		loc := u.Location
 		key := strings.Join(loc, "/") + msg
 		// IDs get a dedicated, clearer check.
 		if len(loc) == 3 && loc[0] == "row" && loc[2] == "id" {
@@ -655,4 +618,55 @@ func distance(a, b string) int {
 		prev = cur
 	}
 	return prev[len(b)]
+}
+
+// SchemaProblem is one JSON Schema violation, located by its path in the
+// decoded document.
+type SchemaProblem struct {
+	Location []string
+	Message  string
+}
+
+// SchemaProblems validates a decoded TOML document against an embedded JSON
+// Schema, returning the most specific problems.
+func SchemaProblems(schemaJSON []byte, raw map[string]any) ([]SchemaProblem, error) {
+	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(schemaJSON))
+	if err != nil {
+		return nil, err
+	}
+	comp := jsonschema.NewCompiler()
+	const url = "embedded.schema.json"
+	if err := comp.AddResource(url, doc); err != nil {
+		return nil, err
+	}
+	sch, err := comp.Compile(url)
+	if err != nil {
+		return nil, err
+	}
+	// Round-trip through JSON so TOML dates and integers become JSON types.
+	b, err := json.Marshal(raw)
+	if err != nil {
+		return nil, err
+	}
+	inst, err := jsonschema.UnmarshalJSON(bytes.NewReader(b))
+	if err != nil {
+		return nil, err
+	}
+	verr, ok := sch.Validate(inst).(*jsonschema.ValidationError)
+	if !ok || verr == nil {
+		return nil, nil
+	}
+	var out []SchemaProblem
+	printer := message.NewPrinter(language.English)
+	var walk func(e *jsonschema.ValidationError)
+	walk = func(e *jsonschema.ValidationError) {
+		if len(e.Causes) == 0 {
+			out = append(out, SchemaProblem{Location: e.InstanceLocation, Message: e.ErrorKind.LocalizedString(printer)})
+		}
+		for _, ce := range e.Causes {
+			walk(ce)
+		}
+	}
+	walk(verr)
+	return out, nil
 }

@@ -1,0 +1,96 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://derivationsheets.local/schema/flow.schema.json",
+  "title": "Flow",
+  "description": "A flow.toml file: an end-to-end derivation from an input interface to an output interface, sliced at the boundaries teams own. See docs/flows.md.",
+  "type": "object",
+  "required": ["flow", "version", "input", "output"],
+  "additionalProperties": false,
+  "properties": {
+    "flow": { "description": "Slug for the flow.", "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+    "version": { "type": "integer", "minimum": 1 },
+    "title": { "type": "string" },
+    "sheet": {
+      "description": "Folder of the end-to-end derivation sheet, relative to this file. Default: this folder.",
+      "type": "string"
+    },
+    "sources": {
+      "description": "Other repositories that interfaces come from, by alias. Refer to their files as \"alias:path\".",
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "git": { "description": "Clone URL.", "type": "string" },
+          "ref": { "description": "Tag or commit to pin; a branch also works but moves.", "type": "string" },
+          "path": { "description": "A local checkout, relative to this file.", "type": "string" }
+        }
+      }
+    },
+    "input": { "$ref": "#/definitions/boundary" },
+    "stage": {
+      "description": "Boundaries between input and output, in order.",
+      "type": "array",
+      "items": { "$ref": "#/definitions/stage" }
+    },
+    "output": {
+      "description": "The final interface. Its fields are matched to the sheet's send fields.",
+      "type": "object",
+      "required": ["interface"],
+      "properties": {
+        "interface": { "$ref": "#/definitions/ref" },
+        "producer": { "description": "The team that builds the output.", "type": "string" },
+        "computes": { "$ref": "#/definitions/rows" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "definitions": {
+    "ref": {
+      "description": "An interface file: a path relative to this file, or \"alias:path\" in a declared source.",
+      "type": "string",
+      "minLength": 1
+    },
+    "carries": {
+      "description": "Which row each field carries, as field = row id. Fields whose name matches a row are matched automatically.",
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "rows": {
+      "description": "Row IDs of the end-to-end sheet computed in this step.",
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true
+    },
+    "boundary": {
+      "type": "object",
+      "required": ["interface"],
+      "properties": {
+        "interface": { "$ref": "#/definitions/ref" },
+        "carries": { "$ref": "#/definitions/carries" }
+      },
+      "additionalProperties": false
+    },
+    "stage": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "id": { "description": "Short name, used in reports. Default: the interface name.", "type": "string" },
+        "kind": {
+          "description": "handoff: the next team takes over and only sees what the interface carries (a topic, an event, a fire-and-forget call). call: a request and response; the caller keeps its own state.",
+          "enum": ["handoff", "call"]
+        },
+        "interface": { "$ref": "#/definitions/ref" },
+        "carries": { "$ref": "#/definitions/carries" },
+        "producer": { "description": "handoff: the team that produces this interface.", "type": "string" },
+        "caller": { "description": "call: the team that makes the call.", "type": "string" },
+        "computes": { "$ref": "#/definitions/rows" },
+        "callee": { "description": "call: the team that answers.", "type": "string" },
+        "callee_computes": { "$ref": "#/definitions/rows" },
+        "request": { "$ref": "#/definitions/boundary" },
+        "response": { "$ref": "#/definitions/boundary" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

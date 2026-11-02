@@ -1,0 +1,20 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PaymentRequest",
+  "description": "What the payments service needs to take payment for an order.",
+  "type": "object",
+  "required": ["subtotal", "netAmount", "salesTax", "totalAmount", "currency"],
+  "properties": {
+    "shippingMethod": { "type": "string" },
+    "subtotal": { "type": "number" },
+    "loyaltyTier": { "type": "string" },
+    "discountAmount": { "type": "number" },
+    "freeShipping": { "type": "boolean" },
+    "shippingCost": { "type": "number" },
+    "customsValue": { "type": "number" },
+    "netAmount": { "type": "number" },
+    "salesTax": { "type": "number" },
+    "totalAmount": { "type": "number" },
+    "currency": { "type": "string", "description": "ISO 4217 currency code" }
+  }
+}

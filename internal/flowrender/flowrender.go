@@ -1,0 +1,359 @@
+// Package flowrender draws a flow horizontally: one row per value, and
+// columns alternating between interfaces (boundaries) and the team steps
+// between them, from the input on the left to the output on the right. It
+// also lists what each team has to change, as the agenda for agreeing the
+// interfaces.
+package flowrender
+
+import (
+	_ "embed"
+	"fmt"
+	"html"
+	"html/template"
+	"io"
+	"path/filepath"
+	"sort"
+	"strings"
+	"time"
+
+	"derivationsheets/internal/brand"
+	"derivationsheets/internal/flow"
+	"derivationsheets/internal/render"
+	"derivationsheets/internal/sheet"
+	"derivationsheets/internal/sources"
+)
+
+//go:embed flow.html.tmpl
+var pageTemplate string
+
+//go:embed flow.css
+var pageCSS string
+
+// Page is the template model.
+type Page struct {
+	Product   string
+	Title     string
+	Slug      string
+	Version   int
+	SheetPath string
+	Summary   string
+	Generated string
+	Columns   []Column
+	SpanAll   int
+	Groups    []Group
+	Agenda    []AgendaTeam
+	Unused    []UnusedLine
+	CSS       template.CSS
+}
+
+// Column is a boundary or a step.
+type Column struct {
+	Boundary bool
+	Kind     string // boundary kind label, or step role label
+	Name     string
+	Owner    string
+	Status   string // existing or proposed, for boundaries
+	Source   string
+	Path     string
+	Missing  int
+	Warnings int
+}
+
+// Group is a block of rows under a heading.
+type Group struct {
+	Title string
+	Rows  []Row
+}
+
+// Row is one value across the flow.
+type Row struct {
+	ID    string
+	Name  string
+	Cells []Cell
+}
+
+// Cell is one value at one column.
+type Cell struct {
+	Boundary bool
+	Class    string
+	HTML     template.HTML
+	Title    string
+}
+
+// AgendaTeam lists what one team is asked to change.
+type AgendaTeam struct {
+	Team  string
+	Items []AgendaItem
+}
+
+// AgendaItem is one change request or decision.
+type AgendaItem struct {
+	Class     string
+	Mark      string
+	Interface string
+	Text      template.HTML
+}
+
+// UnusedLine lists fields of a boundary the flow does not use.
+type UnusedLine struct {
+	Interface string
+	Fields    string
+}
+
+var kindLabel = map[string]string{
+	"api-request": "API request", "api-response": "API response", "kafka-topic": "Kafka topic",
+	"event": "Event", "file": "File", "other": "Interface",
+}
+
+// Build computes the page for an analysis without errors.
+func Build(a *flow.Analysis, now time.Time) *Page {
+	f, s := a.Flow, a.Sheet
+	p := &Page{
+		Product: brand.Product, Title: f.Title, Slug: f.Slug, Version: f.Version,
+		Generated: now.Format("2 Jan 2006 15:04"), CSS: template.CSS(pageCSS),
+	}
+	if p.Title == "" {
+		p.Title = f.Slug
+	}
+	if rel, err := filepath.Rel(f.Dir, s.File); err == nil {
+		p.SheetPath = filepath.ToSlash(rel)
+	}
+	c := a.Counts()
+	p.Summary = fmt.Sprintf("%d interfaces, %d team steps · %d missing · %d warnings · %d carried",
+		len(a.Boundaries), len(a.Steps), c[flow.Missing], c[flow.Warn], c[flow.Carried])
+
+	names := map[string]string{}
+	for _, r := range s.Rows {
+		names[r.ID] = r.DisplayName()
+	}
+	// Columns alternate: boundary 0, step 0, boundary 1, ..., boundary m.
+	for i, b := range a.Boundaries {
+		if i > 0 {
+			st := a.Steps[i-1]
+			kind := "computes"
+			switch {
+			case st.Role == flow.StepCallee:
+				kind = "answers the call"
+			case st.KeepsFrom >= 0:
+				kind = "continues after the call"
+			case st.Role == flow.StepCaller:
+				kind = "makes the call"
+			}
+			owner := st.Owner
+			if owner == "" {
+				owner = "No team named"
+			}
+			p.Columns = append(p.Columns, Column{Kind: kind, Name: owner})
+		}
+		col := Column{Boundary: true}
+		if b.Iface != nil {
+			col.Kind = kindLabel[b.Iface.Kind]
+			if col.Kind == "" {
+				col.Kind = "Interface"
+			}
+			col.Name, col.Owner, col.Status = b.Iface.Name, b.Iface.Owner, b.Iface.Status
+			// Plain paths are noise in a header; source aliases say which
+			// team repository the interface comes from.
+			if alias, _ := sources.Split(b.Iface.Ref); alias != "" {
+				col.Source = b.Iface.Ref
+				if b.Iface.Revision != "" {
+					col.Source += " @ " + b.Iface.Revision
+				}
+			}
+			col.Path = b.Iface.Ref
+			for _, it := range b.Items {
+				switch it.Status {
+				case flow.Missing:
+					col.Missing++
+				case flow.Warn:
+					col.Warnings++
+				}
+			}
+		}
+		switch b.Role {
+		case flow.RoleInput:
+			col.Kind = "Input · " + col.Kind
+		case flow.RoleOutput:
+			col.Kind = "Output · " + col.Kind
+		}
+		p.Columns = append(p.Columns, col)
+	}
+
+	p.SpanAll = len(p.Columns) + 1
+	var request, derived []Row
+	for _, r := range a.Engine.Graph.Order {
+		if r.IsInput() && r.SourceKind() != "request" {
+			continue // context, database and config values belong inside a step
+		}
+		row := Row{ID: r.ID, Name: r.DisplayName()}
+		for i, b := range a.Boundaries {
+			if i > 0 {
+				row.Cells = append(row.Cells, stepCell(a, i-1, r, names))
+			}
+			row.Cells = append(row.Cells, boundaryCell(b, r))
+		}
+		if r.IsInput() {
+			request = append(request, row)
+		} else {
+			derived = append(derived, row)
+		}
+	}
+	if len(request) > 0 {
+		p.Groups = append(p.Groups, Group{Title: "From the request", Rows: request})
+	}
+	if len(derived) > 0 {
+		p.Groups = append(p.Groups, Group{Title: "Derived", Rows: derived})
+	}
+	p.Agenda = agenda(a)
+	for _, b := range a.Boundaries {
+		if b.Iface == nil {
+			continue
+		}
+		var fields []string
+		for _, it := range b.Items {
+			if it.Status == flow.Unused && it.Row == "" {
+				fields = append(fields, it.Field)
+			}
+		}
+		if len(fields) > 0 {
+			p.Unused = append(p.Unused, UnusedLine{Interface: b.Iface.Name, Fields: strings.Join(fields, ", ")})
+		}
+	}
+	return p
+}
+
+func itemFor(b *flow.Boundary, row string) *flow.Item {
+	for i := range b.Items {
+		if b.Items[i].Row == row {
+			return &b.Items[i]
+		}
+	}
+	return nil
+}
+
+func boundaryCell(b *flow.Boundary, r *sheet.Row) Cell {
+	c := Cell{Boundary: true}
+	it := itemFor(b, r.ID)
+	if it == nil {
+		return c
+	}
+	field := "<code>" + html.EscapeString(it.Field) + "</code>"
+	auto := ""
+	if it.Auto {
+		auto = ` <span class="auto" title="matched by name; list it under carries to make it explicit">≈</span>`
+	}
+	switch it.Status {
+	case flow.Carried:
+		c.Class = "carried"
+		c.HTML = template.HTML(field + auto)
+		if b.Role == flow.RoleOutput && r.Send != nil {
+			c.HTML += template.HTML(` <span class="usage">` + html.EscapeString(r.Send.Usage) + `</span>`)
+		}
+	case flow.Warn:
+		c.Class = "warning"
+		c.HTML = template.HTML(field + auto + ` <span class="mark">⚠</span>`)
+		c.Title = it.Note
+	case flow.Missing:
+		c.Class = "missing"
+		c.HTML = template.HTML(`<span class="mark">✕</span> add ` + field)
+		c.Title = it.Note + "; needed by " + strings.Join(it.Consumers, ", ")
+	case flow.Unused:
+		c.Class = "unused"
+		c.HTML = template.HTML(field)
+		c.Title = it.Note
+	}
+	return c
+}
+
+func stepCell(a *flow.Analysis, step int, r *sheet.Row, names map[string]string) Cell {
+	if p, ok := a.Place[r.ID]; ok && p == step {
+		return Cell{Class: "computed", HTML: ruleHTML(r, names)}
+	}
+	switch a.Transit[step][r.ID] {
+	case "in":
+		return Cell{Class: "transit", HTML: "→", Title: "passes through"}
+	case "kept":
+		return Cell{Class: "transit", HTML: "↷ kept", Title: "kept by the caller across the call"}
+	}
+	return Cell{}
+}
+
+// ruleHTML is a one-line form of a rule; the derivation sheet has the detail.
+func ruleHTML(r *sheet.Row, names map[string]string) template.HTML {
+	var out string
+	switch r.Rule() {
+	case sheet.RuleFormula:
+		out = `<span class="formula">` + string(render.ExprHTML(r.Formula, names)) + `</span>`
+	case sheet.RuleTable:
+		cols := make([]string, len(r.Table.Columns))
+		for i, c := range r.Table.Columns {
+			cols[i] = html.EscapeString(names[c])
+		}
+		out = fmt.Sprintf(`decision table on %s <span class="muted">(%d rules)</span>`, strings.Join(cols, ", "), len(r.Table.Rules))
+	case sheet.RuleLookup:
+		out = fmt.Sprintf(`look up in <code>%s</code>`, html.EscapeString(r.Lookup.From))
+	case sheet.RuleText:
+		out = `<i>` + html.EscapeString(r.Text) + `</i>`
+	}
+	for _, rj := range r.Rejects {
+		out += fmt.Sprintf(` <span class="reject" title="%s">rejects %s</span>`, html.EscapeString(rj.When), html.EscapeString(rj.Code))
+	}
+	return template.HTML(out)
+}
+
+// agenda groups missing fields and warnings by the team that owns each
+// interface: what each team is asked to change or decide.
+func agenda(a *flow.Analysis) []AgendaTeam {
+	byTeam := map[string][]AgendaItem{}
+	for _, b := range a.Boundaries {
+		if b.Iface == nil {
+			continue
+		}
+		team := b.Iface.Owner
+		if team == "" {
+			team = "No owner named"
+		}
+		for _, it := range b.Items {
+			var item AgendaItem
+			switch it.Status {
+			case flow.Missing:
+				item = AgendaItem{Class: "missing", Mark: "✕"}
+				switch {
+				case it.Row == "":
+					item.Text = template.HTML(fmt.Sprintf("<code>%s</code> is required by %s, but nothing in the flow produces it",
+						html.EscapeString(it.Field), html.EscapeString(b.Iface.Name)))
+				default:
+					item.Text = template.HTML(fmt.Sprintf("add <code>%s</code> (%s), needed by %s",
+						html.EscapeString(it.Field), html.EscapeString(a.Sheet.ByID[it.Row].DisplayName()),
+						html.EscapeString(strings.Join(it.Consumers, ", "))))
+				}
+			case flow.Warn:
+				item = AgendaItem{Class: "warning", Mark: "⚠", Text: template.HTML(fmt.Sprintf("<code>%s</code>: %s",
+					html.EscapeString(it.Field), html.EscapeString(it.Note)))}
+			default:
+				continue
+			}
+			item.Interface = b.Iface.Name
+			byTeam[team] = append(byTeam[team], item)
+		}
+	}
+	teams := make([]string, 0, len(byTeam))
+	for t := range byTeam {
+		teams = append(teams, t)
+	}
+	sort.Strings(teams)
+	out := make([]AgendaTeam, len(teams))
+	for i, t := range teams {
+		out[i] = AgendaTeam{Team: t, Items: byTeam[t]}
+	}
+	return out
+}
+
+// Write renders the page.
+func Write(w io.Writer, p *Page) error {
+	t, err := template.New("flow").Parse(pageTemplate)
+	if err != nil {
+		return err
+	}
+	return t.Execute(w, p)
+}

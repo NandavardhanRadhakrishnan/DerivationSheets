@@ -1,0 +1,15 @@
+{
+  "type": "record",
+  "name": "OrderPlaced",
+  "namespace": "com.example.orders",
+  "doc": "Published by the storefront when a customer places an order.",
+  "fields": [
+    { "name": "orderId", "type": "string" },
+    { "name": "customerId", "type": "string" },
+    { "name": "placedAt", "type": { "type": "long", "logicalType": "timestamp-millis" } },
+    { "name": "country", "type": "string" },
+    { "name": "subtotal", "type": "double" },
+    { "name": "weightKg", "type": ["null", "double"], "default": null },
+    { "name": "loyaltyTier", "type": { "type": "enum", "name": "Tier", "symbols": ["STANDARD", "SILVER", "GOLD"] } }
+  ]
+}

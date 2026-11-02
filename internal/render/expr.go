@@ -80,3 +80,15 @@ func exprHTML(src string, ref refFunc) template.HTML {
 	}
 	return template.HTML(b.String())
 }
+
+// ExprHTML renders an expression for reading, with row IDs replaced by the
+// names given. IDs not in names are left as written.
+func ExprHTML(src string, names map[string]string) template.HTML {
+	return exprHTML(src, func(id string) string {
+		name, ok := names[id]
+		if !ok {
+			return ""
+		}
+		return `<span class="ref" title="` + html.EscapeString(id) + `">` + html.EscapeString(name) + `</span>`
+	})
+}

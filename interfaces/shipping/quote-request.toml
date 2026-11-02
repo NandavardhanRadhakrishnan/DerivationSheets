@@ -1,0 +1,30 @@
+#:schema ../../schema/interface.schema.json
+# Imported by `dsheets interface import` from shipping.openapi.yaml. Re-import to refresh the fields.
+interface   = "quote-request"
+title       = "Shipping quote request"
+kind        = "api-request"
+owner       = "Shipping team"
+status      = "existing"
+imported    = "shipping.openapi.yaml"
+description = "Quote a shipping fee"
+
+[[field]]
+name     = "destinationCountry"
+type     = "string"
+required = false
+
+[[field]]
+name     = "method"
+type     = "string"
+required = true
+
+[[field]]
+name     = "weightKg"
+type     = "number"
+required = true
+
+[[field]]
+name     = "zone"
+type     = "string"
+required = true
+enum     = ["DOMESTIC", "REGIONAL", "INTERNATIONAL"]

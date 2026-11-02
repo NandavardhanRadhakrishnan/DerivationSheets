@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://derivationsheets.local/schema/interface.schema.json",
+  "title": "Interface",
+  "description": "A boundary a flow passes through: an API request or response, a Kafka topic, an event or a file. See docs/flows.md.",
+  "type": "object",
+  "required": ["interface"],
+  "additionalProperties": false,
+  "properties": {
+    "interface": { "description": "Name, lowercase with dashes.", "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+    "title": { "description": "Display title.", "type": "string" },
+    "kind": {
+      "description": "What kind of boundary this is.",
+      "enum": ["api-request", "api-response", "kafka-topic", "event", "file", "other"]
+    },
+    "owner": { "description": "The team that owns this interface.", "type": "string" },
+    "status": {
+      "description": "existing: already in production, so missing fields become change requests to the owner. proposed: being designed in this flow.",
+      "enum": ["existing", "proposed"]
+    },
+    "version": { "description": "The interface's own version, free text.", "type": "string" },
+    "imported": { "description": "The schema file this was imported from. Re-import to refresh the fields.", "type": "string" },
+    "description": { "type": "string" },
+    "field": {
+      "description": "Fields. Nested fields use dotted names, e.g. customer.id.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "type": { "enum": ["string", "number", "boolean", "date", "datetime", "object", "array"] },
+          "required": { "description": "Whether the field is always present.", "type": "boolean" },
+          "description": { "type": "string" },
+          "enum": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    }
+  }
+}

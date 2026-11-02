@@ -1,0 +1,41 @@
+openapi: 3.0.3
+info:
+  title: Shipping API
+  version: 3.2.0
+paths:
+  /quotes:
+    post:
+      operationId: getShippingQuote
+      summary: Quote a shipping fee
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [zone, method, weightKg]
+              properties:
+                zone:
+                  type: string
+                  enum: [DOMESTIC, REGIONAL, INTERNATIONAL]
+                method:
+                  type: string
+                weightKg:
+                  type: number
+                destinationCountry:
+                  type: string
+      responses:
+        '200':
+          description: A quote
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [fee, currency]
+                properties:
+                  fee:
+                    type: number
+                  currency:
+                    type: string
+                  estimatedDays:
+                    type: integer

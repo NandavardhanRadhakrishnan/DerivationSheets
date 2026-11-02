@@ -1,0 +1,55 @@
+openapi: 3.0.3
+info:
+  title: Storefront API
+  version: 1.4.0
+paths:
+  /orders:
+    post:
+      operationId: placeOrder
+      summary: Place an order from the checkout page
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckoutRequest'
+      responses:
+        '202':
+          description: Accepted
+components:
+  schemas:
+    CheckoutRequest:
+      type: object
+      required: [customer, shipping, order]
+      properties:
+        customer:
+          type: object
+          required: [signupDate, isMember]
+          properties:
+            id:
+              type: string
+            signupDate:
+              type: string
+              format: date
+            isMember:
+              type: boolean
+        shipping:
+          type: object
+          required: [country, method]
+          properties:
+            country:
+              type: string
+              description: ISO 3166 country code
+            method:
+              type: string
+              enum: [STANDARD, EXPRESS]
+        order:
+          type: object
+          required: [subtotal, weightKg]
+          properties:
+            subtotal:
+              type: number
+            weightKg:
+              type: number
+            giftMessage:
+              type: string

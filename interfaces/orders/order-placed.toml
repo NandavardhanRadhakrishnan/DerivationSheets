@@ -1,0 +1,45 @@
+#:schema ../../schema/interface.schema.json
+# Imported by `dsheets interface import` from order-placed.avsc. Re-import to refresh the fields.
+interface   = "order-placed"
+title       = "Order placed (Kafka topic)"
+kind        = "kafka-topic"
+owner       = "Orders team"
+status      = "existing"
+imported    = "order-placed.avsc"
+description = "Published by the storefront when a customer places an order."
+
+[[field]]
+name     = "orderId"
+type     = "string"
+required = true
+
+[[field]]
+name     = "customerId"
+type     = "string"
+required = true
+
+[[field]]
+name     = "placedAt"
+type     = "datetime"
+required = true
+
+[[field]]
+name     = "country"
+type     = "string"
+required = true
+
+[[field]]
+name     = "subtotal"
+type     = "number"
+required = true
+
+[[field]]
+name     = "weightKg"
+type     = "number"
+required = false
+
+[[field]]
+name     = "loyaltyTier"
+type     = "string"
+required = true
+enum     = ["STANDARD", "SILVER", "GOLD"]

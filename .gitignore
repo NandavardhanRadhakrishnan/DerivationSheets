@@ -4,3 +4,6 @@
 # Build output and local tooling.
 bin/
 .playwright-mcp/
+
+# Clones of other teams' repositories, fetched by flows.
+.dsheets/

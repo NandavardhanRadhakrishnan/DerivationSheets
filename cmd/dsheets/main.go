@@ -52,11 +52,14 @@ var commands = []struct {
 }{
 	{"validate", "<workflow>", "check sheet.toml and its data; report errors with file and line", cmdValidate},
 	{"cases", "<workflow>", "generate cases.toml covering every rule, reject and situational condition", cmdCases},
-	{"render", "<workflow> --out sheet.html", "write the calculation sheet as one self-contained HTML file", cmdRender},
+	{"render", "<workflow|flow> --out page.html", "write the calculation sheet, or a flow's horizontal view, as one self-contained HTML file", cmdRender},
 	{"verify", "<workflow> --actual results.json", "compare actual output payloads with cases.toml and record evidence", cmdVerify},
 	{"eval", "<workflow> (--case ID | --input in.json | --request req.json)", "evaluate one input and print the payload and full trace", cmdEval},
 	{"serve", "<workflow> [--addr localhost:8080]", "serve the rendered sheet on localhost, re-rendered on each request", cmdServe},
-	{"schema", "", "print the JSON Schema for sheet.toml", cmdSchema},
+	{"slice", "<flow> [--out flow.html]", "place each row in a team's step and report what every boundary must carry", cmdSlice},
+	{"interface", "import <schema> --out <file.toml>", "import an interface from OpenAPI, Avro or JSON Schema", cmdInterface},
+	{"fetch", "<flow>", "fetch or update the git sources a flow refers to", cmdFetch},
+	{"schema", "[sheet|flow|interface]", "print a JSON Schema (default: sheet.toml)", cmdSchema},
 }
 
 func run(args []string, out, errw io.Writer) error {
@@ -82,7 +85,7 @@ func usage(w io.Writer) {
 	for _, c := range commands {
 		fmt.Fprintf(w, "  %s %-9s %s\n      %s\n", brand.Command, c.name, c.args, c.help)
 	}
-	fmt.Fprintf(w, "\nA workflow is a folder such as specs/order-checkout containing %s.\nRun '%s <command> -h' for a command's flags.\n", sheet.FileName, brand.Command)
+	fmt.Fprintf(w, "\nA workflow is a folder such as specs/order-checkout containing %s; a flow is a folder with flow.toml.\nRun '%s <command> -h' for a command's flags.\n", sheet.FileName, brand.Command)
 }
 
 // parse parses flags that may come before or after positional arguments.
@@ -271,6 +274,21 @@ func cmdRender(args []string, out, errw io.Writer) error {
 	if *outFlag == "" {
 		fs.Usage()
 		return errUsage
+	}
+	if isFlow(dir) {
+		var buf bytes.Buffer
+		if err := flowPage(dir, &buf, errw); err != nil {
+			return err
+		}
+		if *outFlag == "-" {
+			_, err := out.Write(buf.Bytes())
+			return err
+		}
+		if err := os.WriteFile(*outFlag, buf.Bytes(), 0o644); err != nil {
+			return err
+		}
+		fmt.Fprintf(out, "wrote %s (flow view)\n", *outFlag)
+		return nil
 	}
 	mode, err := evidenceMode(*evMode, *noEv)
 	if err != nil {
@@ -522,6 +540,18 @@ func cmdServe(args []string, out, errw io.Writer) error {
 			return
 		}
 		var msgs bytes.Buffer
+		if isFlow(dir) {
+			var buf bytes.Buffer
+			if err := flowPage(dir, &buf, &msgs); err != nil {
+				w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+				w.WriteHeader(http.StatusUnprocessableEntity)
+				fmt.Fprintf(w, "%s%v\n", msgs.String(), err)
+				return
+			}
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Write(buf.Bytes())
+			return
+		}
 		page, err := buildPage(dir, *evDir, mode, "", &msgs)
 		if err != nil {
 			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -543,7 +573,16 @@ func cmdServe(args []string, out, errw io.Writer) error {
 }
 
 func cmdSchema(args []string, out, errw io.Writer) error {
-	_, err := out.Write(schema.Sheet)
+	which := "sheet"
+	if len(args) > 0 {
+		which = args[0]
+	}
+	data := map[string][]byte{"sheet": schema.Sheet, "flow": schema.Flow, "interface": schema.Interface}[which]
+	if data == nil {
+		fmt.Fprintf(errw, "%s schema: expected sheet, flow or interface\n", brand.Command)
+		return errUsage
+	}
+	_, err := out.Write(data)
 	return err
 }
 

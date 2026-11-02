@@ -1,0 +1,24 @@
+#:schema ../../schema/interface.schema.json
+# Imported by `dsheets interface import` from shipping.openapi.yaml. Re-import to refresh the fields.
+interface   = "quote-response"
+title       = "Shipping quote response"
+kind        = "api-response"
+owner       = "Shipping team"
+status      = "existing"
+imported    = "shipping.openapi.yaml"
+description = "Quote a shipping fee"
+
+[[field]]
+name     = "currency"
+type     = "string"
+required = true
+
+[[field]]
+name     = "estimatedDays"
+type     = "number"
+required = false
+
+[[field]]
+name     = "fee"
+type     = "number"
+required = true

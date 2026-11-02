@@ -1,0 +1,66 @@
+#:schema ../../schema/interface.schema.json
+# Imported by `dsheets interface import` from storefront.openapi.yaml. Re-import to refresh the fields.
+interface   = "checkout-request"
+title       = "Checkout request"
+kind        = "api-request"
+owner       = "Storefront team"
+status      = "existing"
+imported    = "storefront.openapi.yaml"
+description = "Place an order from the checkout page"
+
+[[field]]
+name     = "customer"
+type     = "object"
+required = true
+
+[[field]]
+name     = "customer.id"
+type     = "string"
+required = false
+
+[[field]]
+name     = "customer.isMember"
+type     = "boolean"
+required = true
+
+[[field]]
+name     = "customer.signupDate"
+type     = "date"
+required = true
+
+[[field]]
+name     = "order"
+type     = "object"
+required = true
+
+[[field]]
+name     = "order.giftMessage"
+type     = "string"
+required = false
+
+[[field]]
+name     = "order.subtotal"
+type     = "number"
+required = true
+
+[[field]]
+name     = "order.weightKg"
+type     = "number"
+required = true
+
+[[field]]
+name     = "shipping"
+type     = "object"
+required = true
+
+[[field]]
+name     = "shipping.country"
+type     = "string"
+required = true
+description = "ISO 3166 country code"
+
+[[field]]
+name     = "shipping.method"
+type     = "string"
+required = true
+enum     = ["STANDARD", "EXPRESS"]

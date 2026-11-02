@@ -1,7 +1,10 @@
 # Editing sheet.toml in VS Code
 
 `schema/sheet.schema.json` gives autocompletion, hover docs and inline errors
-for `sheet.toml` in any editor that uses Taplo.
+for `sheet.toml` in any editor that uses Taplo. `schema/flow.schema.json` and
+`schema/interface.schema.json` do the same for `flow.toml` and interface
+files; `.taplo.toml` attaches all three, and imported interfaces get a
+`#:schema` line automatically.
 
 1. Install **Even Better TOML** (`tamasfe.even-better-toml`). It bundles Taplo.
 2. Associate the schema, in either of two ways:
