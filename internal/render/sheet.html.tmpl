@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="{{.Product}}">
+<link rel="icon" href="data:,">
+<title>{{.Title}}</title>
+<style>{{.CSS}}</style>
+</head>
+<body>
+{{if .EvidenceUI}}<input type="checkbox" id="show-evidence" class="ev-toggle"{{if .EvidenceShown}} checked{{end}}>{{end}}
+<header class="head">
+  <div class="head-top">
+    <div class="kicker">{{.Document}} · <code>{{.Slug}}</code> · version {{.Version}}</div>
+    {{if .EvidenceUI}}<label for="show-evidence" class="ev-switch" title="Show or hide evidence from tests and traces"><span class="track"><span class="knob"></span></span>Show evidence</label>{{end}}
+  </div>
+  <h1>{{.Title}}</h1>
+  <p class="meta">{{if .EvidenceUI}}<span class="evd">{{.EvidenceLine}}<span class="sep"> · </span></span>{{end}}{{.SnapshotLine}}</p>
+</header>
+
+<table class="sheet">
+  <colgroup>
+    <col class="c-num"><col class="c-value">
+    {{range .GridCols}}<col class="c-grid">{{end}}
+    <col class="c-rule"><col class="c-send">
+  </colgroup>
+  <thead>
+    <tr>
+      <th class="num">{{.Columns.number}}</th>
+      <th class="value">{{.Columns.value}}</th>
+      {{range .GridCols}}<th class="gh" title="uses line {{.Num}}">{{.Num}}</th>{{end}}
+      <th class="rule">{{.Columns.rule}}</th>
+      <th class="send">{{.Columns.send}}</th>
+      {{if .EvidenceUI}}<th class="ev evd">{{.Columns.evidence}}</th>{{end}}
+    </tr>
+  </thead>
+  {{range .Sections}}
+  <tbody class="section">
+    <tr class="sec"><th colspan="{{$.SpanAll}}">{{.Title}}</th></tr>
+    {{range .Rows}}
+    <tr class="row{{if .Pseudo}} pseudo{{end}}" id="row-{{.ID}}" data-id="{{.ID}}" data-deps="{{.Deps}}">
+      <td class="num">{{.Num}}</td>
+      <td class="value">
+        <div class="name">{{.Name}}</div>
+        <div class="sub"><code>{{.ID}}</code></div>
+        {{if .Sub}}{{if not .Pseudo}}<div class="sub src-path"><code>{{breakDots .Sub}}</code></div>{{end}}{{end}}
+        {{if .Description}}<div class="desc">{{.Description}}</div>{{end}}
+      </td>
+      {{range .Grid}}<td class="g{{if .Shaded}} shaded{{end}}"{{if .Title}} title="{{.Title}}"{{end}}>{{if .Dot}}●{{end}}</td>{{end}}
+      <td class="rule">
+        {{.Rule}}
+        {{range .Rejects}}<div class="reject">{{.}}</div>{{end}}
+      </td>
+      <td class="send">
+        {{with .Send}}
+          <div class="field"><code>{{.Field}}</code></div>
+          <div class="usage"><b>{{.Usage}}</b>{{if .Rule}} · {{.Rule}}{{end}}</div>
+          {{if .Map}}<div class="map">{{.Map}}</div>{{end}}
+        {{end}}
+      </td>
+      {{if $.EvidenceUI}}<td class="ev evd {{.EvClass}}">{{if .Pseudo}}<span class="muted">—</span>{{else}}{{.Evidence.Label}}{{end}}</td>{{end}}
+    </tr>
+    {{end}}
+  </tbody>
+  {{end}}
+</table>
+
+{{if or .Contradictions .Unexercised .OpenItems}}
+<section class="notes{{if not .OpenItems}} evd{{end}}">
+  {{if .Contradictions}}
+  <div class="evd">
+  <h2 class="danger-h">Contradicted</h2>
+  <ul>{{range .Contradictions}}<li><span class="ln">{{.Num}}</span> <b>{{.Name}}</b>: {{.Text}}</li>{{end}}</ul>
+  </div>
+  {{end}}
+  {{if .Unexercised}}
+  <div class="evd">
+  <h2 class="warn-h">Not exercised</h2>
+  <ul>{{range .Unexercised}}<li><span class="ln">{{.Num}}</span> <b>{{.Name}}</b>: {{.Text}}</li>{{end}}</ul>
+  </div>
+  {{end}}
+  {{if .OpenItems}}
+  <h2 class="warn-h">Open items</h2>
+  <ul>{{range .OpenItems}}<li><span class="ln">{{.Num}}</span> <b>{{.Name}}</b>: {{.Text}}</li>{{end}}</ul>
+  {{end}}
+</section>
+{{end}}
+
+<section class="legend">
+  <h2>How to read this sheet</h2>
+  <dl>
+    {{if .EvidenceUI}}<dt class="evd"><span class="ev-g asserted">◇</span> Asserted</dt><dd class="evd">Written by a person; no test or trace has checked it.</dd>{{end}}
+    {{if .EvidenceUI}}<dt class="evd"><span class="ev-g verified">● n</span> Verified</dt><dd class="evd">All n relevant test cases or traces matched.</dd>{{end}}
+    {{if .EvidenceUI}}<dt class="evd"><span class="ev-g partly">◐ n of m</span> Partly verified</dt><dd class="evd">Some decision-table cells or branches were never exercised.</dd>{{end}}
+    {{if .EvidenceUI}}<dt class="evd"><span class="ev-g unexercised">○</span> Unexercised</dt><dd class="evd">No test case or trace has taken this path. Also marks cells inside rules.</dd>{{end}}
+    {{if .EvidenceUI}}<dt class="evd"><span class="ev-g contradicted">✕ n</span> Contradicted</dt><dd class="evd">n test cases or traces disagreed. See “Contradicted” above.</dd>{{end}}
+    <dt><span class="dot">●</span> Grid</dt><dd>Each numbered column is a line that other lines use. A dot means “this row uses that line”. Shaded cells are lines at or below the row, so every dot sits left of the staircase.</dd>
+    <dt><b>R</b> / <b>S</b></dt><dd>Usage, as in X12 guides: R is always required; S is situational, required when the stated condition holds, with an explicit “otherwise”.</dd>
+    <dt><span class="src"><span class="src-kind">DB</span> table</span></dt><dd>A database table or config key. Sources that feed a single line appear inside that line’s rule.</dd>
+  </dl>
+</section>
+<footer class="foot">Generated by {{.Product}} on {{.Generated}}. Row numbers may change between versions; row IDs do not.</footer>
+<script>{{.JS}}</script>
+</body>
+</html>

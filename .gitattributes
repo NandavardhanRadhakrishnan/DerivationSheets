@@ -1,0 +1,2 @@
+# Keep LF everywhere, as gofmt expects, whatever core.autocrlf says.
+* text=auto eol=lf

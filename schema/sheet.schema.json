@@ -1,0 +1,211 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://derivationsheets.local/schema/sheet.schema.json",
+  "title": "Derivation sheet",
+  "description": "A sheet.toml file. It specifies how a request is transformed into a call to a partner API. See docs/format.md.",
+  "type": "object",
+  "required": ["sheet", "version"],
+  "additionalProperties": false,
+  "properties": {
+    "sheet": {
+      "description": "Slug for the workflow, usually the folder name.",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "version": {
+      "description": "Integer, incremented on every reviewed change. Evidence is keyed by this number.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "title": { "description": "Display title.", "type": "string" },
+    "request_schema": {
+      "description": "Path to the incoming request's JSON Schema, relative to this folder.",
+      "type": "string"
+    },
+    "target_schema": {
+      "description": "Path to the partner request's JSON Schema, or an OpenAPI file with a pointer, e.g. `partner.yaml#/components/schemas/Quote`.",
+      "type": "string"
+    },
+    "display": { "$ref": "#/definitions/display" },
+    "row": {
+      "description": "The rows of the sheet, one value each.",
+      "type": "array",
+      "items": { "$ref": "#/definitions/row" }
+    }
+  },
+  "definitions": {
+    "display": {
+      "description": "How the rendered sheet looks. Overrides the project-wide [display] in dsheets.toml. Never affects evaluation.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "evidence": {
+          "description": "Initial state of the evidence switch in the rendered page.",
+          "enum": ["shown", "hidden"]
+        },
+        "columns": {
+          "description": "Column header labels.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "number": { "description": "Default \"#\".", "type": "string", "minLength": 1 },
+            "value": { "description": "Default \"Value\".", "type": "string", "minLength": 1 },
+            "rule": { "description": "Default \"Rule\".", "type": "string", "minLength": 1 },
+            "send": { "description": "Default \"Sent to partner as\". Often names the partner.", "type": "string", "minLength": 1 },
+            "evidence": { "description": "Default \"Evidence\".", "type": "string", "minLength": 1 }
+          }
+        },
+        "sections": {
+          "description": "Section titles.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "request": { "description": "Default \"From the request\".", "type": "string", "minLength": 1 },
+            "context": { "description": "Default \"From context\".", "type": "string", "minLength": 1 },
+            "data": { "description": "Default \"From database and config\".", "type": "string", "minLength": 1 },
+            "derived": { "description": "Default \"Derived\".", "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "expression": {
+      "description": "A CEL expression over row IDs. Custom functions: round(x), years_between(a, b), today().",
+      "type": "string",
+      "minLength": 1
+    },
+    "row": {
+      "type": "object",
+      "required": ["id", "name"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Unique, lowercase snake_case, stable across versions.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "name": { "description": "Plain-language display name.", "type": "string", "minLength": 1 },
+        "description": { "description": "Optional longer explanation.", "type": "string" },
+        "source": {
+          "description": "Input rows only: request.<path>, context.<name>, db.<table> or config.<key>.",
+          "type": "string",
+          "pattern": "^(request|context|db|config)\\.[A-Za-z0-9_.\\-]+$"
+        },
+        "type": {
+          "description": "Input rows only: the value type.",
+          "enum": ["string", "number", "boolean", "date", "datetime"]
+        },
+        "usage": {
+          "description": "Input rows only: R (required, the default) or S (situational, with `when`).",
+          "enum": ["R", "S"]
+        },
+        "when": {
+          "$ref": "#/definitions/expression",
+          "description": "Input rows with usage S: when this input is required."
+        },
+        "default": {
+          "description": "Input rows only: the value used when the input is missing."
+        },
+        "uses": {
+          "description": "Derived rows: the row IDs this row uses, including any named in send.when.",
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        },
+        "formula": { "$ref": "#/definitions/expression", "description": "Rule: an expression over the rows in `uses`." },
+        "table": { "$ref": "#/definitions/table" },
+        "lookup": { "$ref": "#/definitions/lookup" },
+        "values": {
+          "description": "Lookups with one key: design-time values, keyed by the key value.",
+          "type": "object"
+        },
+        "values_file": {
+          "description": "Lookups: a CSV in data/ whose header names the key columns, then one result column.",
+          "type": "string"
+        },
+        "text": { "description": "Rule: a plain-language description only. Reported as an open item.", "type": "string", "minLength": 1 },
+        "reject": {
+          "description": "Conditions that reject the whole request.",
+          "type": "array",
+          "items": { "$ref": "#/definitions/reject" }
+        },
+        "send": { "$ref": "#/definitions/send" },
+        "open_questions": {
+          "description": "Unresolved questions, reported by the validator.",
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "table": {
+      "description": "Rule: a decision table over the rows in `uses`.",
+      "type": "object",
+      "required": ["columns", "rows"],
+      "additionalProperties": false,
+      "properties": {
+        "hit_policy": {
+          "description": "unique (default): exactly one rule may match. first: the first matching rule wins.",
+          "enum": ["unique", "first"]
+        },
+        "columns": {
+          "description": "Input row IDs, then \"=>\" for the result.",
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 2
+        },
+        "rows": {
+          "description": "Rules. Each cell is a literal, \"-\" for any value, or a comparison such as \">= 46\". The last cell is the result.",
+          "type": "array",
+          "items": { "type": "array", "minItems": 2 }
+        }
+      }
+    },
+    "lookup": {
+      "description": "Rule: a keyed lookup into a db or config source.",
+      "type": "object",
+      "required": ["from", "key"],
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "description": "db.<table> or config.<key>.",
+          "type": "string",
+          "pattern": "^(db|config)\\.[A-Za-z0-9_.\\-]+$"
+        },
+        "key": {
+          "description": "Row IDs that form the key, in order.",
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        }
+      }
+    },
+    "reject": {
+      "type": "object",
+      "required": ["when", "code", "message"],
+      "additionalProperties": false,
+      "properties": {
+        "when": { "$ref": "#/definitions/expression", "description": "When true, the request is rejected." },
+        "code": { "description": "Reject code, UPPER_SNAKE_CASE.", "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+        "message": { "description": "Message returned with the code.", "type": "string" }
+      }
+    },
+    "send": {
+      "description": "Sends this row to the partner. A row without `send` is not sent.",
+      "type": "object",
+      "required": ["field", "usage"],
+      "additionalProperties": false,
+      "properties": {
+        "field": { "description": "Partner field. Dots nest objects, e.g. applicant.age.", "type": "string", "minLength": 1 },
+        "usage": { "description": "R: always required. S: situational, needs `when` and `otherwise`.", "enum": ["R", "S"] },
+        "when": { "$ref": "#/definitions/expression", "description": "Usage S: when the field is required." },
+        "otherwise": {
+          "description": "Usage S: what to do when `when` is false.",
+          "enum": ["do-not-send", "sender-discretion"]
+        },
+        "map": {
+          "description": "Translates internal values to the partner's codes.",
+          "type": "object"
+        }
+      }
+    }
+  }
+}

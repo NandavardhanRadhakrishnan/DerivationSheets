@@ -1,0 +1,9 @@
+# Taplo (and the Even Better TOML extension for VS Code) reads this file.
+# It attaches the sheet schema to every sheet.toml, for autocompletion and
+# inline errors. A `#:schema` comment at the top of a sheet does the same.
+
+[[rule]]
+include = ["specs/**/sheet.toml"]
+
+[rule.schema]
+path = "./schema/sheet.schema.json"

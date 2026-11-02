@@ -1,0 +1,710 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="DerivationSheets">
+<link rel="icon" href="data:,">
+<title>Health policy premium</title>
+<style>:root {
+  --bg: #ffffff;
+  --fg: #1b1b1b;
+  --muted: #6b6b6b;
+  --line: #d3d3d3;
+  --line-strong: #1b1b1b;
+  --shade: #ececec;
+  --sec: #f5f5f3;
+  --accent: #1f5fbf;
+  --success: #1c7a3c;
+  --warn: #a35f00;
+  --danger: #b3261e;
+  --up: rgba(31, 95, 191, 0.10);
+  --down: rgba(163, 95, 0, 0.12);
+  --focus: rgba(31, 95, 191, 0.20);
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141414;
+    --fg: #e6e6e6;
+    --muted: #9a9a9a;
+    --line: #353535;
+    --line-strong: #d0d0d0;
+    --shade: #242424;
+    --sec: #1c1c1c;
+    --accent: #79a8ff;
+    --success: #5cc27a;
+    --warn: #e2a247;
+    --danger: #ff6f63;
+    --up: rgba(121, 168, 255, 0.14);
+    --down: rgba(226, 162, 71, 0.14);
+    --focus: rgba(121, 168, 255, 0.26);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141414; --fg: #e6e6e6; --muted: #9a9a9a; --line: #353535; --line-strong: #d0d0d0;
+  --shade: #242424; --sec: #1c1c1c; --accent: #79a8ff; --success: #5cc27a; --warn: #e2a247;
+  --danger: #ff6f63; --up: rgba(121,168,255,.14); --down: rgba(226,162,71,.14); --focus: rgba(121,168,255,.26);
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  padding: 20px 16px 32px;
+  background: var(--bg);
+  color: var(--fg);
+  font: 13px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+code, .sub, .field, .gh, .num { font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, "Liberation Mono", monospace; }
+code { font-size: 0.92em; }
+
+.head { max-width: 1400px; margin: 0 auto 12px; border-bottom: 2px solid var(--line-strong); padding-bottom: 8px; }
+.head-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+
+/* Evidence switch. The checkbox sits before everything else in <body>, so
+   one sibling rule hides every evidence element; no script is needed, and
+   the page prints in whatever state is on screen. */
+.ev-toggle { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
+.ev-toggle:not(:checked) ~ * .evd, .ev-toggle:not(:checked) ~ .evd { display: none !important; }
+.ev-switch {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;
+  font-size: 12px; color: var(--muted);
+}
+.ev-switch .track {
+  position: relative; width: 26px; height: 14px; border-radius: 7px;
+  border: 1px solid var(--muted); background: var(--bg);
+}
+.ev-switch .knob {
+  position: absolute; top: 2px; left: 2px; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--muted); transition: left 0.12s;
+}
+.ev-toggle:checked ~ .head .ev-switch { color: var(--fg); }
+.ev-toggle:checked ~ .head .ev-switch .track { border-color: var(--accent); background: var(--accent); }
+.ev-toggle:checked ~ .head .ev-switch .knob { left: 14px; background: var(--bg); }
+.ev-toggle:focus-visible ~ .head .ev-switch .track { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .ev-switch .knob { transition: none; } }
+.kicker { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.kicker code { text-transform: none; letter-spacing: 0; }
+h1 { font-size: 20px; margin: 2px 0 4px; font-weight: 650; }
+.meta { margin: 0; color: var(--muted); font-size: 12px; }
+.sep { color: var(--muted); }
+
+.sheet {
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  border-collapse: collapse;
+  table-layout: auto;
+}
+.sheet th, .sheet td { border-bottom: 1px solid var(--line); padding: 4px 6px; vertical-align: top; text-align: left; }
+.sheet thead th {
+  font-size: 11px; font-weight: 600; color: var(--muted);
+  border-bottom: 1.5px solid var(--line-strong); vertical-align: bottom; white-space: nowrap;
+}
+.sheet thead th.gh { text-align: center; padding: 4px 0; color: var(--accent); width: 22px; min-width: 22px; }
+.c-num { width: 28px; }
+.c-value { width: 17%; }
+.c-grid { width: 22px; }
+.c-send { width: 17%; }
+th.ev { width: 76px; }
+
+tr.sec th {
+  background: var(--sec); color: var(--fg); font-size: 11px; font-weight: 650;
+  text-transform: uppercase; letter-spacing: 0.06em; padding: 5px 6px; border-bottom: 1px solid var(--line);
+}
+td.num { color: var(--muted); text-align: right; font-size: 12px; padding-right: 8px; }
+.name { font-weight: 600; }
+.sub { font-size: 11px; color: var(--muted); }
+.src-path { opacity: 0.85; }
+.desc { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+
+td.g {
+  text-align: center; padding: 4px 0; color: var(--accent); font-size: 11px;
+  border-left: 1px solid var(--line);
+}
+td.g.shaded { background: var(--shade); }
+tr.row td.g:last-of-type { border-right: 1px solid var(--line); }
+
+td.rule { min-width: 260px; }
+.formula { font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace; font-size: 12px; }
+.formula .ref { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 13px; }
+.ref { border-bottom: 1px dotted var(--muted); }
+.ref sup { font-size: 9px; color: var(--accent); margin-left: 1px; }
+.fn { color: var(--muted); }
+.lit { color: var(--fg); }
+.cases { line-height: 1.6; }
+.case b { font-weight: 650; }
+.ev-toggle:checked ~ .sheet .case.unexercised { color: var(--warn); }
+.ev-toggle:checked ~ .sheet .case.contradicted { color: var(--danger); }
+.text-rule { font-style: italic; }
+.muted { color: var(--muted); font-size: 12px; }
+
+.src {
+  display: inline-block; font-size: 11px; line-height: 1.3; padding: 0 4px; margin: 1px 0;
+  border: 1px solid var(--line); border-radius: 3px; white-space: nowrap;
+  font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+}
+.src-kind { font-weight: 700; color: var(--muted); }
+.tag {
+  display: inline-block; font-size: 10.5px; padding: 0 4px; border: 1px solid var(--line);
+  border-radius: 3px; color: var(--muted); white-space: nowrap;
+}
+.tag.warn { color: var(--warn); border-color: var(--warn); }
+.tag.danger { color: var(--danger); border-color: var(--danger); }
+.reject { color: var(--danger); margin-top: 3px; font-size: 12.5px; }
+.reject .ref { border-bottom-color: var(--danger); }
+.mark { font-size: 11px; }
+.mark.unexercised { color: var(--warn); }
+.mark.contradicted { color: var(--danger); font-weight: 700; }
+
+table.g2, table.dt { border-collapse: collapse; margin: 1px 0 2px; font-size: 12px; }
+table.g2 th, table.g2 td, table.dt th, table.dt td {
+  border: 1px solid var(--line); padding: 1px 6px; text-align: center; vertical-align: middle; white-space: nowrap;
+}
+table.g2 thead th, table.dt thead th { font-weight: 600; color: var(--muted); font-size: 11px; background: none; border-bottom: 1px solid var(--line); }
+table.g2 tbody th { font-weight: 600; color: var(--muted); font-size: 11px; text-align: right; }
+table.g2 th.corner { font-weight: 400; text-align: left; }
+table.g2 td { font-weight: 650; }
+.ev-toggle:checked ~ .sheet table.g2 td.unexercised, .ev-toggle:checked ~ .sheet table.dt tr.unexercised td { color: var(--warn); }
+.ev-toggle:checked ~ .sheet table.g2 td.contradicted, .ev-toggle:checked ~ .sheet table.dt tr.contradicted td { color: var(--danger); }
+table.g2 td.gap { color: var(--danger); }
+table.dt td.any { color: var(--muted); }
+table.dt td.res, table.dt th.res { font-weight: 650; border-left: 1.5px solid var(--line-strong); }
+
+td.send .field code { color: var(--success); font-weight: 600; font-size: 12px; }
+.usage { font-size: 12px; }
+.usage b { font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace; }
+.map { font-size: 11.5px; color: var(--muted); }
+.map code { color: var(--success); }
+
+td.ev { white-space: nowrap; font-size: 12.5px; }
+td.ev.verified { color: var(--fg); }
+td.ev.asserted { color: var(--muted); }
+td.ev.partly, td.ev.unexercised { color: var(--warn); font-weight: 600; }
+td.ev.contradicted { color: var(--danger); font-weight: 700; }
+
+tr.pseudo .name { font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace; font-weight: 600; }
+
+/* Hover: rows a line depends on, and rows that depend on it. */
+tr.row.focus > td { background: var(--focus); }
+tr.row.up > td { background: var(--up); }
+tr.row.down > td { background: var(--down); }
+tr.row.focus > td.g.shaded, tr.row.up > td.g.shaded, tr.row.down > td.g.shaded { background: var(--shade); }
+body.hovering tr.row:not(.focus):not(.up):not(.down) { opacity: 0.55; }
+
+.notes, .legend, .foot { max-width: 1400px; margin: 18px auto 0; }
+h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; margin: 12px 0 4px; }
+.danger-h { color: var(--danger); }
+.warn-h { color: var(--warn); }
+.notes ul { margin: 0; padding-left: 0; list-style: none; }
+.notes li { padding: 2px 0; border-bottom: 1px solid var(--line); }
+.ln {
+  display: inline-block; min-width: 22px; color: var(--muted);
+  font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace; font-size: 11px;
+}
+.legend dl { display: grid; grid-template-columns: max-content 1fr; gap: 3px 14px; margin: 0; font-size: 12px; }
+.legend dt { white-space: nowrap; }
+.legend dd { margin: 0; color: var(--muted); }
+.ev-g.verified { color: var(--fg); }
+.ev-g.asserted { color: var(--muted); }
+.ev-g.partly, .ev-g.unexercised { color: var(--warn); }
+.ev-g.contradicted { color: var(--danger); }
+.dot { color: var(--accent); }
+.foot { color: var(--muted); font-size: 11px; border-top: 1px solid var(--line); padding-top: 6px; }
+
+@media (max-width: 900px) {
+  body { padding: 12px 16px 24px; }
+  .sheet { display: block; overflow-x: auto; }
+  td.rule { min-width: 220px; }
+}
+
+@media print {
+  @page { size: landscape; margin: 9mm; }
+  /* Same specificity as the dark-mode selectors, and later, so paper is always light. */
+  :root, :root:not([data-theme="light"]), :root[data-theme="dark"] {
+    --bg: #fff; --fg: #000; --muted: #555; --line: #bbb; --line-strong: #000; --shade: #e6e6e6;
+    --sec: #f0f0f0; --accent: #1f4fa0; --success: #145c2c; --warn: #8a4f00; --danger: #a01d16;
+  }
+  body { padding: 0; font-size: 8.4pt; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .sheet { display: table; overflow: visible; }
+  .sheet thead { display: table-header-group; }
+  tr.row { break-inside: avoid; page-break-inside: avoid; }
+  tr.sec { break-after: avoid; page-break-after: avoid; }
+  td.rule { min-width: 0; }
+  .formula .ref { font-size: 8.4pt; }
+  body.hovering tr.row { opacity: 1 !important; }
+  tr.row > td { background: none !important; }
+  tr.row > td.g.shaded { background: var(--shade) !important; }
+  .legend { break-inside: avoid; }
+  .ev-switch { display: none; }
+}
+</style>
+</head>
+<body>
+<input type="checkbox" id="show-evidence" class="ev-toggle" checked>
+<header class="head">
+  <div class="head-top">
+    <div class="kicker">Derivation sheet · <code>premium-calculation</code> · version 1</div>
+    <label for="show-evidence" class="ev-switch" title="Show or hide evidence from tests and traces"><span class="track"><span class="knob"></span></span>Show evidence</label>
+  </div>
+  <h1>Health policy premium</h1>
+  <p class="meta"><span class="evd">Tests: 7 cases from results.json, run 2 Nov 2026<span class="sep"> · </span></span>Database and config snapshot: 2 Nov 2026</p>
+</header>
+
+<table class="sheet">
+  <colgroup>
+    <col class="c-num"><col class="c-value">
+    <col class="c-grid"><col class="c-grid"><col class="c-grid"><col class="c-grid"><col class="c-grid"><col class="c-grid"><col class="c-grid"><col class="c-grid"><col class="c-grid"><col class="c-grid"><col class="c-grid"><col class="c-grid"><col class="c-grid"><col class="c-grid">
+    <col class="c-rule"><col class="c-send">
+  </colgroup>
+  <thead>
+    <tr>
+      <th class="num">#</th>
+      <th class="value">Value</th>
+      <th class="gh" title="uses line 1">1</th><th class="gh" title="uses line 2">2</th><th class="gh" title="uses line 3">3</th><th class="gh" title="uses line 4">4</th><th class="gh" title="uses line 5">5</th><th class="gh" title="uses line 6">6</th><th class="gh" title="uses line 7">7</th><th class="gh" title="uses line 8">8</th><th class="gh" title="uses line 9">9</th><th class="gh" title="uses line 10">10</th><th class="gh" title="uses line 12">12</th><th class="gh" title="uses line 13">13</th><th class="gh" title="uses line 15">15</th><th class="gh" title="uses line 16">16</th>
+      <th class="rule">Rule</th>
+      <th class="send">Sent to partner as</th>
+      <th class="ev evd">Evidence</th>
+    </tr>
+  </thead>
+  
+  <tbody class="section">
+    <tr class="sec"><th colspan="19">From the request</th></tr>
+    
+    <tr class="row" id="row-dob" data-id="dob" data-deps="">
+      <td class="num">1</td>
+      <td class="value">
+        <div class="name">Date of birth</div>
+        <div class="sub"><code>dob</code></div>
+        <div class="sub src-path"><code>request.<wbr>applicant.<wbr>dob</code></div>
+        
+      </td>
+      <td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
+      <td class="rule">
+        
+        
+      </td>
+      <td class="send">
+        
+      </td>
+      <td class="ev evd verified">● 7</td>
+    </tr>
+    
+    <tr class="row" id="row-city" data-id="city" data-deps="">
+      <td class="num">2</td>
+      <td class="value">
+        <div class="name">City</div>
+        <div class="sub"><code>city</code></div>
+        <div class="sub src-path"><code>request.<wbr>applicant.<wbr>city</code></div>
+        
+      </td>
+      <td class="g"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
+      <td class="rule">
+        
+        
+      </td>
+      <td class="send">
+        
+      </td>
+      <td class="ev evd verified">● 6</td>
+    </tr>
+    
+    <tr class="row" id="row-is_smoker" data-id="is_smoker" data-deps="">
+      <td class="num">3</td>
+      <td class="value">
+        <div class="name">Smoker</div>
+        <div class="sub"><code>is_smoker</code></div>
+        <div class="sub src-path"><code>request.<wbr>applicant.<wbr>isSmoker</code></div>
+        
+      </td>
+      <td class="g"></td><td class="g"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
+      <td class="rule">
+        
+        
+      </td>
+      <td class="send">
+        
+      </td>
+      <td class="ev evd verified">● 6</td>
+    </tr>
+    
+    <tr class="row" id="row-has_ped" data-id="has_ped" data-deps="">
+      <td class="num">4</td>
+      <td class="value">
+        <div class="name">Has pre-existing disease</div>
+        <div class="sub"><code>has_ped</code></div>
+        <div class="sub src-path"><code>request.<wbr>medical.<wbr>hasPED</code></div>
+        
+      </td>
+      <td class="g"></td><td class="g"></td><td class="g"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
+      <td class="rule">
+        
+        
+      </td>
+      <td class="send">
+        
+      </td>
+      <td class="ev evd verified">● 6</td>
+    </tr>
+    
+    <tr class="row" id="row-plan" data-id="plan" data-deps="">
+      <td class="num">5</td>
+      <td class="value">
+        <div class="name">Plan</div>
+        <div class="sub"><code>plan</code></div>
+        <div class="sub src-path"><code>request.<wbr>policy.<wbr>planCode</code></div>
+        
+      </td>
+      <td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
+      <td class="rule">
+        
+        
+      </td>
+      <td class="send">
+        
+          <div class="field"><code>planCode</code></div>
+          <div class="usage"><b>R</b></div>
+          
+        
+      </td>
+      <td class="ev evd verified">● 6</td>
+    </tr>
+    
+    <tr class="row" id="row-sum_insured" data-id="sum_insured" data-deps="">
+      <td class="num">6</td>
+      <td class="value">
+        <div class="name">Sum insured</div>
+        <div class="sub"><code>sum_insured</code></div>
+        <div class="sub src-path"><code>request.<wbr>policy.<wbr>sumInsured</code></div>
+        
+      </td>
+      <td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
+      <td class="rule">
+        
+        
+      </td>
+      <td class="send">
+        
+          <div class="field"><code>sumInsured</code></div>
+          <div class="usage"><b>R</b></div>
+          
+        
+      </td>
+      <td class="ev evd verified">● 6</td>
+    </tr>
+    
+  </tbody>
+  
+  <tbody class="section">
+    <tr class="sec"><th colspan="19">From context</th></tr>
+    
+    <tr class="row" id="row-request_time" data-id="request_time" data-deps="">
+      <td class="num">7</td>
+      <td class="value">
+        <div class="name">Request time</div>
+        <div class="sub"><code>request_time</code></div>
+        <div class="sub src-path"><code>context.<wbr>request_time</code></div>
+        
+      </td>
+      <td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
+      <td class="rule">
+        
+        
+      </td>
+      <td class="send">
+        
+      </td>
+      <td class="ev evd verified">● 7</td>
+    </tr>
+    
+  </tbody>
+  
+  <tbody class="section">
+    <tr class="sec"><th colspan="19">Derived</th></tr>
+    
+    <tr class="row" id="row-age" data-id="age" data-deps="dob request_time">
+      <td class="num">8</td>
+      <td class="value">
+        <div class="name">Age</div>
+        <div class="sub"><code>age</code></div>
+        
+        
+      </td>
+      <td class="g" title="line 8 uses line 1">●</td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g" title="line 8 uses line 7">●</td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
+      <td class="rule">
+        <span class="formula"><span class="fn">years_between</span>(<span class="ref" title="dob">Date of birth<sup>1</sup></span>, <span class="ref" title="request_time">Request time<sup>7</sup></span>)</span>
+        <div class="reject"><span class="ref" title="age">Age<sup>8</sup></span> &gt; 65 → reject <code>AGE_LIMIT</code></div>
+      </td>
+      <td class="send">
+        
+      </td>
+      <td class="ev evd verified">● 7</td>
+    </tr>
+    
+    <tr class="row" id="row-zone" data-id="zone" data-deps="city">
+      <td class="num">9</td>
+      <td class="value">
+        <div class="name">Zone</div>
+        <div class="sub"><code>zone</code></div>
+        
+        
+      </td>
+      <td class="g"></td><td class="g" title="line 9 uses line 2">●</td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
+      <td class="rule">
+        Look up by <span class="ref" title="city">City<sup>2</sup></span>: <span class="cases"><span class="case">Mumbai <b>A</b></span> <span class="sep">·</span> <span class="case">Delhi <b>A</b></span> <span class="sep">·</span> <span class="case">Bengaluru <b>A</b></span> <span class="sep">·</span> <span class="case">Pune <b>B</b></span> <span class="sep">·</span> <span class="case">Nagpur <b>B</b></span></span> <span class="src"><span class="src-kind">DB</span> city_zones</span>
+        
+      </td>
+      <td class="send">
+        
+      </td>
+      <td class="ev evd verified">● 6</td>
+    </tr>
+    
+    <tr class="row" id="row-risk_class" data-id="risk_class" data-deps="is_smoker has_ped">
+      <td class="num">10</td>
+      <td class="value">
+        <div class="name">Risk class</div>
+        <div class="sub"><code>risk_class</code></div>
+        
+        
+      </td>
+      <td class="g"></td><td class="g"></td><td class="g" title="line 10 uses line 3">●</td><td class="g" title="line 10 uses line 4">●</td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
+      <td class="rule">
+        <table class="g2"><thead><tr><th class="corner"><span class="ref" title="is_smoker">Smoker<sup>3</sup></span> ╲ <span class="ref" title="has_ped">Has pre-existing disease<sup>4</sup></span></th><th>Yes</th><th>No</th></tr></thead><tbody><tr><th>Yes</th><td class="verified" title="rule 4">High</td><td class="verified" title="rule 3">Elevated</td></tr><tr><th>No</th><td class="verified" title="rule 2">Elevated</td><td class="verified" title="rule 1">Standard</td></tr></tbody></table>
+        
+      </td>
+      <td class="send">
+        
+          <div class="field"><code>riskClassCode</code></div>
+          <div class="usage"><b>R</b></div>
+          <div class="map">Standard→<code>STD</code> · Elevated→<code>ELV</code> · High→<code>HIGH</code></div>
+        
+      </td>
+      <td class="ev evd verified">● 6</td>
+    </tr>
+    
+    <tr class="row" id="row-waiting_period" data-id="waiting_period" data-deps="has_ped plan">
+      <td class="num">11</td>
+      <td class="value">
+        <div class="name">Waiting period</div>
+        <div class="sub"><code>waiting_period</code></div>
+        
+        
+      </td>
+      <td class="g"></td><td class="g"></td><td class="g"></td><td class="g" title="line 11 uses line 4">●</td><td class="g" title="line 11 uses line 5">●</td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
+      <td class="rule">
+        Look up by <span class="ref" title="plan">Plan<sup>5</sup></span>: <span class="cases"><span class="case">GOLD <b>24</b></span> <span class="sep">·</span> <span class="case">SILVER <b>36</b></span></span> <span class="src"><span class="src-kind">DB</span> plan_ped_waiting</span>
+        
+      </td>
+      <td class="send">
+        
+          <div class="field"><code>waitingPeriodMonths</code></div>
+          <div class="usage"><b>S</b> · required when <span class="ref" title="has_ped">Has pre-existing disease<sup>4</sup></span> = <span class="lit">true</span>; otherwise do not send</div>
+          
+        
+      </td>
+      <td class="ev evd verified">● 6</td>
+    </tr>
+    
+    <tr class="row" id="row-base_premium" data-id="base_premium" data-deps="plan age zone sum_insured">
+      <td class="num">12</td>
+      <td class="value">
+        <div class="name">Base premium</div>
+        <div class="sub"><code>base_premium</code></div>
+        
+        
+      </td>
+      <td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g" title="line 12 uses line 5">●</td><td class="g" title="line 12 uses line 6">●</td><td class="g"></td><td class="g" title="line 12 uses line 8">●</td><td class="g" title="line 12 uses line 9">●</td><td class="g"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
+      <td class="rule">
+        Look up by <span class="ref" title="plan">Plan<sup>5</sup></span>, <span class="ref" title="age">Age<sup>8</sup></span>, <span class="ref" title="zone">Zone<sup>9</sup></span> and <span class="ref" title="sum_insured">Sum insured<sup>6</sup></span> <span class="src"><span class="src-kind">DB</span> plan_rates</span> <span class="muted">48 entries in data/plan_rates.csv</span>
+        
+      </td>
+      <td class="send">
+        
+      </td>
+      <td class="ev evd verified">● 6</td>
+    </tr>
+    
+    <tr class="row" id="row-loading" data-id="loading" data-deps="risk_class">
+      <td class="num">13</td>
+      <td class="value">
+        <div class="name">Loading</div>
+        <div class="sub"><code>loading</code></div>
+        
+        
+      </td>
+      <td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g" title="line 13 uses line 10">●</td><td class="g"></td><td class="g shaded"></td><td class="g shaded"></td><td class="g shaded"></td>
+      <td class="rule">
+        <span class="cases"><span class="case verified">Standard <b>0</b></span> <span class="sep">·</span> <span class="case verified">Elevated <b>0.15</b></span> <span class="sep">·</span> <span class="case verified">High <b>0.35</b></span></span> <span class="src"><span class="src-kind">config</span> pricing.loading</span>
+        
+      </td>
+      <td class="send">
+        
+      </td>
+      <td class="ev evd verified">● 6</td>
+    </tr>
+    
+    <tr class="row" id="row-medical_check" data-id="medical_check" data-deps="age risk_class">
+      <td class="num">14</td>
+      <td class="value">
+        <div class="name">Medical check</div>
+        <div class="sub"><code>medical_check</code></div>
+        
+        
+      </td>
+      <td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g" title="line 14 uses line 8">●</td><td class="g"></td><td class="g" title="line 14 uses line 10">●</td><td class="g"></td><td class="g"></td><td class="g shaded"></td><td class="g shaded"></td>
+      <td class="rule">
+        <table class="g2"><thead><tr><th class="corner"><span class="ref" title="age">Age<sup>8</sup></span> ╲ <span class="ref" title="risk_class">Risk class<sup>10</sup></span></th><th>Standard</th><th>Elevated</th><th>High</th></tr></thead><tbody><tr><th>&lt; 46</th><td class="verified" title="rule 3">No</td><td class="verified" title="rule 3">No</td><td class="verified" title="rule 2">Yes</td></tr><tr><th>≥ 46</th><td class="verified" title="rule 1">Yes</td><td class="verified" title="rule 1">Yes</td><td class="verified" title="rule 1">Yes</td></tr></tbody></table> <span class="tag">first match</span>
+        
+      </td>
+      <td class="send">
+        
+          <div class="field"><code>underwritingType</code></div>
+          <div class="usage"><b>R</b></div>
+          <div class="map">Yes→<code>MANUAL</code> · No→<code>STP</code></div>
+        
+      </td>
+      <td class="ev evd verified">● 6</td>
+    </tr>
+    
+    <tr class="row" id="row-net_premium" data-id="net_premium" data-deps="base_premium loading">
+      <td class="num">15</td>
+      <td class="value">
+        <div class="name">Net premium</div>
+        <div class="sub"><code>net_premium</code></div>
+        
+        
+      </td>
+      <td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g" title="line 15 uses line 12">●</td><td class="g" title="line 15 uses line 13">●</td><td class="g shaded"></td><td class="g shaded"></td>
+      <td class="rule">
+        <span class="formula"><span class="fn">round</span>(<span class="ref" title="base_premium">Base premium<sup>12</sup></span> × (1.0 + <span class="ref" title="loading">Loading<sup>13</sup></span>))</span>
+        
+      </td>
+      <td class="send">
+        
+          <div class="field"><code>netPremium</code></div>
+          <div class="usage"><b>R</b></div>
+          
+        
+      </td>
+      <td class="ev evd contradicted">✕ 1</td>
+    </tr>
+    
+    <tr class="row" id="row-gst" data-id="gst" data-deps="net_premium">
+      <td class="num">16</td>
+      <td class="value">
+        <div class="name">GST</div>
+        <div class="sub"><code>gst</code></div>
+        
+        
+      </td>
+      <td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g" title="line 16 uses line 15">●</td><td class="g shaded"></td>
+      <td class="rule">
+        <span class="formula"><span class="fn">round</span>(<span class="ref" title="net_premium">Net premium<sup>15</sup></span> × <span class="ref" title="gst_rate">GST rate</span>)</span> <span class="src"><span class="src-kind">config</span> tax.gst_rate = 0.18</span>
+        
+      </td>
+      <td class="send">
+        
+          <div class="field"><code>gstAmount</code></div>
+          <div class="usage"><b>R</b></div>
+          
+        
+      </td>
+      <td class="ev evd verified">● 6</td>
+    </tr>
+    
+    <tr class="row" id="row-total_payable" data-id="total_payable" data-deps="net_premium gst">
+      <td class="num">17</td>
+      <td class="value">
+        <div class="name">Total payable</div>
+        <div class="sub"><code>total_payable</code></div>
+        
+        
+      </td>
+      <td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g"></td><td class="g" title="line 17 uses line 15">●</td><td class="g" title="line 17 uses line 16">●</td>
+      <td class="rule">
+        <span class="formula"><span class="ref" title="net_premium">Net premium<sup>15</sup></span> + <span class="ref" title="gst">GST<sup>16</sup></span></span>
+        
+      </td>
+      <td class="send">
+        
+          <div class="field"><code>totalPayable</code></div>
+          <div class="usage"><b>R</b></div>
+          
+        
+      </td>
+      <td class="ev evd verified">● 6</td>
+    </tr>
+    
+  </tbody>
+  
+</table>
+
+
+<section class="notes evd">
+  
+  <div class="evd">
+  <h2 class="danger-h">Contradicted</h2>
+  <ul><li><span class="ln">15</span> <b>Net premium</b>: case <code>risk-class-high</code>, field <code>netPremium</code>: expected <b>12879</b>, got <b>12500</b></li></ul>
+  </div>
+  
+  
+  
+</section>
+
+
+<section class="legend">
+  <h2>How to read this sheet</h2>
+  <dl>
+    <dt class="evd"><span class="ev-g asserted">◇</span> Asserted</dt><dd class="evd">Written by a person; no test or trace has checked it.</dd>
+    <dt class="evd"><span class="ev-g verified">● n</span> Verified</dt><dd class="evd">All n relevant test cases or traces matched.</dd>
+    <dt class="evd"><span class="ev-g partly">◐ n of m</span> Partly verified</dt><dd class="evd">Some decision-table cells or branches were never exercised.</dd>
+    <dt class="evd"><span class="ev-g unexercised">○</span> Unexercised</dt><dd class="evd">No test case or trace has taken this path. Also marks cells inside rules.</dd>
+    <dt class="evd"><span class="ev-g contradicted">✕ n</span> Contradicted</dt><dd class="evd">n test cases or traces disagreed. See “Contradicted” above.</dd>
+    <dt><span class="dot">●</span> Grid</dt><dd>Each numbered column is a line that other lines use. A dot means “this row uses that line”. Shaded cells are lines at or below the row, so every dot sits left of the staircase.</dd>
+    <dt><b>R</b> / <b>S</b></dt><dd>Usage, as in X12 guides: R is always required; S is situational, required when the stated condition holds, with an explicit “otherwise”.</dd>
+    <dt><span class="src"><span class="src-kind">DB</span> table</span></dt><dd>A database table or config key. Sources that feed a single line appear inside that line’s rule.</dd>
+  </dl>
+</section>
+<footer class="foot">Generated by DerivationSheets on 2 Nov 2026 21:18. Row numbers may change between versions; row IDs do not.</footer>
+<script>// Hovering a row tints what it depends on (transitively) and what depends on
+// it. The sheet reads fully without this script.
+(function () {
+  var rows = Array.prototype.slice.call(document.querySelectorAll("tr.row"));
+  var byId = {}, deps = {}, users = {};
+  rows.forEach(function (tr) {
+    var id = tr.getAttribute("data-id");
+    byId[id] = tr;
+    deps[id] = (tr.getAttribute("data-deps") || "").split(" ").filter(Boolean);
+  });
+  Object.keys(deps).forEach(function (id) {
+    deps[id].forEach(function (d) { (users[d] = users[d] || []).push(id); });
+  });
+  function walk(id, edges, seen) {
+    (edges[id] || []).forEach(function (n) {
+      if (!seen[n]) { seen[n] = true; walk(n, edges, seen); }
+    });
+    return seen;
+  }
+  function clear() {
+    document.body.classList.remove("hovering");
+    rows.forEach(function (tr) { tr.classList.remove("focus", "up", "down"); });
+  }
+  rows.forEach(function (tr) {
+    tr.addEventListener("mouseenter", function () {
+      clear();
+      var id = tr.getAttribute("data-id");
+      document.body.classList.add("hovering");
+      tr.classList.add("focus");
+      Object.keys(walk(id, deps, {})).forEach(function (u) { if (byId[u]) byId[u].classList.add("up"); });
+      Object.keys(walk(id, users, {})).forEach(function (d) { if (byId[d]) byId[d].classList.add("down"); });
+    });
+  });
+  var table = document.querySelector("table.sheet");
+  if (table) table.addEventListener("mouseleave", clear);
+})();
+</script>
+</body>
+</html>

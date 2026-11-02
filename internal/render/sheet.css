@@ -1,0 +1,234 @@
+:root {
+  --bg: #ffffff;
+  --fg: #1b1b1b;
+  --muted: #6b6b6b;
+  --line: #d3d3d3;
+  --line-strong: #1b1b1b;
+  --shade: #ececec;
+  --sec: #f5f5f3;
+  --accent: #1f5fbf;
+  --success: #1c7a3c;
+  --warn: #a35f00;
+  --danger: #b3261e;
+  --up: rgba(31, 95, 191, 0.10);
+  --down: rgba(163, 95, 0, 0.12);
+  --focus: rgba(31, 95, 191, 0.20);
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141414;
+    --fg: #e6e6e6;
+    --muted: #9a9a9a;
+    --line: #353535;
+    --line-strong: #d0d0d0;
+    --shade: #242424;
+    --sec: #1c1c1c;
+    --accent: #79a8ff;
+    --success: #5cc27a;
+    --warn: #e2a247;
+    --danger: #ff6f63;
+    --up: rgba(121, 168, 255, 0.14);
+    --down: rgba(226, 162, 71, 0.14);
+    --focus: rgba(121, 168, 255, 0.26);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141414; --fg: #e6e6e6; --muted: #9a9a9a; --line: #353535; --line-strong: #d0d0d0;
+  --shade: #242424; --sec: #1c1c1c; --accent: #79a8ff; --success: #5cc27a; --warn: #e2a247;
+  --danger: #ff6f63; --up: rgba(121,168,255,.14); --down: rgba(226,162,71,.14); --focus: rgba(121,168,255,.26);
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  padding: 20px 16px 32px;
+  background: var(--bg);
+  color: var(--fg);
+  font: 13px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+code, .sub, .field, .gh, .num { font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, "Liberation Mono", monospace; }
+code { font-size: 0.92em; }
+
+.head { max-width: 1400px; margin: 0 auto 12px; border-bottom: 2px solid var(--line-strong); padding-bottom: 8px; }
+.head-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+
+/* Evidence switch. The checkbox sits before everything else in <body>, so
+   one sibling rule hides every evidence element; no script is needed, and
+   the page prints in whatever state is on screen. */
+.ev-toggle { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
+.ev-toggle:not(:checked) ~ * .evd, .ev-toggle:not(:checked) ~ .evd { display: none !important; }
+.ev-switch {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;
+  font-size: 12px; color: var(--muted);
+}
+.ev-switch .track {
+  position: relative; width: 26px; height: 14px; border-radius: 7px;
+  border: 1px solid var(--muted); background: var(--bg);
+}
+.ev-switch .knob {
+  position: absolute; top: 2px; left: 2px; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--muted); transition: left 0.12s;
+}
+.ev-toggle:checked ~ .head .ev-switch { color: var(--fg); }
+.ev-toggle:checked ~ .head .ev-switch .track { border-color: var(--accent); background: var(--accent); }
+.ev-toggle:checked ~ .head .ev-switch .knob { left: 14px; background: var(--bg); }
+.ev-toggle:focus-visible ~ .head .ev-switch .track { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .ev-switch .knob { transition: none; } }
+.kicker { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.kicker code { text-transform: none; letter-spacing: 0; }
+h1 { font-size: 20px; margin: 2px 0 4px; font-weight: 650; }
+.meta { margin: 0; color: var(--muted); font-size: 12px; }
+.sep { color: var(--muted); }
+
+.sheet {
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  border-collapse: collapse;
+  table-layout: auto;
+}
+.sheet th, .sheet td { border-bottom: 1px solid var(--line); padding: 4px 6px; vertical-align: top; text-align: left; }
+.sheet thead th {
+  font-size: 11px; font-weight: 600; color: var(--muted);
+  border-bottom: 1.5px solid var(--line-strong); vertical-align: bottom; white-space: nowrap;
+}
+.sheet thead th.gh { text-align: center; padding: 4px 0; color: var(--accent); width: 22px; min-width: 22px; }
+.c-num { width: 28px; }
+.c-value { width: 17%; }
+.c-grid { width: 22px; }
+.c-send { width: 17%; }
+th.ev { width: 76px; }
+
+tr.sec th {
+  background: var(--sec); color: var(--fg); font-size: 11px; font-weight: 650;
+  text-transform: uppercase; letter-spacing: 0.06em; padding: 5px 6px; border-bottom: 1px solid var(--line);
+}
+td.num { color: var(--muted); text-align: right; font-size: 12px; padding-right: 8px; }
+.name { font-weight: 600; }
+.sub { font-size: 11px; color: var(--muted); }
+.src-path { opacity: 0.85; }
+.desc { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+
+td.g {
+  text-align: center; padding: 4px 0; color: var(--accent); font-size: 11px;
+  border-left: 1px solid var(--line);
+}
+td.g.shaded { background: var(--shade); }
+tr.row td.g:last-of-type { border-right: 1px solid var(--line); }
+
+td.rule { min-width: 260px; }
+.formula { font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace; font-size: 12px; }
+.formula .ref { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 13px; }
+.ref { border-bottom: 1px dotted var(--muted); }
+.ref sup { font-size: 9px; color: var(--accent); margin-left: 1px; }
+.fn { color: var(--muted); }
+.lit { color: var(--fg); }
+.cases { line-height: 1.6; }
+.case b { font-weight: 650; }
+.ev-toggle:checked ~ .sheet .case.unexercised { color: var(--warn); }
+.ev-toggle:checked ~ .sheet .case.contradicted { color: var(--danger); }
+.text-rule { font-style: italic; }
+.muted { color: var(--muted); font-size: 12px; }
+
+.src {
+  display: inline-block; font-size: 11px; line-height: 1.3; padding: 0 4px; margin: 1px 0;
+  border: 1px solid var(--line); border-radius: 3px; white-space: nowrap;
+  font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+}
+.src-kind { font-weight: 700; color: var(--muted); }
+.tag {
+  display: inline-block; font-size: 10.5px; padding: 0 4px; border: 1px solid var(--line);
+  border-radius: 3px; color: var(--muted); white-space: nowrap;
+}
+.tag.warn { color: var(--warn); border-color: var(--warn); }
+.tag.danger { color: var(--danger); border-color: var(--danger); }
+.reject { color: var(--danger); margin-top: 3px; font-size: 12.5px; }
+.reject .ref { border-bottom-color: var(--danger); }
+.mark { font-size: 11px; }
+.mark.unexercised { color: var(--warn); }
+.mark.contradicted { color: var(--danger); font-weight: 700; }
+
+table.g2, table.dt { border-collapse: collapse; margin: 1px 0 2px; font-size: 12px; }
+table.g2 th, table.g2 td, table.dt th, table.dt td {
+  border: 1px solid var(--line); padding: 1px 6px; text-align: center; vertical-align: middle; white-space: nowrap;
+}
+table.g2 thead th, table.dt thead th { font-weight: 600; color: var(--muted); font-size: 11px; background: none; border-bottom: 1px solid var(--line); }
+table.g2 tbody th { font-weight: 600; color: var(--muted); font-size: 11px; text-align: right; }
+table.g2 th.corner { font-weight: 400; text-align: left; }
+table.g2 td { font-weight: 650; }
+.ev-toggle:checked ~ .sheet table.g2 td.unexercised, .ev-toggle:checked ~ .sheet table.dt tr.unexercised td { color: var(--warn); }
+.ev-toggle:checked ~ .sheet table.g2 td.contradicted, .ev-toggle:checked ~ .sheet table.dt tr.contradicted td { color: var(--danger); }
+table.g2 td.gap { color: var(--danger); }
+table.dt td.any { color: var(--muted); }
+table.dt td.res, table.dt th.res { font-weight: 650; border-left: 1.5px solid var(--line-strong); }
+
+td.send .field code { color: var(--success); font-weight: 600; font-size: 12px; }
+.usage { font-size: 12px; }
+.usage b { font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace; }
+.map { font-size: 11.5px; color: var(--muted); }
+.map code { color: var(--success); }
+
+td.ev { white-space: nowrap; font-size: 12.5px; }
+td.ev.verified { color: var(--fg); }
+td.ev.asserted { color: var(--muted); }
+td.ev.partly, td.ev.unexercised { color: var(--warn); font-weight: 600; }
+td.ev.contradicted { color: var(--danger); font-weight: 700; }
+
+tr.pseudo .name { font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace; font-weight: 600; }
+
+/* Hover: rows a line depends on, and rows that depend on it. */
+tr.row.focus > td { background: var(--focus); }
+tr.row.up > td { background: var(--up); }
+tr.row.down > td { background: var(--down); }
+tr.row.focus > td.g.shaded, tr.row.up > td.g.shaded, tr.row.down > td.g.shaded { background: var(--shade); }
+body.hovering tr.row:not(.focus):not(.up):not(.down) { opacity: 0.55; }
+
+.notes, .legend, .foot { max-width: 1400px; margin: 18px auto 0; }
+h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; margin: 12px 0 4px; }
+.danger-h { color: var(--danger); }
+.warn-h { color: var(--warn); }
+.notes ul { margin: 0; padding-left: 0; list-style: none; }
+.notes li { padding: 2px 0; border-bottom: 1px solid var(--line); }
+.ln {
+  display: inline-block; min-width: 22px; color: var(--muted);
+  font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace; font-size: 11px;
+}
+.legend dl { display: grid; grid-template-columns: max-content 1fr; gap: 3px 14px; margin: 0; font-size: 12px; }
+.legend dt { white-space: nowrap; }
+.legend dd { margin: 0; color: var(--muted); }
+.ev-g.verified { color: var(--fg); }
+.ev-g.asserted { color: var(--muted); }
+.ev-g.partly, .ev-g.unexercised { color: var(--warn); }
+.ev-g.contradicted { color: var(--danger); }
+.dot { color: var(--accent); }
+.foot { color: var(--muted); font-size: 11px; border-top: 1px solid var(--line); padding-top: 6px; }
+
+@media (max-width: 900px) {
+  body { padding: 12px 16px 24px; }
+  .sheet { display: block; overflow-x: auto; }
+  td.rule { min-width: 220px; }
+}
+
+@media print {
+  @page { size: landscape; margin: 9mm; }
+  /* Same specificity as the dark-mode selectors, and later, so paper is always light. */
+  :root, :root:not([data-theme="light"]), :root[data-theme="dark"] {
+    --bg: #fff; --fg: #000; --muted: #555; --line: #bbb; --line-strong: #000; --shade: #e6e6e6;
+    --sec: #f0f0f0; --accent: #1f4fa0; --success: #145c2c; --warn: #8a4f00; --danger: #a01d16;
+  }
+  body { padding: 0; font-size: 8.4pt; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .sheet { display: table; overflow: visible; }
+  .sheet thead { display: table-header-group; }
+  tr.row { break-inside: avoid; page-break-inside: avoid; }
+  tr.sec { break-after: avoid; page-break-after: avoid; }
+  td.rule { min-width: 0; }
+  .formula .ref { font-size: 8.4pt; }
+  body.hovering tr.row { opacity: 1 !important; }
+  tr.row > td { background: none !important; }
+  tr.row > td.g.shaded { background: var(--shade) !important; }
+  .legend { break-inside: avoid; }
+  .ev-switch { display: none; }
+}

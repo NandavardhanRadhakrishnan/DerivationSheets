@@ -1,0 +1,3 @@
+# Design-time config values. Rows with a config.* source read from here.
+[tax]
+gst_rate = 0.18

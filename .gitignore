@@ -1,0 +1,6 @@
+# Evidence changes constantly and is never committed.
+.evidence/
+
+# Build output and local tooling.
+bin/
+.playwright-mcp/
