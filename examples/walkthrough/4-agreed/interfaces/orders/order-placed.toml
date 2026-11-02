@@ -1,0 +1,51 @@
+#:schema ../../../../../schema/interface.schema.json
+# Version 2, as agreed in the flow review.
+interface   = "order-placed"
+title       = "Order placed (Kafka topic)"
+kind        = "kafka-topic"
+owner       = "Orders team"
+status      = "existing"
+version     = "2.0.0"
+description = "Published by the storefront when a customer places an order."
+
+[[field]]
+name     = "orderId"
+type     = "string"
+required = true
+
+[[field]]
+name     = "customerId"
+type     = "string"
+required = true
+
+[[field]]
+name     = "placedAt"
+type     = "datetime"
+required = true
+
+[[field]]
+name     = "country"
+type     = "string"
+required = true
+
+[[field]]
+name     = "subtotal"
+type     = "number"
+required = true
+
+[[field]]
+name     = "weightKg"
+type     = "number"
+required = true
+
+[[field]]
+name     = "loyaltyTier"
+type     = "string"
+required = true
+enum     = ["Standard", "Silver", "Gold"]
+
+[[field]]
+name     = "shippingMethod"
+type     = "string"
+required = true
+enum     = ["STANDARD", "EXPRESS"]

@@ -1,0 +1,13 @@
+#:schema ../../../schema/flow.schema.json
+# Step 1. The product manager states the input, the output and the
+# end-to-end derivation. Nobody has said who computes what yet.
+flow    = "checkout-to-payment"
+version = 1
+title   = "Step 1 · PM sets the input and output"
+sheet   = "../../../specs/order-checkout"
+
+[input]
+interface = "../../../interfaces/storefront/checkout-request.toml"
+
+[output]
+interface = "../../../interfaces/payments/payment-request.toml"

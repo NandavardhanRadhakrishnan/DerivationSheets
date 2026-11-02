@@ -1,0 +1,41 @@
+#:schema ../../../schema/flow.schema.json
+# Step 4. The teams agree the changes from the "To agree" list:
+# - Orders team: order-placed v2 adds shippingMethod, makes weightKg
+#   required, and accepts the tier names the flow uses.
+# - Payments team: currency becomes optional; the store sells in one currency.
+flow    = "checkout-to-payment"
+version = 1
+title   = "Step 4 · Teams agree the changes"
+sheet   = "../../../specs/order-checkout"
+
+[sources]
+shipping = { path = "../../../interfaces/shipping" }
+
+[input]
+interface = "../../../interfaces/storefront/checkout-request.toml"
+
+[[stage]]
+kind      = "handoff"
+interface = "interfaces/orders/order-placed.toml"
+producer  = "Storefront team"
+computes  = ["customer_years", "loyalty_tier"]
+
+[[stage]]
+id       = "shipping-quote"
+kind     = "call"
+caller   = "Orders team"
+computes = ["zone", "discount_rate", "discount", "free_shipping"]
+callee   = "Shipping team"
+callee_computes = ["shipping_fee"]
+
+  [stage.request]
+  interface = "shipping:quote-request.toml"
+
+  [stage.response]
+  interface = "shipping:quote-response.toml"
+  carries   = { fee = "shipping_fee" }
+
+[output]
+interface = "interfaces/payments/payment-request.toml"
+producer  = "Orders team"
+computes  = ["shipping_cost", "customs_value", "net_amount", "sales_tax", "total"]

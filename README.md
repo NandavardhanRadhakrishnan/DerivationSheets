@@ -72,7 +72,8 @@ bin/dsheets slice  flows/checkout-to-payment
 bin/dsheets render flows/checkout-to-payment --out flow.html
 ```
 
-See [docs/flows.md](docs/flows.md); `examples/flow.html` is the example's view.
+See [docs/flows.md](docs/flows.md); `examples/flow.html` is the example's view, and
+`examples/walkthrough/` has the same flow at four steps of a review, each rendered on its own.
 
 ## Layout
 

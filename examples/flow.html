@@ -61,9 +61,9 @@ h1 { font-size: 20px; margin: 2px 0 4px; font-weight: 650; }
 .b-head, td.b { background: var(--band); border-left: 1px solid var(--line); border-right: 1px solid var(--line); min-width: 110px; }
 .s-head, td.s { min-width: 130px; }
 .kind { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
-.iname code { font-weight: 650; font-size: 12.5px; }
-.owner, .team { font-size: 12px; }
-.team { font-weight: 650; }
+.hname { font-weight: 650; font-size: 12.5px; }
+.hname code { font-weight: 650; font-size: 12.5px; }
+.hmeta { font-size: 12px; color: var(--muted); }
 .badges { margin-top: 2px; display: flex; gap: 4px; flex-wrap: wrap; }
 .badge, .count { font-size: 10.5px; padding: 0 4px; border: 1px solid var(--line); border-radius: 3px; white-space: nowrap; }
 .badge { color: var(--muted); }
@@ -125,6 +125,7 @@ dt.missing { color: var(--danger); }
 </style>
 </head>
 <body>
+
 <header class="head">
   <div class="kicker">Flow · <code>checkout-to-payment</code> · version 1</div>
   <h1>Checkout to payment</h1>
@@ -139,9 +140,9 @@ dt.missing { color: var(--danger); }
       
       
       <th class="b-head" title="../../interfaces/storefront/checkout-request.toml">
-        <div class="kind">Input · API request</div>
-        <div class="iname"><code>checkout-request</code></div>
-        <div class="owner">Storefront team</div>
+        <div class="kind">Input</div>
+        <div class="hname"><code>checkout-request</code></div>
+        <div class="hmeta">API request · Storefront team</div>
         <div class="badges">
           <span class="badge existing">existing</span>
           
@@ -153,16 +154,17 @@ dt.missing { color: var(--danger); }
       
       
       <th class="s-head">
-        <div class="kind">computes</div>
-        <div class="team">Storefront team</div>
+        <div class="kind">Step 1</div>
+        <div class="hname">Storefront team</div>
+        <div class="hmeta">Producer</div>
       </th>
       
       
       
       <th class="b-head" title="../../interfaces/orders/order-placed.toml">
-        <div class="kind">Kafka topic</div>
-        <div class="iname"><code>order-placed</code></div>
-        <div class="owner">Orders team</div>
+        <div class="kind">Handoff</div>
+        <div class="hname"><code>order-placed</code></div>
+        <div class="hmeta">Kafka topic · Orders team</div>
         <div class="badges">
           <span class="badge existing">existing</span>
           <span class="count missing">✕ 1</span>
@@ -174,16 +176,17 @@ dt.missing { color: var(--danger); }
       
       
       <th class="s-head">
-        <div class="kind">makes the call</div>
-        <div class="team">Orders team</div>
+        <div class="kind">Step 2</div>
+        <div class="hname">Orders team</div>
+        <div class="hmeta">Caller</div>
       </th>
       
       
       
       <th class="b-head" title="shipping:quote-request.toml">
-        <div class="kind">API request</div>
-        <div class="iname"><code>quote-request</code></div>
-        <div class="owner">Shipping team</div>
+        <div class="kind">Call request</div>
+        <div class="hname"><code>quote-request</code></div>
+        <div class="hmeta">API request · Shipping team</div>
         <div class="badges">
           <span class="badge existing">existing</span>
           
@@ -195,16 +198,17 @@ dt.missing { color: var(--danger); }
       
       
       <th class="s-head">
-        <div class="kind">answers the call</div>
-        <div class="team">Shipping team</div>
+        <div class="kind">Step 3</div>
+        <div class="hname">Shipping team</div>
+        <div class="hmeta">Callee</div>
       </th>
       
       
       
       <th class="b-head" title="shipping:quote-response.toml">
-        <div class="kind">API response</div>
-        <div class="iname"><code>quote-response</code></div>
-        <div class="owner">Shipping team</div>
+        <div class="kind">Call response</div>
+        <div class="hname"><code>quote-response</code></div>
+        <div class="hmeta">API response · Shipping team</div>
         <div class="badges">
           <span class="badge existing">existing</span>
           
@@ -216,16 +220,17 @@ dt.missing { color: var(--danger); }
       
       
       <th class="s-head">
-        <div class="kind">continues after the call</div>
-        <div class="team">Orders team</div>
+        <div class="kind">Step 4</div>
+        <div class="hname">Orders team</div>
+        <div class="hmeta">Caller (continued)</div>
       </th>
       
       
       
       <th class="b-head" title="../../interfaces/payments/payment-request.toml">
-        <div class="kind">Output · API request</div>
-        <div class="iname"><code>payment-request</code></div>
-        <div class="owner">Payments team</div>
+        <div class="kind">Output</div>
+        <div class="hname"><code>payment-request</code></div>
+        <div class="hmeta">API request · Payments team</div>
         <div class="badges">
           <span class="badge proposed">proposed</span>
           <span class="count missing">✕ 1</span>
@@ -258,12 +263,12 @@ dt.missing { color: var(--danger); }
     
     <tr>
       <td class="value"><div class="name">Shipping method</div><div class="id"><code>shipping_method</code></div></td>
-      <td class="b carried"><code>shipping.method</code></td><td class="s transit" title="passes through">→</td><td class="b missing" title="ask Orders team to add it to order-placed; needed by Shipping fee (Shipping team), the output"><span class="mark">✕</span> add <code>shippingMethod</code></td><td class="s transit" title="passes through">→</td><td class="b carried"><code>method</code> <span class="auto" title="matched by name; list it under carries to make it explicit">≈</span></td><td class="s transit" title="passes through">→</td><td class="b "></td><td class="s transit" title="kept by the caller across the call">↷ kept</td><td class="b carried"><code>shippingMethod</code> <span class="usage">R</span></td>
+      <td class="b carried"><code>shipping.method</code></td><td class="s transit" title="passes through">→</td><td class="b missing" title="not in the interface; ask Orders team to add it; needed by Shipping fee (Shipping team), the output"><span class="mark">✕</span> add <code>shippingMethod</code></td><td class="s transit" title="passes through">→</td><td class="b carried"><code>method</code> <span class="auto" title="matched by name; list it under carries to make it explicit">≈</span></td><td class="s transit" title="passes through">→</td><td class="b "></td><td class="s transit" title="kept by the caller across the call">↷ kept</td><td class="b carried"><code>shippingMethod</code> <span class="usage">R</span></td>
     </tr>
     
     <tr>
       <td class="value"><div class="name">Parcel weight (kg)</div><div class="id"><code>weight_kg</code></div></td>
-      <td class="b carried"><code>order.weightKg</code></td><td class="s transit" title="passes through">→</td><td class="b warning" title="optional in order-placed, but the flow always needs Parcel weight (kg)"><code>weightKg</code> <span class="auto" title="matched by name; list it under carries to make it explicit">≈</span> <span class="mark">⚠</span></td><td class="s transit" title="passes through">→</td><td class="b carried"><code>weightKg</code> <span class="auto" title="matched by name; list it under carries to make it explicit">≈</span></td><td class="s transit" title="passes through">→</td><td class="b "></td><td class="s "></td><td class="b "></td>
+      <td class="b carried"><code>order.weightKg</code></td><td class="s transit" title="passes through">→</td><td class="b warning" title="optional, but the flow always needs Parcel weight (kg)"><code>weightKg</code> <span class="auto" title="matched by name; list it under carries to make it explicit">≈</span> <span class="mark">⚠</span></td><td class="s transit" title="passes through">→</td><td class="b carried"><code>weightKg</code> <span class="auto" title="matched by name; list it under carries to make it explicit">≈</span></td><td class="s transit" title="passes through">→</td><td class="b "></td><td class="s "></td><td class="b "></td>
     </tr>
     
     <tr>
@@ -288,7 +293,7 @@ dt.missing { color: var(--danger); }
     
     <tr>
       <td class="value"><div class="name">Loyalty tier</div><div class="id"><code>loyalty_tier</code></div></td>
-      <td class="b "></td><td class="s computed">decision table on Member, Years as customer <span class="muted">(4 rules)</span></td><td class="b warning" title="loyaltyTier allows STANDARD, SILVER, GOLD, but Loyalty tier can be Standard, Silver, Gold"><code>loyaltyTier</code> <span class="auto" title="matched by name; list it under carries to make it explicit">≈</span> <span class="mark">⚠</span></td><td class="s transit" title="passes through">→</td><td class="b "></td><td class="s "></td><td class="b "></td><td class="s transit" title="kept by the caller across the call">↷ kept</td><td class="b carried"><code>loyaltyTier</code> <span class="usage">R</span></td>
+      <td class="b "></td><td class="s computed">decision table on Member, Years as customer <span class="muted">(4 rules)</span></td><td class="b warning" title="allows STANDARD, SILVER, GOLD, but Loyalty tier can be Standard, Silver, Gold"><code>loyaltyTier</code> <span class="auto" title="matched by name; list it under carries to make it explicit">≈</span> <span class="mark">⚠</span></td><td class="s transit" title="passes through">→</td><td class="b "></td><td class="s "></td><td class="b "></td><td class="s transit" title="kept by the caller across the call">↷ kept</td><td class="b carried"><code>loyaltyTier</code> <span class="usage">R</span></td>
     </tr>
     
     <tr>
@@ -344,17 +349,17 @@ dt.missing { color: var(--danger); }
 
 <section class="agenda">
   <h2>To agree</h2>
-  <p class="hint">Grouped by the team that owns each interface. ✕ is a field the flow needs and the interface does not have; ⚠ is a field that exists but does not fit.</p>
+  <p class="hint">Grouped by the team that owns each interface, as interface, field and reason. ✕ is a field the flow needs and the interface lacks; ⚠ is a field that exists but does not fit.</p>
   <div class="teams">
   
     <div class="team-block">
       <h3>Orders team</h3>
-      <ul><li class="missing"><span class="mark">✕</span> <code class="in">order-placed</code> add <code>shippingMethod</code> (Shipping method), needed by Shipping fee (Shipping team), the output</li><li class="warning"><span class="mark">⚠</span> <code class="in">order-placed</code> <code>weightKg</code>: optional in order-placed, but the flow always needs Parcel weight (kg)</li><li class="warning"><span class="mark">⚠</span> <code class="in">order-placed</code> <code>loyaltyTier</code>: loyaltyTier allows STANDARD, SILVER, GOLD, but Loyalty tier can be Standard, Silver, Gold</li></ul>
+      <ul><li class="missing"><span class="mark">✕</span> <code class="in">order-placed</code> <code>shippingMethod</code>: missing; needed by Shipping fee (Shipping team), the output</li><li class="warning"><span class="mark">⚠</span> <code class="in">order-placed</code> <code>weightKg</code>: optional, but the flow always needs Parcel weight (kg)</li><li class="warning"><span class="mark">⚠</span> <code class="in">order-placed</code> <code>loyaltyTier</code>: allows STANDARD, SILVER, GOLD, but Loyalty tier can be Standard, Silver, Gold</li></ul>
     </div>
   
     <div class="team-block">
       <h3>Payments team</h3>
-      <ul><li class="missing"><span class="mark">✕</span> <code class="in">payment-request</code> <code>currency</code> is required by payment-request, but nothing in the flow produces it</li></ul>
+      <ul><li class="missing"><span class="mark">✕</span> <code class="in">payment-request</code> <code>currency</code>: required, but nothing in the flow produces it</li></ul>
     </div>
   
   </div>
@@ -368,10 +373,12 @@ dt.missing { color: var(--danger); }
 </section>
 
 
+
 <section class="legend">
   <h2>How to read this flow</h2>
   <dl>
-    <dt>Shaded columns</dt><dd>Interfaces: API requests and responses, topics, events. The columns between them are the steps each team computes.</dd>
+    <dt>Shaded columns</dt><dd>Boundaries, by their role in the flow: Input, Handoff, Call request, Call response, Output. Each shows the interface, its kind and its owner.</dd>
+    <dt>Step columns</dt><dd>What each team computes, by its role: Producer (builds a handoff or the output), Caller, Callee, or Caller (continued) after its call returns.</dd>
     <dt><code>field</code></dt><dd>The interface carries this value under that field. <span class="auto">≈</span> means it was matched by name rather than listed under <code>carries</code>.</dd>
     <dt class="missing">✕ add <code>field</code></dt><dd>The value must cross this boundary, but the interface has no field for it.</dd>
     <dt class="warning"><code>field</code> ⚠</dt><dd>The field exists but does not fit: optional when always needed, a different type, or values outside its enum.</dd>
@@ -379,6 +386,7 @@ dt.missing { color: var(--danger); }
     <dt>→ / ↷ kept</dt><dd>The value passes through a step, or the caller keeps it across a call instead of sending it.</dd>
   </dl>
 </section>
-<footer class="foot">Generated by DerivationSheets on 2 Nov 2026 22:15. Each team's step is detailed in the end-to-end derivation sheet.</footer>
+
+<footer class="foot">Generated by DerivationSheets on 2 Nov 2026 23:08. Each team's step is detailed in the end-to-end derivation sheet.</footer>
 </body>
 </html>

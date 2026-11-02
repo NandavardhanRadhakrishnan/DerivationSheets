@@ -53,9 +53,9 @@ h1 { font-size: 20px; margin: 2px 0 4px; font-weight: 650; }
 .b-head, td.b { background: var(--band); border-left: 1px solid var(--line); border-right: 1px solid var(--line); min-width: 110px; }
 .s-head, td.s { min-width: 130px; }
 .kind { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
-.iname code { font-weight: 650; font-size: 12.5px; }
-.owner, .team { font-size: 12px; }
-.team { font-weight: 650; }
+.hname { font-weight: 650; font-size: 12.5px; }
+.hname code { font-weight: 650; font-size: 12.5px; }
+.hmeta { font-size: 12px; color: var(--muted); }
 .badges { margin-top: 2px; display: flex; gap: 4px; flex-wrap: wrap; }
 .badge, .count { font-size: 10.5px; padding: 0 4px; border: 1px solid var(--line); border-radius: 3px; white-space: nowrap; }
 .badge { color: var(--muted); }

@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="DerivationSheets">
+<link rel="icon" href="data:,">
+<title>Step 3 · Orders and Shipping add the quote call</title>
+<style>:root {
+  --bg: #ffffff;
+  --fg: #1b1b1b;
+  --muted: #6b6b6b;
+  --line: #d3d3d3;
+  --line-strong: #1b1b1b;
+  --band: #f3f3f1;      /* interface columns */
+  --sec: #f5f5f3;
+  --accent: #1f5fbf;
+  --success: #1c7a3c;
+  --warn: #a35f00;
+  --danger: #b3261e;
+  --warn-bg: rgba(163, 95, 0, 0.10);
+  --danger-bg: rgba(179, 38, 30, 0.09);
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141414; --fg: #e6e6e6; --muted: #9a9a9a; --line: #353535; --line-strong: #d0d0d0;
+    --band: #1d1d1d; --sec: #1c1c1c; --accent: #79a8ff; --success: #5cc27a; --warn: #e2a247;
+    --danger: #ff6f63; --warn-bg: rgba(226, 162, 71, 0.13); --danger-bg: rgba(255, 111, 99, 0.12);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141414; --fg: #e6e6e6; --muted: #9a9a9a; --line: #353535; --line-strong: #d0d0d0;
+  --band: #1d1d1d; --sec: #1c1c1c; --accent: #79a8ff; --success: #5cc27a; --warn: #e2a247;
+  --danger: #ff6f63; --warn-bg: rgba(226, 162, 71, 0.13); --danger-bg: rgba(255, 111, 99, 0.12);
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 20px 16px 32px; background: var(--bg); color: var(--fg);
+  font: 13px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+code { font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, "Liberation Mono", monospace; font-size: 0.92em; }
+.head { margin: 0 0 12px; border-bottom: 2px solid var(--line-strong); padding-bottom: 8px; }
+.kicker { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.kicker code { text-transform: none; letter-spacing: 0; }
+h1 { font-size: 20px; margin: 2px 0 4px; font-weight: 650; }
+.meta { margin: 0; color: var(--muted); font-size: 12px; }
+.sep { color: var(--muted); }
+
+.scroll { overflow-x: auto; }
+.flow { border-collapse: collapse; min-width: 100%; }
+.flow th, .flow td { border-bottom: 1px solid var(--line); padding: 5px 8px; vertical-align: top; text-align: left; }
+.flow thead th { border-bottom: 1.5px solid var(--line-strong); vertical-align: bottom; font-weight: 400; }
+.flow .value { min-width: 130px; position: sticky; left: 0; background: var(--bg); z-index: 1; border-right: 1px solid var(--line); }
+.flow thead .value { font-size: 11px; font-weight: 600; color: var(--muted); }
+.name { font-weight: 600; }
+.id { font-size: 11px; color: var(--muted); }
+
+.b-head, td.b { background: var(--band); border-left: 1px solid var(--line); border-right: 1px solid var(--line); min-width: 110px; }
+.s-head, td.s { min-width: 130px; }
+.kind { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.hname { font-weight: 650; font-size: 12.5px; }
+.hname code { font-weight: 650; font-size: 12.5px; }
+.hmeta { font-size: 12px; color: var(--muted); }
+.badges { margin-top: 2px; display: flex; gap: 4px; flex-wrap: wrap; }
+.badge, .count { font-size: 10.5px; padding: 0 4px; border: 1px solid var(--line); border-radius: 3px; white-space: nowrap; }
+.badge { color: var(--muted); }
+.badge.proposed { color: var(--accent); border-color: var(--accent); }
+.count.missing { color: var(--danger); border-color: var(--danger); }
+.count.warning { color: var(--warn); border-color: var(--warn); }
+.source { font-size: 10.5px; color: var(--muted); font-family: ui-monospace, "SF Mono", Consolas, monospace; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+tr.group th { background: var(--sec); font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: 0.06em; padding: 5px 8px; }
+tbody tr:hover td { background-color: color-mix(in srgb, var(--accent) 6%, transparent); }
+tbody tr:hover td.b { background-color: color-mix(in srgb, var(--accent) 6%, var(--band)); }
+tbody tr:hover td.value { background-color: color-mix(in srgb, var(--accent) 6%, var(--bg)); }
+
+td.carried code { color: var(--success); font-weight: 600; }
+td.warning code { color: var(--success); font-weight: 600; }
+td.warning .mark, li.warning .mark, dt.warning { color: var(--warn); }
+td.warning { box-shadow: inset 0 0 0 9999px var(--warn-bg); }
+td.missing { color: var(--danger); box-shadow: inset 0 0 0 9999px var(--danger-bg); }
+td.missing code { color: var(--danger); font-weight: 600; }
+td.unused code, dt.unused code { color: var(--muted); }
+td.transit { color: var(--muted); }
+td.computed { font-size: 12.5px; }
+.formula { font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace; font-size: 12px; }
+.formula .ref { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 12.5px; }
+.ref { border-bottom: 1px dotted var(--muted); }
+.fn { color: var(--muted); }
+.muted { color: var(--muted); }
+.reject { color: var(--danger); font-size: 11.5px; white-space: nowrap; }
+.usage { font-size: 11px; font-weight: 700; font-family: ui-monospace, Consolas, monospace; color: var(--fg); }
+.auto { color: var(--muted); font-size: 11px; cursor: help; }
+
+h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; margin: 20px 0 6px; }
+.hint { margin: 0 0 8px; color: var(--muted); font-size: 12px; }
+.teams { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px 24px; }
+.team-block h3 { font-size: 13px; margin: 0 0 4px; }
+.team-block ul { margin: 0; padding: 0; list-style: none; }
+.team-block li { padding: 3px 0; border-bottom: 1px solid var(--line); }
+li.missing .mark { color: var(--danger); font-weight: 700; }
+code.in { color: var(--muted); }
+.unused-list dl, .legend dl { display: grid; grid-template-columns: max-content 1fr; gap: 3px 14px; margin: 0; font-size: 12px; }
+.unused-list dd, .legend dd { margin: 0; color: var(--muted); }
+dt.missing { color: var(--danger); }
+.foot { color: var(--muted); font-size: 11px; border-top: 1px solid var(--line); padding-top: 6px; margin-top: 18px; }
+
+@media print {
+  @page { size: landscape; margin: 8mm; }
+  :root, :root:not([data-theme="light"]), :root[data-theme="dark"] {
+    --bg: #fff; --fg: #000; --muted: #555; --line: #bbb; --line-strong: #000; --band: #efefef;
+    --sec: #f0f0f0; --accent: #1f4fa0; --success: #145c2c; --warn: #8a4f00; --danger: #a01d16;
+  }
+  body { padding: 0; font-size: 7.6pt; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .scroll { overflow: visible; }
+  .flow .value { position: static; }
+  .flow thead { display: table-header-group; }
+  .flow tr { break-inside: avoid; }
+  .b-head, td.b, .s-head, td.s { min-width: 0; }
+  .agenda, .legend { break-inside: avoid; }
+}
+</style>
+</head>
+<body>
+
+<header class="head">
+  <div class="kicker">Flow · <code>checkout-to-payment</code> · version 1</div>
+  <h1>Step 3 · Orders and Shipping add the quote call</h1>
+  <p class="meta">5 interfaces, 4 team steps · 2 missing · 2 warnings · 22 carried<span class="sep"> · </span>End-to-end sheet: <code>../../../specs/order-checkout/sheet.toml</code></p>
+</header>
+
+<div class="scroll">
+<table class="flow">
+  <thead>
+    <tr>
+      <th class="value">Value</th>
+      
+      
+      <th class="b-head" title="../../../interfaces/storefront/checkout-request.toml">
+        <div class="kind">Input</div>
+        <div class="hname"><code>checkout-request</code></div>
+        <div class="hmeta">API request · Storefront team</div>
+        <div class="badges">
+          <span class="badge existing">existing</span>
+          
+          
+        </div>
+        
+      </th>
+      
+      
+      
+      <th class="s-head">
+        <div class="kind">Step 1</div>
+        <div class="hname">Storefront team</div>
+        <div class="hmeta">Producer</div>
+      </th>
+      
+      
+      
+      <th class="b-head" title="../../../interfaces/orders/order-placed.toml">
+        <div class="kind">Handoff</div>
+        <div class="hname"><code>order-placed</code></div>
+        <div class="hmeta">Kafka topic · Orders team</div>
+        <div class="badges">
+          <span class="badge existing">existing</span>
+          <span class="count missing">✕ 1</span>
+          <span class="count warning">⚠ 2</span>
+        </div>
+        
+      </th>
+      
+      
+      
+      <th class="s-head">
+        <div class="kind">Step 2</div>
+        <div class="hname">Orders team</div>
+        <div class="hmeta">Caller</div>
+      </th>
+      
+      
+      
+      <th class="b-head" title="shipping:quote-request.toml">
+        <div class="kind">Call request</div>
+        <div class="hname"><code>quote-request</code></div>
+        <div class="hmeta">API request · Shipping team</div>
+        <div class="badges">
+          <span class="badge existing">existing</span>
+          
+          
+        </div>
+        <div class="source" title="shipping:quote-request.toml">shipping:quote-request.toml</div>
+      </th>
+      
+      
+      
+      <th class="s-head">
+        <div class="kind">Step 3</div>
+        <div class="hname">Shipping team</div>
+        <div class="hmeta">Callee</div>
+      </th>
+      
+      
+      
+      <th class="b-head" title="shipping:quote-response.toml">
+        <div class="kind">Call response</div>
+        <div class="hname"><code>quote-response</code></div>
+        <div class="hmeta">API response · Shipping team</div>
+        <div class="badges">
+          <span class="badge existing">existing</span>
+          
+          
+        </div>
+        <div class="source" title="shipping:quote-response.toml">shipping:quote-response.toml</div>
+      </th>
+      
+      
+      
+      <th class="s-head">
+        <div class="kind">Step 4</div>
+        <div class="hname">Orders team</div>
+        <div class="hmeta">Caller (continued)</div>
+      </th>
+      
+      
+      
+      <th class="b-head" title="../../../interfaces/payments/payment-request.toml">
+        <div class="kind">Output</div>
+        <div class="hname"><code>payment-request</code></div>
+        <div class="hmeta">API request · Payments team</div>
+        <div class="badges">
+          <span class="badge proposed">proposed</span>
+          <span class="count missing">✕ 1</span>
+          
+        </div>
+        
+      </th>
+      
+      
+    </tr>
+  </thead>
+  
+  <tbody>
+    <tr class="group"><th colspan="10">From the request</th></tr>
+    
+    <tr>
+      <td class="value"><div class="name">Signup date</div><div class="id"><code>signup_date</code></div></td>
+      <td class="b carried"><code>customer.signupDate</code></td><td class="s transit" title="passes through">→</td><td class="b "></td><td class="s "></td><td class="b "></td><td class="s "></td><td class="b "></td><td class="s "></td><td class="b "></td>
+    </tr>
+    
+    <tr>
+      <td class="value"><div class="name">Member</div><div class="id"><code>is_member</code></div></td>
+      <td class="b carried"><code>customer.isMember</code></td><td class="s transit" title="passes through">→</td><td class="b "></td><td class="s "></td><td class="b "></td><td class="s "></td><td class="b "></td><td class="s "></td><td class="b "></td>
+    </tr>
+    
+    <tr>
+      <td class="value"><div class="name">Destination country</div><div class="id"><code>country</code></div></td>
+      <td class="b carried"><code>shipping.country</code></td><td class="s transit" title="passes through">→</td><td class="b carried"><code>country</code> <span class="auto" title="matched by name; list it under carries to make it explicit">≈</span></td><td class="s transit" title="passes through">→</td><td class="b "></td><td class="s "></td><td class="b "></td><td class="s "></td><td class="b "></td>
+    </tr>
+    
+    <tr>
+      <td class="value"><div class="name">Shipping method</div><div class="id"><code>shipping_method</code></div></td>
+      <td class="b carried"><code>shipping.method</code></td><td class="s transit" title="passes through">→</td><td class="b missing" title="not in the interface; ask Orders team to add it; needed by Shipping fee (Shipping team), the output"><span class="mark">✕</span> add <code>shippingMethod</code></td><td class="s transit" title="passes through">→</td><td class="b carried"><code>method</code> <span class="auto" title="matched by name; list it under carries to make it explicit">≈</span></td><td class="s transit" title="passes through">→</td><td class="b "></td><td class="s transit" title="kept by the caller across the call">↷ kept</td><td class="b carried"><code>shippingMethod</code> <span class="usage">R</span></td>
+    </tr>
+    
+    <tr>
+      <td class="value"><div class="name">Parcel weight (kg)</div><div class="id"><code>weight_kg</code></div></td>
+      <td class="b carried"><code>order.weightKg</code></td><td class="s transit" title="passes through">→</td><td class="b warning" title="optional, but the flow always needs Parcel weight (kg)"><code>weightKg</code> <span class="auto" title="matched by name; list it under carries to make it explicit">≈</span> <span class="mark">⚠</span></td><td class="s transit" title="passes through">→</td><td class="b carried"><code>weightKg</code> <span class="auto" title="matched by name; list it under carries to make it explicit">≈</span></td><td class="s transit" title="passes through">→</td><td class="b "></td><td class="s "></td><td class="b "></td>
+    </tr>
+    
+    <tr>
+      <td class="value"><div class="name">Subtotal</div><div class="id"><code>subtotal</code></div></td>
+      <td class="b carried"><code>order.subtotal</code></td><td class="s transit" title="passes through">→</td><td class="b carried"><code>subtotal</code> <span class="auto" title="matched by name; list it under carries to make it explicit">≈</span></td><td class="s transit" title="passes through">→</td><td class="b "></td><td class="s "></td><td class="b "></td><td class="s transit" title="kept by the caller across the call">↷ kept</td><td class="b carried"><code>subtotal</code> <span class="usage">R</span></td>
+    </tr>
+    
+  </tbody>
+  
+  <tbody>
+    <tr class="group"><th colspan="10">Derived</th></tr>
+    
+    <tr>
+      <td class="value"><div class="name">Years as customer</div><div class="id"><code>customer_years</code></div></td>
+      <td class="b "></td><td class="s computed"><span class="formula"><span class="fn">years_between</span>(<span class="ref" title="signup_date">Signup date</span>, <span class="ref" title="request_time">Request time</span>)</span></td><td class="b "></td><td class="s "></td><td class="b "></td><td class="s "></td><td class="b "></td><td class="s "></td><td class="b "></td>
+    </tr>
+    
+    <tr>
+      <td class="value"><div class="name">Shipping zone</div><div class="id"><code>zone</code></div></td>
+      <td class="b "></td><td class="s "></td><td class="b "></td><td class="s computed">look up in <code>db.shipping_zones</code> <span class="reject" title="zone == &#34;NONE&#34;">rejects DESTINATION_NOT_SERVED</span></td><td class="b carried"><code>zone</code> <span class="auto" title="matched by name; list it under carries to make it explicit">≈</span></td><td class="s transit" title="passes through">→</td><td class="b "></td><td class="s transit" title="kept by the caller across the call">↷ kept</td><td class="b "></td>
+    </tr>
+    
+    <tr>
+      <td class="value"><div class="name">Loyalty tier</div><div class="id"><code>loyalty_tier</code></div></td>
+      <td class="b "></td><td class="s computed">decision table on Member, Years as customer <span class="muted">(4 rules)</span></td><td class="b warning" title="allows STANDARD, SILVER, GOLD, but Loyalty tier can be Standard, Silver, Gold"><code>loyaltyTier</code> <span class="auto" title="matched by name; list it under carries to make it explicit">≈</span> <span class="mark">⚠</span></td><td class="s transit" title="passes through">→</td><td class="b "></td><td class="s "></td><td class="b "></td><td class="s transit" title="kept by the caller across the call">↷ kept</td><td class="b carried"><code>loyaltyTier</code> <span class="usage">R</span></td>
+    </tr>
+    
+    <tr>
+      <td class="value"><div class="name">Discount rate</div><div class="id"><code>discount_rate</code></div></td>
+      <td class="b "></td><td class="s "></td><td class="b "></td><td class="s computed">look up in <code>config.pricing.discount</code></td><td class="b "></td><td class="s "></td><td class="b "></td><td class="s "></td><td class="b "></td>
+    </tr>
+    
+    <tr>
+      <td class="value"><div class="name">Discount</div><div class="id"><code>discount</code></div></td>
+      <td class="b "></td><td class="s "></td><td class="b "></td><td class="s computed"><span class="formula"><span class="fn">round</span>(<span class="ref" title="subtotal">Subtotal</span> × <span class="ref" title="discount_rate">Discount rate</span>)</span></td><td class="b "></td><td class="s "></td><td class="b "></td><td class="s transit" title="kept by the caller across the call">↷ kept</td><td class="b carried"><code>discountAmount</code> <span class="usage">R</span></td>
+    </tr>
+    
+    <tr>
+      <td class="value"><div class="name">Free shipping</div><div class="id"><code>free_shipping</code></div></td>
+      <td class="b "></td><td class="s "></td><td class="b "></td><td class="s computed">decision table on Subtotal, Loyalty tier <span class="muted">(3 rules)</span></td><td class="b "></td><td class="s "></td><td class="b "></td><td class="s transit" title="kept by the caller across the call">↷ kept</td><td class="b carried"><code>freeShipping</code> <span class="usage">R</span></td>
+    </tr>
+    
+    <tr>
+      <td class="value"><div class="name">Shipping fee</div><div class="id"><code>shipping_fee</code></div></td>
+      <td class="b "></td><td class="s "></td><td class="b "></td><td class="s "></td><td class="b "></td><td class="s computed">look up in <code>db.shipping_rates</code></td><td class="b carried"><code>fee</code></td><td class="s transit" title="passes through">→</td><td class="b "></td>
+    </tr>
+    
+    <tr>
+      <td class="value"><div class="name">Shipping cost</div><div class="id"><code>shipping_cost</code></div></td>
+      <td class="b "></td><td class="s "></td><td class="b "></td><td class="s "></td><td class="b "></td><td class="s "></td><td class="b "></td><td class="s computed"><span class="formula"><span class="ref" title="free_shipping">Free shipping</span> ? 0 : <span class="ref" title="shipping_fee">Shipping fee</span></span></td><td class="b carried"><code>shippingCost</code> <span class="usage">R</span></td>
+    </tr>
+    
+    <tr>
+      <td class="value"><div class="name">Customs value</div><div class="id"><code>customs_value</code></div></td>
+      <td class="b "></td><td class="s "></td><td class="b "></td><td class="s "></td><td class="b "></td><td class="s "></td><td class="b "></td><td class="s computed"><span class="formula"><span class="ref" title="subtotal">Subtotal</span> − <span class="ref" title="discount">Discount</span></span></td><td class="b carried"><code>customsValue</code> <span class="usage">S</span></td>
+    </tr>
+    
+    <tr>
+      <td class="value"><div class="name">Net amount</div><div class="id"><code>net_amount</code></div></td>
+      <td class="b "></td><td class="s "></td><td class="b "></td><td class="s "></td><td class="b "></td><td class="s "></td><td class="b "></td><td class="s computed"><span class="formula"><span class="ref" title="subtotal">Subtotal</span> − <span class="ref" title="discount">Discount</span> + <span class="ref" title="shipping_cost">Shipping cost</span></span></td><td class="b carried"><code>netAmount</code> <span class="usage">R</span></td>
+    </tr>
+    
+    <tr>
+      <td class="value"><div class="name">Sales tax</div><div class="id"><code>sales_tax</code></div></td>
+      <td class="b "></td><td class="s "></td><td class="b "></td><td class="s "></td><td class="b "></td><td class="s "></td><td class="b "></td><td class="s computed"><span class="formula"><span class="fn">round</span>(<span class="ref" title="net_amount">Net amount</span> × <span class="ref" title="sales_tax_rate">Sales tax rate</span>)</span></td><td class="b carried"><code>salesTax</code> <span class="usage">R</span></td>
+    </tr>
+    
+    <tr>
+      <td class="value"><div class="name">Order total</div><div class="id"><code>total</code></div></td>
+      <td class="b "></td><td class="s "></td><td class="b "></td><td class="s "></td><td class="b "></td><td class="s "></td><td class="b "></td><td class="s computed"><span class="formula"><span class="ref" title="net_amount">Net amount</span> + <span class="ref" title="sales_tax">Sales tax</span></span></td><td class="b carried"><code>totalAmount</code> <span class="usage">R</span></td>
+    </tr>
+    
+  </tbody>
+  
+</table>
+</div>
+
+
+<section class="agenda">
+  <h2>To agree</h2>
+  <p class="hint">Grouped by the team that owns each interface, as interface, field and reason. ✕ is a field the flow needs and the interface lacks; ⚠ is a field that exists but does not fit.</p>
+  <div class="teams">
+  
+    <div class="team-block">
+      <h3>Orders team</h3>
+      <ul><li class="missing"><span class="mark">✕</span> <code class="in">order-placed</code> <code>shippingMethod</code>: missing; needed by Shipping fee (Shipping team), the output</li><li class="warning"><span class="mark">⚠</span> <code class="in">order-placed</code> <code>weightKg</code>: optional, but the flow always needs Parcel weight (kg)</li><li class="warning"><span class="mark">⚠</span> <code class="in">order-placed</code> <code>loyaltyTier</code>: allows STANDARD, SILVER, GOLD, but Loyalty tier can be Standard, Silver, Gold</li></ul>
+    </div>
+  
+    <div class="team-block">
+      <h3>Payments team</h3>
+      <ul><li class="missing"><span class="mark">✕</span> <code class="in">payment-request</code> <code>currency</code>: required, but nothing in the flow produces it</li></ul>
+    </div>
+  
+  </div>
+</section>
+
+
+
+<section class="unused-list">
+  <h2>Fields this flow does not use</h2>
+  <dl><dt><code>checkout-request</code></dt><dd>customer.id, order.giftMessage</dd><dt><code>order-placed</code></dt><dd>orderId, customerId, placedAt</dd><dt><code>quote-request</code></dt><dd>destinationCountry</dd><dt><code>quote-response</code></dt><dd>currency, estimatedDays</dd></dl>
+</section>
+
+
+
+<section class="legend">
+  <h2>How to read this flow</h2>
+  <dl>
+    <dt>Shaded columns</dt><dd>Boundaries, by their role in the flow: Input, Handoff, Call request, Call response, Output. Each shows the interface, its kind and its owner.</dd>
+    <dt>Step columns</dt><dd>What each team computes, by its role: Producer (builds a handoff or the output), Caller, Callee, or Caller (continued) after its call returns.</dd>
+    <dt><code>field</code></dt><dd>The interface carries this value under that field. <span class="auto">≈</span> means it was matched by name rather than listed under <code>carries</code>.</dd>
+    <dt class="missing">✕ add <code>field</code></dt><dd>The value must cross this boundary, but the interface has no field for it.</dd>
+    <dt class="warning"><code>field</code> ⚠</dt><dd>The field exists but does not fit: optional when always needed, a different type, or values outside its enum.</dd>
+    <dt class="unused"><code>field</code></dt><dd>Carried, but nothing after this point needs it.</dd>
+    <dt>→ / ↷ kept</dt><dd>The value passes through a step, or the caller keeps it across a call instead of sending it.</dd>
+  </dl>
+</section>
+
+<footer class="foot">Generated by DerivationSheets on 2 Nov 2026 23:08. Each team's step is detailed in the end-to-end derivation sheet.</footer>
+</body>
+</html>

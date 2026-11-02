@@ -257,7 +257,7 @@ func evidenceStore(dir, flagDir string) *evidence.FileStore {
 }
 
 func cmdRender(args []string, out, errw io.Writer) error {
-	fs := newFlags("render", "<workflow> --out sheet.html", errw)
+	fs := newFlags("render", "<workflow|flow> --out page.html", errw)
 	outFlag := fs.String("out", "", "output HTML file (required; - for stdout)")
 	evDir := fs.String("evidence-dir", "", "evidence folder (default: .evidence at the repository root)")
 	noEv := fs.Bool("no-evidence", false, "leave evidence out of the page entirely")

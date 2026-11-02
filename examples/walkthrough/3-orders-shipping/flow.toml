@@ -1,0 +1,40 @@
+#:schema ../../../schema/flow.schema.json
+# Step 3. The Orders team consumes the topic and calls the Shipping team's
+# quote API; the Shipping team brings its existing OpenAPI contract. The
+# Orders team then builds the payment request.
+flow    = "checkout-to-payment"
+version = 1
+title   = "Step 3 · Orders and Shipping add the quote call"
+sheet   = "../../../specs/order-checkout"
+
+[sources]
+shipping = { path = "../../../interfaces/shipping" }
+
+[input]
+interface = "../../../interfaces/storefront/checkout-request.toml"
+
+[[stage]]
+kind      = "handoff"
+interface = "../../../interfaces/orders/order-placed.toml"
+producer  = "Storefront team"
+computes  = ["customer_years", "loyalty_tier"]
+
+[[stage]]
+id       = "shipping-quote"
+kind     = "call"
+caller   = "Orders team"
+computes = ["zone", "discount_rate", "discount", "free_shipping"]
+callee   = "Shipping team"
+callee_computes = ["shipping_fee"]
+
+  [stage.request]
+  interface = "shipping:quote-request.toml"
+
+  [stage.response]
+  interface = "shipping:quote-response.toml"
+  carries   = { fee = "shipping_fee" }
+
+[output]
+interface = "../../../interfaces/payments/payment-request.toml"
+producer  = "Orders team"
+computes  = ["shipping_cost", "customs_value", "net_amount", "sales_tax", "total"]

@@ -208,42 +208,28 @@ func printAnalysis(w io.Writer, a *flow.Analysis) {
 	for i, b := range a.Boundaries {
 		if i > 0 {
 			st := a.Steps[i-1]
-			owner := st.Owner
-			if owner == "" {
-				owner = "(no team named)"
-			}
-			role := ""
-			switch {
-			case st.Role == flow.StepCallee:
-				role = ", answering the call"
-			case st.KeepsFrom >= 0:
-				role = ", continuing after the call"
-			}
-			names := make([]string, len(st.Rows))
-			for k, id := range st.Rows {
-				names[k] = id
-			}
-			list := strings.Join(names, ", ")
+			list := strings.Join(st.Rows, ", ")
 			if list == "" {
 				list = "nothing"
 			}
-			fmt.Fprintf(w, "\n  ↓ %s%s computes %s\n", owner, role, list)
+			fmt.Fprintf(w, "\n  ↓ %s · %s · %s: computes %s\n", st.Label(), st.Team(), st.RoleLabel(), list)
 		}
 		fmt.Fprintln(w)
 		if b.Iface == nil {
-			fmt.Fprintf(w, "%s: (no interface)\n", strings.ToUpper(b.Role))
+			fmt.Fprintf(w, "%s · (no interface)\n", b.RoleLabel())
 			continue
 		}
 		in := b.Iface
-		meta := []string{in.Kind, in.Status}
+		meta := iface.KindLabel(in.Kind)
 		if in.Owner != "" {
-			meta = append(meta, in.Owner)
+			meta += " · " + in.Owner
 		}
+		meta += " · " + in.Status
 		where := in.Ref
 		if in.Revision != "" {
 			where += " @ " + in.Revision
 		}
-		fmt.Fprintf(w, "%s %s (%s)  [%s]\n", strings.ToUpper(b.Role), in.Name, strings.Join(meta, ", "), where)
+		fmt.Fprintf(w, "%s · %s (%s)  [%s]\n", b.RoleLabel(), in.Name, meta, where)
 		for _, it := range b.Items {
 			line := fmt.Sprintf("  %s %-20s", statusMark[it.Status], it.Field)
 			if it.Row != "" {
@@ -252,11 +238,16 @@ func printAnalysis(w io.Writer, a *flow.Analysis) {
 					line += " (matched by name)"
 				}
 			}
-			if len(it.Consumers) > 0 && it.Status != flow.Carried {
-				line += "  needed by " + strings.Join(it.Consumers, ", ")
+			// Every line reads: mark, field, row, then one reason.
+			reason := it.Note
+			if it.Status == flow.Missing && it.Row != "" {
+				reason = "missing; needed by " + strings.Join(it.Consumers, ", ")
+				if rest := strings.TrimPrefix(it.Note, "not in the interface"); rest != "" {
+					reason += strings.Replace(rest, "; ", "; ", 1)
+				}
 			}
-			if it.Note != "" {
-				line += "  — " + it.Note
+			if reason != "" {
+				line = strings.TrimRight(line, " ") + ": " + reason
 			}
 			fmt.Fprintln(w, strings.TrimRight(line, " "))
 		}

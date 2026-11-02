@@ -1,0 +1,19 @@
+#:schema ../../../schema/flow.schema.json
+# Step 2. The Storefront team says: we already publish order-placed on
+# Kafka, and we compute the loyalty tier before publishing.
+flow    = "checkout-to-payment"
+version = 1
+title   = "Step 2 · Storefront adds its Kafka topic"
+sheet   = "../../../specs/order-checkout"
+
+[input]
+interface = "../../../interfaces/storefront/checkout-request.toml"
+
+[[stage]]
+kind      = "handoff"
+interface = "../../../interfaces/orders/order-placed.toml"
+producer  = "Storefront team"
+computes  = ["customer_years", "loyalty_tier"]
+
+[output]
+interface = "../../../interfaces/payments/payment-request.toml"

@@ -170,6 +170,7 @@ every ✕ and ⚠ by the team that owns the interface.
 `slice --strict` exits 1 while anything is missing or doesn't fit, so a CI
 job can hold a flow until every team has agreed.
 
+
 ## Not yet
 
 - Writing each team's step out as its own derivation sheet. A caller's step

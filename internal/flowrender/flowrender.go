@@ -18,6 +18,7 @@ import (
 
 	"derivationsheets/internal/brand"
 	"derivationsheets/internal/flow"
+	"derivationsheets/internal/iface"
 	"derivationsheets/internal/render"
 	"derivationsheets/internal/sheet"
 	"derivationsheets/internal/sources"
@@ -46,12 +47,14 @@ type Page struct {
 	CSS       template.CSS
 }
 
-// Column is a boundary or a step.
+// Column is a boundary or a step. Both have the same three header lines:
+// Eyebrow (the boundary's role, or "Step n"), Name (the interface, or the
+// team), and Meta (kind and owner, or the team's role).
 type Column struct {
 	Boundary bool
-	Kind     string // boundary kind label, or step role label
+	Eyebrow  string
 	Name     string
-	Owner    string
+	Meta     string
 	Status   string // existing or proposed, for boundaries
 	Source   string
 	Path     string
@@ -100,11 +103,6 @@ type UnusedLine struct {
 	Fields    string
 }
 
-var kindLabel = map[string]string{
-	"api-request": "API request", "api-response": "API response", "kafka-topic": "Kafka topic",
-	"event": "Event", "file": "File", "other": "Interface",
-}
-
 // Build computes the page for an analysis without errors.
 func Build(a *flow.Analysis, now time.Time) *Page {
 	f, s := a.Flow, a.Sheet
@@ -130,28 +128,15 @@ func Build(a *flow.Analysis, now time.Time) *Page {
 	for i, b := range a.Boundaries {
 		if i > 0 {
 			st := a.Steps[i-1]
-			kind := "computes"
-			switch {
-			case st.Role == flow.StepCallee:
-				kind = "answers the call"
-			case st.KeepsFrom >= 0:
-				kind = "continues after the call"
-			case st.Role == flow.StepCaller:
-				kind = "makes the call"
-			}
-			owner := st.Owner
-			if owner == "" {
-				owner = "No team named"
-			}
-			p.Columns = append(p.Columns, Column{Kind: kind, Name: owner})
+			p.Columns = append(p.Columns, Column{Eyebrow: st.Label(), Name: st.Team(), Meta: st.RoleLabel()})
 		}
-		col := Column{Boundary: true}
+		col := Column{Boundary: true, Eyebrow: b.RoleLabel()}
 		if b.Iface != nil {
-			col.Kind = kindLabel[b.Iface.Kind]
-			if col.Kind == "" {
-				col.Kind = "Interface"
+			col.Name, col.Status = b.Iface.Name, b.Iface.Status
+			col.Meta = iface.KindLabel(b.Iface.Kind)
+			if b.Iface.Owner != "" {
+				col.Meta += " · " + b.Iface.Owner
 			}
-			col.Name, col.Owner, col.Status = b.Iface.Name, b.Iface.Owner, b.Iface.Status
 			// Plain paths are noise in a header; source aliases say which
 			// team repository the interface comes from.
 			if alias, _ := sources.Split(b.Iface.Ref); alias != "" {
@@ -169,12 +154,6 @@ func Build(a *flow.Analysis, now time.Time) *Page {
 					col.Warnings++
 				}
 			}
-		}
-		switch b.Role {
-		case flow.RoleInput:
-			col.Kind = "Input · " + col.Kind
-		case flow.RoleOutput:
-			col.Kind = "Output · " + col.Kind
 		}
 		p.Columns = append(p.Columns, col)
 	}
@@ -318,15 +297,11 @@ func agenda(a *flow.Analysis) []AgendaTeam {
 			switch it.Status {
 			case flow.Missing:
 				item = AgendaItem{Class: "missing", Mark: "✕"}
-				switch {
-				case it.Row == "":
-					item.Text = template.HTML(fmt.Sprintf("<code>%s</code> is required by %s, but nothing in the flow produces it",
-						html.EscapeString(it.Field), html.EscapeString(b.Iface.Name)))
-				default:
-					item.Text = template.HTML(fmt.Sprintf("add <code>%s</code> (%s), needed by %s",
-						html.EscapeString(it.Field), html.EscapeString(a.Sheet.ByID[it.Row].DisplayName()),
-						html.EscapeString(strings.Join(it.Consumers, ", "))))
+				reason := it.Note
+				if it.Row != "" {
+					reason = "missing; needed by " + strings.Join(it.Consumers, ", ")
 				}
+				item.Text = template.HTML(fmt.Sprintf("<code>%s</code>: %s", html.EscapeString(it.Field), html.EscapeString(reason)))
 			case flow.Warn:
 				item = AgendaItem{Class: "warning", Mark: "⚠", Text: template.HTML(fmt.Sprintf("<code>%s</code>: %s",
 					html.EscapeString(it.Field), html.EscapeString(it.Note)))}
@@ -355,5 +330,5 @@ func Write(w io.Writer, p *Page) error {
 	if err != nil {
 		return err
 	}
-	return t.Execute(w, p)
+	return t.ExecuteTemplate(w, "page", p)
 }

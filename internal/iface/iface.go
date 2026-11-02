@@ -226,3 +226,14 @@ func Write(path string, in *Interface, schemaRel string) error {
 	}
 	return os.WriteFile(path, []byte(b.String()), 0o644)
 }
+
+// KindLabel names a kind for display: "Kafka topic", "API request".
+func KindLabel(kind string) string {
+	if l, ok := map[string]string{
+		"api-request": "API request", "api-response": "API response", "kafka-topic": "Kafka topic",
+		"event": "Event", "file": "File", "other": "Interface",
+	}[kind]; ok {
+		return l
+	}
+	return "Interface"
+}

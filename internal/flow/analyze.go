@@ -494,7 +494,7 @@ func (a *Analysis) report() {
 			case len(consumers) == 0 && c != nil:
 				used[c.Field.Name] = true
 				b.Items = append(b.Items, Item{Status: Unused, Field: c.Field.Name, Row: r.ID, Auto: c.Auto,
-					Note: "carries " + r.DisplayName() + ", but nothing after this point needs it"})
+					Note: "carries " + r.DisplayName() + ", but nothing after this boundary needs it"})
 			case len(consumers) == 0:
 			case c == nil:
 				b.Items = append(b.Items, Item{Status: Missing, Field: proposedField(r), Row: r.ID, Consumers: consumers,
@@ -514,7 +514,7 @@ func (a *Analysis) report() {
 			}
 			it := Item{Status: Unused, Field: fd.Name, Note: "not used by this flow"}
 			if b.Role == RoleOutput && fd.Required {
-				it.Status, it.Note = Missing, "required by "+b.Iface.Name+", but no row sends it"
+				it.Status, it.Note = Missing, "required, but nothing in the flow produces it"
 			}
 			b.Items = append(b.Items, it)
 		}
@@ -552,26 +552,22 @@ func proposedField(r *sheet.Row) string {
 
 func (a *Analysis) missingNote(b *Boundary, r *sheet.Row) string {
 	switch {
-	case b.Role == RoleOutput:
-		return fmt.Sprintf("%s has no field %s", b.Iface.Name, r.Send.Field)
-	case b.Role == RoleInput:
-		return fmt.Sprintf("%s has no field %s for %s", b.Iface.Name, r.SourcePath(), r.DisplayName())
+	case b.Role == RoleOutput || b.Role == RoleInput:
+		return "not in the interface"
 	case b.Iface.Status == iface.StatusExisting && b.Iface.Owner != "":
-		return fmt.Sprintf("ask %s to add it to %s", b.Iface.Owner, b.Iface.Name)
-	case b.Iface.Status == iface.StatusExisting:
-		return fmt.Sprintf("add it to %s", b.Iface.Name)
+		return fmt.Sprintf("not in the interface; ask %s to add it", b.Iface.Owner)
 	}
-	return "add it to the proposed interface"
+	return "not in the interface; add it"
 }
 
 // fit checks a carried field against the row: requiredness and type.
 func fit(b *Boundary, fd *iface.Field, r *sheet.Row, domains map[string][]any) string {
 	always := !(r.IsInput() && r.Usage == sheet.UsageSituational) && !(r.Send != nil && r.Send.Usage == sheet.UsageSituational && b.Role == RoleOutput)
 	if !fd.Required && always && b.Role != RoleOutput {
-		return fmt.Sprintf("optional in %s, but the flow always needs %s", b.Iface.Name, r.DisplayName())
+		return fmt.Sprintf("optional, but the flow always needs %s", r.DisplayName())
 	}
 	if t := rowType(r); t != "" && fd.Type != "" && !sameType(t, fd.Type) {
-		return fmt.Sprintf("%s is %s here, but %s is %s", fd.Name, fd.Type, r.DisplayName(), t)
+		return fmt.Sprintf("type is %s, but %s is %s", fd.Type, r.DisplayName(), t)
 	}
 	if len(fd.Enum) > 0 {
 		var outside []string
@@ -581,7 +577,7 @@ func fit(b *Boundary, fd *iface.Field, r *sheet.Row, domains map[string][]any) s
 			}
 		}
 		if len(outside) > 0 {
-			return fmt.Sprintf("%s allows %s, but %s can be %s", fd.Name, strings.Join(fd.Enum, ", "), r.DisplayName(), strings.Join(outside, ", "))
+			return fmt.Sprintf("allows %s, but %s can be %s", strings.Join(fd.Enum, ", "), r.DisplayName(), strings.Join(outside, ", "))
 		}
 	}
 	return ""
@@ -663,4 +659,39 @@ func rejected(r *sheet.Row) []string {
 		}
 	}
 	return out
+}
+
+// RoleLabel names the boundary's role in the flow. The HTML view and the
+// text report use the same words.
+func (b *Boundary) RoleLabel() string {
+	return map[string]string{
+		RoleInput: "Input", RoleHandoff: "Handoff", RoleRequest: "Call request",
+		RoleResponse: "Call response", RoleOutput: "Output",
+	}[b.Role]
+}
+
+// Label is "Step n", counting from 1.
+func (s *Step) Label() string { return fmt.Sprintf("Step %d", s.Index+1) }
+
+// Team is the owner, or a placeholder when flow.toml names none.
+func (s *Step) Team() string {
+	if s.Owner != "" {
+		return s.Owner
+	}
+	return "No team named"
+}
+
+// RoleLabel names the step's role in the words flow.toml uses: producer,
+// caller, callee. A caller picking up again after its call is "Caller
+// (continued)".
+func (s *Step) RoleLabel() string {
+	switch {
+	case s.KeepsFrom >= 0:
+		return "Caller (continued)"
+	case s.Role == StepCaller:
+		return "Caller"
+	case s.Role == StepCallee:
+		return "Callee"
+	}
+	return "Producer"
 }
