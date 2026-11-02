@@ -1,0 +1,17 @@
+#:schema ../../../schema/flow.schema.json
+# Shipping team's piece of flow checkout-to-payment, exported by slice.
+flow    = "checkout-to-payment-3-shipping-team"
+version = 1
+title   = "Shipping team: quote-request to quote-response"
+sheet   = "."
+
+[sources]
+shipping = { path = "../../../interfaces/shipping" }
+
+[input]
+interface = "shipping:quote-request.toml"
+
+[output]
+interface = "shipping:quote-response.toml"
+producer  = "Shipping team"
+computes  = ["shipping_fee"]

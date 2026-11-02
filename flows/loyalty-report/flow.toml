@@ -1,0 +1,15 @@
+#:schema ../../schema/flow.schema.json
+# A branch: the Analytics team consumes the existing order-placed topic.
+# Check it against the flow that produces the topic:
+#   dsheets slice flows/loyalty-report --with flows/checkout-to-payment
+flow    = "loyalty-report"
+version = 1
+title   = "Loyalty report (branch off order-placed)"
+sheet   = "."
+
+[input]
+interface = "../../interfaces/orders/order-placed.toml"
+
+[output]
+interface = "../../interfaces/analytics/loyalty-report.toml"
+producer  = "Analytics team"

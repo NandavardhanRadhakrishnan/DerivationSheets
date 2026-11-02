@@ -1,0 +1,70 @@
+#:schema ../../schema/sheet.schema.json
+# The Analytics team's branch off the order-placed topic.
+sheet   = "loyalty-report"
+version = 1
+title   = "Loyalty report"
+
+[[row]]
+id     = "customer_id"
+name   = "Customer ID"
+source = "request.customerId"
+type   = "string"
+
+  [row.send]
+  field = "customerId"
+  usage = "R"
+
+[[row]]
+id     = "loyalty_tier"
+name   = "Loyalty tier"
+source = "request.loyaltyTier"
+type   = "string"
+
+  [row.send]
+  field = "loyaltyTier"
+  usage = "R"
+
+[[row]]
+id     = "customer_years"
+name   = "Years as customer"
+source = "request.customerYears"
+type   = "number"
+
+[[row]]
+id     = "is_member"
+name   = "Member"
+source = "request.isMember"
+type   = "boolean"
+
+  [row.send]
+  field = "isMember"
+  usage = "R"
+
+[[row]]
+id      = "gift_message"
+name    = "Gift message"
+source  = "request.giftMessage"
+type    = "string"
+default = ""
+
+  [row.send]
+  field     = "giftMessage"
+  usage     = "S"
+  when      = "gift_message != \"\""
+  otherwise = "do-not-send"
+
+[[row]]
+id   = "tenure_band"
+name = "Tenure band"
+uses = ["customer_years"]
+
+  [row.table]
+  columns = ["customer_years", "=>"]
+  rows = [
+    ["< 2",  "New"],
+    [">= 2", "Loyal"],
+  ]
+
+  [row.send]
+  field = "tenureBand"
+  usage = "R"

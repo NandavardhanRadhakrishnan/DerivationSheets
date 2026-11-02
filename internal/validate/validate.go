@@ -484,17 +484,36 @@ func (c *checker) checkCycle() {
 }
 
 func (c *checker) checkSends() {
-	fields := map[string]*sheet.Row{}
+	fields := map[string]*sheet.Row{} // target + field -> row
 	domains := analysis.Domains(c.s)
 	for _, r := range c.s.Rows {
-		sd := r.Send
-		if sd == nil || r.ID == "" {
+		if r.ID == "" {
 			continue
 		}
-		if prev, dup := fields[sd.Field]; dup && sd.Field != "" {
-			c.add(Error, "send-duplicate", r, c.line(r, "send.field"), "field %q is already sent by row %q", sd.Field, prev.ID)
+		if r.ExtraSends > 0 {
+			c.add(Error, "send-twice", r, c.line(r, "send"), "row is sent to the sheet's own target more than once; give each extra send a target (a call stage)")
 		}
-		fields[sd.Field] = r
+		sends := r.CallSends
+		if r.Send != nil {
+			sends = append([]*sheet.Send{r.Send}, sends...)
+		}
+		for _, sd := range sends {
+			c.checkSend(r, sd, fields, domains)
+		}
+	}
+}
+
+func (c *checker) checkSend(r *sheet.Row, sd *sheet.Send, fields map[string]*sheet.Row, domains map[string][]any) {
+	{
+		where := sd.Field
+		if sd.Target != "" {
+			where = sd.Target + ": " + sd.Field
+		}
+		key := sd.Target + "\x00" + sd.Field
+		if prev, dup := fields[key]; dup && sd.Field != "" {
+			c.add(Error, "send-duplicate", r, c.line(r, "send.field"), "field %q is already sent by row %q", where, prev.ID)
+		}
+		fields[key] = r
 		if sd.Usage == sheet.UsageSituational {
 			if sd.When == "" {
 				c.add(Error, "situational-no-when", r, c.line(r, "send.usage", "send"), "usage S needs `when`, stating when the field is required")
@@ -517,7 +536,7 @@ func (c *checker) checkSends() {
 
 func (c *checker) checkUnused() {
 	for _, r := range c.s.Rows {
-		if r.ID == "" || r.Send != nil || len(r.Rejects) > 0 || len(c.g.Users[r.ID]) > 0 {
+		if r.ID == "" || r.Send != nil || len(r.CallSends) > 0 || len(r.Rejects) > 0 || len(c.g.Users[r.ID]) > 0 {
 			continue
 		}
 		if c.s.ByID[r.ID] != r {
@@ -668,5 +687,20 @@ func SchemaProblems(schemaJSON []byte, raw map[string]any) ([]SchemaProblem, err
 		}
 	}
 	walk(verr)
-	return out, nil
+	// With anyOf, every alternative reports its own failure. Keep the most
+	// specific: drop a problem when another one sits deeper inside it.
+	var kept []SchemaProblem
+	for i, p := range out {
+		deeper := false
+		for j, q := range out {
+			if i != j && len(q.Location) > len(p.Location) && slices.Equal(q.Location[:len(p.Location)], p.Location) {
+				deeper = true
+				break
+			}
+		}
+		if !deeper {
+			kept = append(kept, p)
+		}
+	}
+	return kept, nil
 }

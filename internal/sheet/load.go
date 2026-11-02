@@ -143,16 +143,37 @@ func parseRow(i int, m map[string]any) *Row {
 			}
 		}
 	}
-	if sm, ok := m["send"].(map[string]any); ok {
+	// send is one table, or an array of tables when a row is sent to more
+	// than one target: the sheet's own target and calls made on the way.
+	var sends []map[string]any
+	switch sv := m["send"].(type) {
+	case map[string]any:
+		sends = append(sends, sv)
+	case []any:
+		for _, x := range sv {
+			if sm, ok := x.(map[string]any); ok {
+				sends = append(sends, sm)
+			}
+		}
+	}
+	for _, sm := range sends {
 		sd := &Send{}
 		sd.Field, _ = sm["field"].(string)
 		sd.Usage, _ = sm["usage"].(string)
 		sd.When, _ = sm["when"].(string)
 		sd.Otherwise, _ = sm["otherwise"].(string)
+		sd.Target, _ = sm["target"].(string)
 		if mp, ok := sm["map"].(map[string]any); ok {
 			sd.Map = Normalize(mp).(map[string]any)
 		}
-		r.Send = sd
+		switch {
+		case sd.Target != "":
+			r.CallSends = append(r.CallSends, sd)
+		case r.Send == nil:
+			r.Send = sd
+		default:
+			r.ExtraSends++
+		}
 	}
 	return r
 }

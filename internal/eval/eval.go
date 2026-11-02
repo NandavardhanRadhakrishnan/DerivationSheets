@@ -61,9 +61,12 @@ type Result struct {
 	Steps   []*Step
 	ByRow   map[string]*Step
 	Payload map[string]any // output payload sent to the target; nested for dotted fields
-	Sent    []SentField
-	Reject  *Rejection
-	Err     *Error
+	// CallPayloads holds what is sent to each call made on the way, by
+	// stage ID (send.target).
+	CallPayloads map[string]map[string]any
+	Sent         []SentField
+	Reject       *Rejection
+	Err          *Error
 }
 
 // Step traces one row.
@@ -80,10 +83,13 @@ type Step struct {
 	InputWhen *bool     `json:"input_when,omitempty"`
 	Rejected  bool      `json:"rejected,omitempty"`
 	Send      *SendStep `json:"send,omitempty"`
+	// CallSends trace sends to calls made on the way.
+	CallSends []*SendStep `json:"call_sends,omitempty"`
 }
 
 // SendStep traces a row's send rule.
 type SendStep struct {
+	Target string `json:"target,omitempty"` // a call stage; empty for the sheet's own target
 	Field  string `json:"field"`
 	Usage  string `json:"usage"`
 	When   *bool  `json:"when,omitempty"`
@@ -338,64 +344,87 @@ func (e *Engine) rejects(r *sheet.Row, res *Result, ctx expr.Context) *Rejection
 
 func (e *Engine) send(res *Result, ctx expr.Context) {
 	res.Payload = map[string]any{}
+	res.CallPayloads = map[string]map[string]any{}
 	for _, r := range e.Graph.Order {
-		sd := r.Send
-		if sd == nil {
-			continue
-		}
-		ss := &SendStep{Field: sd.Field, Usage: sd.Usage}
-		res.ByRow[r.ID].Send = ss
-		required := sd.Usage != sheet.UsageSituational
-		if !required {
-			b, err := e.evalBool(sd.When, res.Values, ctx)
-			if err != nil {
-				ss.Reason = "when cannot be evaluated: " + err.Error()
-				continue
-			}
-			ss.When = &b
-			required = b
-		}
-		v, known := res.Values[r.ID]
-		if res.Status[r.ID] == StatusUnknown {
-			known = false
-		}
-		if !required && sd.Otherwise != sheet.OtherwiseSenderDiscretion {
-			ss.Reason = "when is false; do not send"
-			continue
-		}
-		if !known {
-			ss.Reason = "value cannot be computed"
-			continue
-		}
-		if v == nil {
-			if required {
-				ss.Reason = "required, but the value is empty"
-			} else {
-				ss.Reason = "sender discretion; value is empty, not sent"
-			}
-			continue
-		}
-		if sd.Map != nil {
-			mv, ok := sd.Map[sheet.FormatValue(v)]
-			if !ok {
-				res.Err = &Error{Row: r.ID, Message: fmt.Sprintf("send.map has no entry for %s", sheet.FormatValue(v))}
+		if sd := r.Send; sd != nil {
+			ss, v, ok := e.sendOne(r, sd, res, ctx)
+			res.ByRow[r.ID].Send = ss
+			if res.Err != nil {
 				return
 			}
-			v = mv
+			if ok {
+				setPath(res.Payload, sd.Field, v)
+				res.Sent = append(res.Sent, SentField{Field: sd.Field, Row: r.ID, Value: v, Optional: ss.Optional})
+			}
 		}
-		ss.Sent, ss.Value = true, v
-		ss.Optional = !required
-		switch {
-		case !required:
-			ss.Reason = "when is false; sent at sender's discretion"
-		case sd.Usage == sheet.UsageSituational:
-			ss.Reason = "when is true; required"
-		default:
-			ss.Reason = "required"
+		for _, sd := range r.CallSends {
+			ss, v, ok := e.sendOne(r, sd, res, ctx)
+			ss.Target = sd.Target
+			res.ByRow[r.ID].CallSends = append(res.ByRow[r.ID].CallSends, ss)
+			if res.Err != nil {
+				return
+			}
+			if ok {
+				if res.CallPayloads[sd.Target] == nil {
+					res.CallPayloads[sd.Target] = map[string]any{}
+				}
+				setPath(res.CallPayloads[sd.Target], sd.Field, v)
+			}
 		}
-		setPath(res.Payload, sd.Field, v)
-		res.Sent = append(res.Sent, SentField{Field: sd.Field, Row: r.ID, Value: v, Optional: ss.Optional})
 	}
+}
+
+// sendOne applies one send rule, returning its trace, the value to send,
+// and whether it is sent.
+func (e *Engine) sendOne(r *sheet.Row, sd *sheet.Send, res *Result, ctx expr.Context) (*SendStep, any, bool) {
+	ss := &SendStep{Field: sd.Field, Usage: sd.Usage}
+	required := sd.Usage != sheet.UsageSituational
+	if !required {
+		b, err := e.evalBool(sd.When, res.Values, ctx)
+		if err != nil {
+			ss.Reason = "when cannot be evaluated: " + err.Error()
+			return ss, nil, false
+		}
+		ss.When = &b
+		required = b
+	}
+	v, known := res.Values[r.ID]
+	if res.Status[r.ID] == StatusUnknown {
+		known = false
+	}
+	switch {
+	case !required && sd.Otherwise != sheet.OtherwiseSenderDiscretion:
+		ss.Reason = "when is false; do not send"
+		return ss, nil, false
+	case !known:
+		ss.Reason = "value cannot be computed"
+		return ss, nil, false
+	case v == nil && required:
+		ss.Reason = "required, but the value is empty"
+		return ss, nil, false
+	case v == nil:
+		ss.Reason = "sender discretion; value is empty, not sent"
+		return ss, nil, false
+	}
+	if sd.Map != nil {
+		mv, ok := sd.Map[sheet.FormatValue(v)]
+		if !ok {
+			res.Err = &Error{Row: r.ID, Message: fmt.Sprintf("send.map has no entry for %s", sheet.FormatValue(v))}
+			return ss, nil, false
+		}
+		v = mv
+	}
+	ss.Sent, ss.Value = true, v
+	ss.Optional = !required
+	switch {
+	case !required:
+		ss.Reason = "when is false; sent at sender's discretion"
+	case sd.Usage == sheet.UsageSituational:
+		ss.Reason = "when is true; required"
+	default:
+		ss.Reason = "required"
+	}
+	return ss, v, true
 }
 
 func (e *Engine) evalBool(src string, vars map[string]any, ctx expr.Context) (bool, error) {

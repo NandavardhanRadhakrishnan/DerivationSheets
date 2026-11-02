@@ -138,3 +138,84 @@ func TestStructureErrors(t *testing.T) {
 		}
 	}
 }
+
+func analyzeDir(t *testing.T, dir string) *Analysis {
+	t.Helper()
+	f, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := Analyze(f, sources.NewResolver(f.Dir, f.Sources))
+	if len(a.Errors) > 0 {
+		t.Fatalf("%s: %v", dir, a.Errors)
+	}
+	return a
+}
+
+func TestExportPieces(t *testing.T) {
+	a := example(t, nil)
+	dir := filepath.Join(t.TempDir(), "pieces")
+	pieces, err := a.Export(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pieces) != 3 {
+		t.Fatalf("%d pieces", len(pieces))
+	}
+	want := []struct{ team, receives, produces string }{
+		{"Storefront team", "checkout-request", "order-placed"},
+		{"Orders team", "order-placed", "payment-request"},
+		{"Shipping team", "quote-request", "quote-response"},
+	}
+	for i, w := range want {
+		ex := pieces[i]
+		if ex.Piece.Team != w.team || ex.Receives != w.receives || ex.Produces != w.produces {
+			t.Errorf("piece %d = %s %s->%s", i+1, ex.Piece.Team, ex.Receives, ex.Produces)
+		}
+		// Each piece is a valid flow on its own.
+		pa := analyzeDir(t, ex.Dir)
+		_ = pa
+	}
+	if len(pieces[1].Calls) != 1 || !strings.Contains(pieces[1].Calls[0], "shipping-quote") {
+		t.Errorf("orders piece calls = %v", pieces[1].Calls)
+	}
+	orders := analyzeDir(t, pieces[1].Dir)
+	// The Orders piece reads the fee from the call and sends method to it.
+	if it := item(t, orders, "quote-response", "fee"); it.Status != Carried || it.Auto {
+		t.Errorf("fee = %+v", it)
+	}
+	if it := item(t, orders, "quote-request", "method"); it.Status != Carried || it.Auto {
+		t.Errorf("method = %+v", it)
+	}
+	// The gap at the topic shows from both sides.
+	if it := item(t, orders, "order-placed", "shippingMethod"); it.Status != Missing {
+		t.Errorf("orders input shippingMethod = %+v", it)
+	}
+	store := analyzeDir(t, pieces[0].Dir)
+	if it := item(t, store, "order-placed", "shippingMethod"); it.Status != Missing {
+		t.Errorf("storefront output shippingMethod = %+v", it)
+	}
+}
+
+func TestConnectBranchAndFeed(t *testing.T) {
+	main := example(t, nil)
+	branch := analyzeDir(t, filepath.Join("..", "..", "flows", "loyalty-report"))
+	feed := analyzeDir(t, filepath.Join("..", "..", "flows", "mobile-orders"))
+	Connect(branch, []*Analysis{main, feed})
+	Connect(feed, []*Analysis{main})
+
+	it := item(t, branch, "order-placed", "customerYears")
+	if it.Status != Missing || !strings.Contains(it.Reason(), "probable origin: Years as customer (customer_years, computed by Storefront team") {
+		t.Errorf("customerYears = %s", it.Reason())
+	}
+	if !strings.Contains(item(t, branch, "order-placed", "giftMessage").Reason(), "checkout-request field order.giftMessage") {
+		t.Error("giftMessage not traced to the checkout request field")
+	}
+	if !strings.Contains(it.Reason(), "Mobile team produces order-placed in flow mobile-orders: not found upstream") {
+		t.Errorf("second producer not listed: %s", it.Reason())
+	}
+	lt := item(t, feed, "order-placed", "loyaltyTier")
+	if lt.Status != Missing || !strings.Contains(lt.Note, "flow checkout-to-payment reads it") {
+		t.Errorf("feed loyaltyTier = %+v", lt)
+	}
+}

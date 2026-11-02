@@ -90,7 +90,11 @@ type Row struct {
 	Text    string
 	Rejects []Reject
 
-	Send          *Send
+	Send *Send
+	// CallSends go to calls made on the way, by stage ID (send.target).
+	CallSends []*Send
+	// ExtraSends counts sends to the sheet's own target beyond the first.
+	ExtraSends    int
 	OpenQuestions []string
 
 	// rules counts how many rule keys were present, for the validator.
@@ -219,6 +223,9 @@ type Reject struct {
 
 // Send describes how a row is sent to the target.
 type Send struct {
+	// Target names a call stage of the flow the sheet belongs to; empty for
+	// the sheet's own target.
+	Target    string
 	Field     string
 	Usage     string
 	When      string

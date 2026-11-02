@@ -48,7 +48,7 @@ or `text`.
 | `id` | all | Unique, lowercase snake_case, stable across versions |
 | `name` | all | Plain-language display name |
 | `description` | all | Optional longer text |
-| `source` | inputs | `request.<path>`, `context.<name>`, `db.<table>` or `config.<key>` |
+| `source` | inputs | `request.<path>`, `context.<name>`, `db.<table>`, `config.<key>`, or `call.<stage>.<field>` (a field of a call's response, in a sheet that belongs to a flow) |
 | `type` | inputs | `string`, `number`, `boolean`, `date` or `datetime` |
 | `usage`, `when` | inputs | `R` (default): a missing value rejects the request with `MISSING_INPUT`. `S`: required only when `when` is true. |
 | `default` | inputs | Used when the input is missing |
@@ -59,7 +59,7 @@ or `text`.
 | `values` / `values_file` | lookups | Design-time values: inline (one key only) or a CSV in `data/` |
 | `text` | derived | Plain-language rule. Not computable, so it is reported as an open item. |
 | `[[row.reject]]` | derived | `when`, `code`, `message`. Rejects the whole request. |
-| `[row.send]` | any | `field`, `usage`, `when`, `otherwise`, `map` |
+| `[row.send]` | any | `field`, `usage`, `when`, `otherwise`, `map`, and `target` for a call. Use `[[row.send]]` for several sends. |
 | `open_questions` | any | Unresolved questions. `validate` reports them as warnings. |
 
 ### Sending
@@ -74,6 +74,36 @@ always required. `usage = "S"` means the field is situational, and needs:
 values to the codes the target expects. Keys are the string forms of values, so
 `{ true = "MANUAL", false = "STP" }` maps booleans. `validate` checks that the
 map covers every value the row can produce, when those values are known.
+
+### Calls made on the way
+
+In a sheet that belongs to a flow with a `call` stage, a row can also be
+sent in that call's request, and a field of its response can be read as an
+input:
+
+```toml
+[[row]]
+id     = "shipping_method"
+source = "request.shippingMethod"
+
+  [[row.send]]                 # to the sheet's own target
+  field = "shippingMethod"
+  usage = "R"
+
+  [[row.send]]                 # in the shipping-quote call's request
+  target = "shipping-quote"
+  field  = "method"
+  usage  = "R"
+
+[[row]]
+id     = "shipping_fee"
+name   = "Shipping fee"
+source = "call.shipping-quote.fee"   # from the call's response
+```
+
+A row has at most one send without `target`. `eval` returns what each call
+is sent alongside the payload; `cases` and `verify` compare the sheet's own
+payload only.
 
 ## Decision tables
 

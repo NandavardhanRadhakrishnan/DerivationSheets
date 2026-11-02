@@ -1,0 +1,32 @@
+#:schema ../../schema/interface.schema.json
+interface   = "loyalty-report"
+title       = "Loyalty report event"
+kind        = "event"
+owner       = "Analytics team"
+status      = "proposed"
+description = "One event per order, for the loyalty dashboard."
+
+[[field]]
+name     = "customerId"
+type     = "string"
+required = true
+
+[[field]]
+name     = "loyaltyTier"
+type     = "string"
+required = true
+
+[[field]]
+name     = "tenureBand"
+type     = "string"
+required = true
+
+[[field]]
+name     = "isMember"
+type     = "boolean"
+required = true
+
+[[field]]
+name     = "giftMessage"
+type     = "string"
+required = false

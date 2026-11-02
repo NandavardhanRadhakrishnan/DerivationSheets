@@ -1,0 +1,17 @@
+#:schema ../../../schema/flow.schema.json
+# Storefront team's piece of flow checkout-to-payment, exported by slice.
+flow    = "checkout-to-payment-1-storefront-team"
+version = 1
+title   = "Storefront team: checkout-request to order-placed"
+sheet   = "."
+
+[sources]
+shipping = { path = "../../../interfaces/shipping" }
+
+[input]
+interface = "../../../interfaces/storefront/checkout-request.toml"
+
+[output]
+interface = "../../../interfaces/orders/order-placed.toml"
+producer  = "Storefront team"
+computes  = ["customer_years", "loyalty_tier"]

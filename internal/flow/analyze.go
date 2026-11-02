@@ -233,7 +233,26 @@ func last(s string) string { return s[strings.LastIndex(s, ".")+1:] }
 // isLocal reports rows available wherever they are used: context, database
 // and config inputs belong to the step that reads them.
 func isLocal(r *sheet.Row) bool {
-	return r.IsInput() && r.SourceKind() != "request"
+	return r.IsInput() && r.SourceKind() != "request" && r.SourceKind() != "call"
+}
+
+// callSource splits a call.<stage>.<field> source.
+func callSource(r *sheet.Row) (stage, field string, ok bool) {
+	if !r.IsInput() || r.SourceKind() != "call" {
+		return "", "", false
+	}
+	stage, field, ok = strings.Cut(r.SourcePath(), ".")
+	return stage, field, ok && field != ""
+}
+
+// callSend returns the row's send to a call stage, or nil.
+func callSend(r *sheet.Row, stage string) *sheet.Send {
+	for _, sd := range r.CallSends {
+		if sd.Target == stage {
+			return sd
+		}
+	}
+	return nil
 }
 
 // mapCarries decides which row each interface field carries: listed in
@@ -276,14 +295,20 @@ func (a *Analysis) mapCarries() {
 				if b.carry[r.ID] != nil || isLocal(r) {
 					continue
 				}
-				if matches(b.Role, fd.Name, r) {
+				if exact, ok := matches(b, fd.Name, r); ok && exact {
+					// A call.* source or a send to this call names the field
+					// exactly; it beats any match by name.
+					cands = []*sheet.Row{r}
+					break
+				} else if ok {
 					cands = append(cands, r)
 				}
 			}
 			switch len(cands) {
 			case 0:
 			case 1:
-				b.carry[cands[0].ID] = &Carry{Field: fd, Auto: b.Role != RoleOutput && b.Role != RoleInput}
+				exact, _ := matches(b, fd.Name, cands[0])
+				b.carry[cands[0].ID] = &Carry{Field: fd, Auto: !exact && b.Role != RoleOutput && b.Role != RoleInput}
 			default:
 				ids := make([]string, len(cands))
 				for k, c := range cands {
@@ -298,13 +323,32 @@ func (a *Analysis) mapCarries() {
 // matches says whether a field name refers to a row. The input interface
 // matches request paths exactly and the output matches send fields exactly;
 // boundaries in between match by name, ignoring case and separators.
-func matches(role, field string, r *sheet.Row) bool {
-	switch role {
+//
+// In a team's own piece, a call's request and response are matched exactly:
+// rows sent with target = <stage> by their send field, and rows read from
+// call.<stage>.<field> by that field. exact reports such a match.
+func matches(b *Boundary, field string, r *sheet.Row) (exact, ok bool) {
+	switch b.Role {
 	case RoleInput:
-		return r.SourceKind() == "request" && r.SourcePath() == field
+		return true, r.SourceKind() == "request" && r.SourcePath() == field
 	case RoleOutput:
-		return r.Send != nil && r.Send.Field == field
+		return true, r.Send != nil && r.Send.Field == field
+	case RoleRequest:
+		if sd := callSend(r, b.StageID); sd != nil {
+			return true, sd.Field == field
+		}
+	case RoleResponse:
+		if stage, f, isCall := callSource(r); isCall && stage == b.StageID {
+			return true, f == field
+		}
 	}
+	if _, _, isCall := callSource(r); isCall {
+		return false, false // a call's response is only matched at that call
+	}
+	return false, nameMatch(field, r)
+}
+
+func nameMatch(field string, r *sheet.Row) bool {
 	n, nl := norm(field), norm(last(field))
 	keys := []string{norm(r.ID)}
 	if r.Send != nil {
@@ -422,6 +466,20 @@ func (a *Analysis) walk() {
 		if !d.IsInput() {
 			o = a.Place[d.ID]
 		}
+		if stage, _, isCall := callSource(d); isCall {
+			// A response field enters at the call's response: it starts in
+			// the callee's step.
+			o = -2
+			for _, b := range a.Boundaries {
+				if b.Role == RoleResponse && b.StageID == stage {
+					o = b.Index - 1
+				}
+			}
+			if o == -2 {
+				a.fail(0, "%s reads %s, but the flow has no call stage %q", d.ID, d.Source, stage)
+				return
+			}
+		}
 		if o > c {
 			a.fail(a.Flow.Line(strings.Split(a.Steps[o].pinsAt, ".")...),
 				"%s is computed by %s, but %s needs it earlier; move it to an earlier step",
@@ -456,6 +514,19 @@ func (a *Analysis) walk() {
 	for _, r := range a.Engine.Graph.Order {
 		if r.Send != nil {
 			need(r, "the output", outIdx)
+		}
+		for _, sd := range r.CallSends {
+			found := false
+			for _, b := range a.Boundaries {
+				if b.Role == RoleRequest && b.StageID == sd.Target {
+					found = true
+					callee := a.Steps[b.Index].Team()
+					need(r, callee+" (callee)", b.Index)
+				}
+			}
+			if !found {
+				a.fail(0, "%s is sent to %q, but the flow has no call stage with that id", r.ID, sd.Target)
+			}
 		}
 	}
 }
@@ -513,8 +584,15 @@ func (a *Analysis) report() {
 				continue
 			}
 			it := Item{Status: Unused, Field: fd.Name, Note: "not used by this flow"}
-			if b.Role == RoleOutput && fd.Required {
-				it.Status, it.Note = Missing, "required, but nothing in the flow produces it"
+			// A required field nothing in the flow produces: a gap to decide
+			// on a proposed interface; on an existing one, its producer
+			// already sets it (an ID, a timestamp) outside this flow.
+			if b.Role != RoleInput && fd.Required {
+				if b.Iface.Status == iface.StatusProposed {
+					it.Status, it.Note = Missing, "required, but nothing in the flow produces it"
+				} else {
+					it.Note = "required; its producer sets it outside this flow"
+				}
 			}
 			b.Items = append(b.Items, it)
 		}
@@ -694,4 +772,25 @@ func (s *Step) RoleLabel() string {
 		return "Callee"
 	}
 	return "Producer"
+}
+
+// Reason is the one-line explanation of an item, shared by the text
+// report and the view: for a missing value, who needs it, then any note
+// beyond "not in the interface" (whom to ask, where it could come from).
+func (it Item) Reason() string {
+	if it.Status != Missing || it.Row == "" {
+		return it.Note
+	}
+	r := "missing; needed by " + strings.Join(it.Consumers, ", ")
+	extra := strings.TrimPrefix(strings.TrimPrefix(it.Note, "not in the interface"), "; ")
+	if extra != "" {
+		r += "; " + extra
+	}
+	return r
+}
+
+// sortItems orders a boundary's items: missing, warnings, carried, unused.
+func sortItems(b *Boundary) {
+	rank := map[string]int{Missing: 0, Warn: 1, Carried: 2, Unused: 3}
+	sort.SliceStable(b.Items, func(i, j int) bool { return rank[b.Items[i].Status] < rank[b.Items[j].Status] })
 }

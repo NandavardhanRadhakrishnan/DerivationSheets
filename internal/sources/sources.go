@@ -71,7 +71,7 @@ func Split(ref string) (alias, path string) {
 func (r *Resolver) Resolve(ref string) (path, revision string, err error) {
 	alias, rel := Split(ref)
 	if alias == "" {
-		return filepath.Join(r.Base, filepath.FromSlash(rel)), "", nil
+		return join(r.Base, rel), "", nil
 	}
 	root, err := r.root(alias)
 	if err != nil {
@@ -91,7 +91,7 @@ func (r *Resolver) root(alias string) (string, error) {
 	var root string
 	switch {
 	case src.Path != "":
-		root = filepath.Join(r.Base, filepath.FromSlash(src.Path))
+		root = join(r.Base, src.Path)
 		if _, err := os.Stat(root); err != nil {
 			return "", fmt.Errorf("source %q: %v", alias, err)
 		}
@@ -182,4 +182,14 @@ func repoRoot(dir string) string {
 			return abs
 		}
 	}
+}
+
+// join resolves p against base unless p is already absolute, as exported
+// flows on another drive refer to interfaces by absolute path.
+func join(base, p string) string {
+	p = filepath.FromSlash(p)
+	if filepath.IsAbs(p) {
+		return p
+	}
+	return filepath.Join(base, p)
 }

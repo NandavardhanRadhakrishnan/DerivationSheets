@@ -1,0 +1,180 @@
+#:schema ../../../schema/sheet.schema.json
+# Orders team's piece of flow checkout-to-payment, exported by slice. Edit it as your own sheet.
+sheet   = "checkout-to-payment-2-orders-team"
+version = 1
+title   = "Orders team: order-placed to payment-request"
+
+# ---------- Received ----------
+
+[[row]]
+id     = "country"
+name   = "Destination country"
+source = "request.country"
+type   = "string"
+
+[[row]]
+id     = "shipping_method"
+name   = "Shipping method"
+source = "request.shippingMethod"
+type   = "string"
+open_questions = ["order-placed has no field for this yet; shippingMethod is the proposed name"]
+
+  [[row.send]]
+  field  = "shippingMethod"
+  usage  = "R"
+
+  [[row.send]]
+  target = "shipping-quote"
+  field  = "method"
+  usage  = "R"
+
+[[row]]
+id     = "weight_kg"
+name   = "Parcel weight (kg)"
+source = "request.weightKg"
+type   = "number"
+
+  [[row.send]]
+  target = "shipping-quote"
+  field  = "weightKg"
+  usage  = "R"
+
+[[row]]
+id     = "subtotal"
+name   = "Subtotal"
+source = "request.subtotal"
+type   = "number"
+
+  [[row.send]]
+  field  = "subtotal"
+  usage  = "R"
+
+[[row]]
+id     = "loyalty_tier"
+name   = "Loyalty tier"
+source = "request.loyaltyTier"
+
+  [[row.send]]
+  field  = "loyaltyTier"
+  usage  = "R"
+  map    = { Standard = "STD", Silver = "SLV", Gold = "GLD" }
+
+[[row]]
+id     = "shipping_fee"
+name   = "Shipping fee"
+source = "call.shipping-quote.fee"
+type   = "number"
+
+# ---------- Context and data ----------
+
+[[row]]
+id     = "sales_tax_rate"
+name   = "Sales tax rate"
+source = "config.tax.sales_tax_rate"
+type   = "number"
+
+# ---------- Computed ----------
+
+[[row]]
+id     = "zone"
+name   = "Shipping zone"
+uses   = ["country"]
+lookup = { from = "db.shipping_zones", key = ["country"] }
+values_file = "data/shipping_zones.csv"
+
+  [[row.reject]]
+  when    = "zone == \"NONE\""
+  code    = "DESTINATION_NOT_SERVED"
+  message = "We do not ship to this country"
+
+  [[row.send]]
+  target = "shipping-quote"
+  field  = "zone"
+  usage  = "R"
+
+[[row]]
+id     = "discount_rate"
+name   = "Discount rate"
+uses   = ["loyalty_tier"]
+lookup = { from = "config.pricing.discount", key = ["loyalty_tier"] }
+values = { Standard = 0, Silver = 0.05, Gold = 0.10 }
+
+[[row]]
+id      = "discount"
+name    = "Discount"
+uses    = ["subtotal", "discount_rate"]
+formula = "round(subtotal * discount_rate)"
+
+  [[row.send]]
+  field  = "discountAmount"
+  usage  = "R"
+
+[[row]]
+id   = "free_shipping"
+name = "Free shipping"
+uses = ["subtotal", "loyalty_tier"]
+
+  [row.table]
+  hit_policy = "first"
+  columns = ["subtotal", "loyalty_tier", "=>"]
+  rows = [
+    [">= 100", "-",    true],
+    ["-",      "Gold", true],
+    ["-",      "-",    false],
+  ]
+
+  [[row.send]]
+  field  = "freeShipping"
+  usage  = "R"
+
+[[row]]
+id      = "shipping_cost"
+name    = "Shipping cost"
+uses    = ["free_shipping", "shipping_fee"]
+formula = "free_shipping ? 0 : shipping_fee"
+
+  [[row.send]]
+  field  = "shippingCost"
+  usage  = "R"
+
+[[row]]
+id      = "customs_value"
+name    = "Customs value"
+uses    = ["subtotal", "discount", "zone"]
+formula = "subtotal - discount"
+
+  [[row.send]]
+  field  = "customsValue"
+  usage  = "S"
+  when      = "zone != \"DOMESTIC\""
+  otherwise = "do-not-send"
+
+[[row]]
+id      = "net_amount"
+name    = "Net amount"
+uses    = ["subtotal", "discount", "shipping_cost"]
+formula = "subtotal - discount + shipping_cost"
+
+  [[row.send]]
+  field  = "netAmount"
+  usage  = "R"
+
+[[row]]
+id      = "sales_tax"
+name    = "Sales tax"
+uses    = ["net_amount", "sales_tax_rate"]
+formula = "round(net_amount * sales_tax_rate)"
+
+  [[row.send]]
+  field  = "salesTax"
+  usage  = "R"
+
+[[row]]
+id      = "total"
+name    = "Order total"
+uses    = ["net_amount", "sales_tax"]
+formula = "net_amount + sales_tax"
+
+  [[row.send]]
+  field  = "totalAmount"
+  usage  = "R"

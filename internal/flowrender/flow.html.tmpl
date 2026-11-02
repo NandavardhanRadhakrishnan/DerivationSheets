@@ -18,9 +18,15 @@
 
 {{define "flow"}}
 <header class="head">
+  {{if .Flows}}
+  <div class="kicker">Flows · {{len .Flows}} combined</div>
+  <h1>{{.Title}}</h1>
+  <p class="meta">Flows: {{range $i, $f := .Flows}}{{if $i}}, {{end}}<code>{{$f}}</code>{{end}}</p>
+  {{else}}
   <div class="kicker">Flow · <code>{{.Slug}}</code> · version {{.Version}}</div>
   <h1>{{.Title}}</h1>
   <p class="meta">{{if .Check}}{{.Summary}}<span class="sep"> · </span>{{end}}End-to-end sheet: <code>{{.SheetPath}}</code></p>
+  {{end}}
 </header>
 
 <div class="scroll">

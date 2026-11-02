@@ -177,10 +177,73 @@ checked view.
 job can hold a flow until every team has agreed.
 
 
+## Exporting each team's piece
+
+```sh
+dsheets slice flows/checkout-to-payment --export examples/pieces
+```
+
+writes each team's part as a flow and sheet of its own, which the team can
+take into its repository:
+
+| Piece | Receives | Calls | Produces |
+|---|---|---|---|
+| `1-storefront-team` | `checkout-request` | | `order-placed` |
+| `2-orders-team` | `order-placed` | `shipping-quote` (Shipping team) | `payment-request` |
+| `3-shipping-team` | `quote-request` | | `quote-response` |
+
+A caller's piece spans its calls, so it says exactly what the team calls
+and with what: the `call` stage in its `flow.toml`, sends with
+`target = "shipping-quote"` for the request, and inputs from
+`call.shipping-quote.<field>` for the response. Values a boundary does not
+carry yet arrive with an open question naming the proposed field. Data
+files the piece uses are copied with it. `slice --export` checks every
+piece on its own after writing it.
+
+## Branching off, and feeding in
+
+The reverse of slicing: add a new consumer or a new producer to an
+interface that already exists. Write it as a flow of its own, with the
+existing interface as its input (a branch) or its output (a feed), and
+check it against the flows already using that interface:
+
+```sh
+dsheets slice flows/loyalty-report --with flows/checkout-to-payment   # branch off order-placed
+dsheets slice flows/mobile-orders  --with flows/checkout-to-payment   # feed into order-placed
+```
+
+- **Branch.** Each value the branch needs that the interface lacks is traced
+  upstream through every flow that produces the interface. Names differ
+  between services, so the trace looks for the value by name in the
+  producer's sheet and in the interfaces before it, and labels what it finds
+  as a guess: *probable origin: Member (is_member, received as
+  customer.isMember; matched by name, please confirm); add isMember to
+  order-placed*. Only the owning team can confirm it, by mapping the field
+  in its own sheet.
+- **Feed.** The new producer must produce every field the existing
+  consumers actually read from the interface, which is more precise than
+  the schema's `required` list: *loyaltyTier: flow checkout-to-payment
+  reads it: needed by Discount rate (Orders team), Free shipping (Orders
+  team), the output*.
+
+`--with` can be repeated. Flows meet only where they reference the same
+interface.
+
+## One grid for several flows
+
+```sh
+dsheets render examples/pieces/* --out pieces.html
+dsheets serve  flows/checkout-to-payment flows/loyalty-report flows/mobile-orders --check
+```
+
+Several flow folders draw as one table. A flow whose input is another's
+output continues it; a flow from a call's request to its response fills
+that call's callee step; a branch or a feed is drawn after, its first column
+marked *Branch from …* or *Feeds …*. Values line up across flows through
+the fields of the interfaces they share, including fields still being
+agreed. The exported pieces of a flow combine back into the flow's own
+layout. With `--check`, each flow is also checked against the others.
+
 ## Not yet
 
-- Writing each team's step out as its own derivation sheet. A caller's step
-  spans a call, so its sheet needs inputs from a response and sends to two
-  targets. That needs a `call.*` source and per-target sends in the sheet
-  format, which is a format change to agree first.
 - Lists ("for each item"): arrays are imported as a single `array` field.

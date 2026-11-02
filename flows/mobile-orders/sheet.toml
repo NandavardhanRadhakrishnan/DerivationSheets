@@ -1,0 +1,45 @@
+#:schema ../../schema/sheet.schema.json
+# The Mobile team publishes its orders to the existing order-placed topic.
+sheet   = "mobile-orders"
+version = 1
+title   = "Mobile orders"
+
+[[row]]
+id     = "customer_id"
+name   = "Customer ID"
+source = "request.customerId"
+type   = "string"
+
+  [row.send]
+  field = "customerId"
+  usage = "R"
+
+[[row]]
+id     = "country"
+name   = "Destination country"
+source = "request.country"
+type   = "string"
+
+  [row.send]
+  field = "country"
+  usage = "R"
+
+[[row]]
+id     = "weight_kg"
+name   = "Parcel weight (kg)"
+source = "request.weightKg"
+type   = "number"
+
+  [row.send]
+  field = "weightKg"
+  usage = "R"
+
+[[row]]
+id     = "subtotal"
+name   = "Subtotal"
+source = "request.subtotal"
+type   = "number"
+
+  [row.send]
+  field = "subtotal"
+  usage = "R"

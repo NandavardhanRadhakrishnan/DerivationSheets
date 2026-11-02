@@ -1,0 +1,93 @@
+#:schema ../../../schema/sheet.schema.json
+# Storefront team's piece of flow checkout-to-payment, exported by slice. Edit it as your own sheet.
+sheet   = "checkout-to-payment-1-storefront-team"
+version = 1
+title   = "Storefront team: checkout-request to order-placed"
+
+# ---------- Received ----------
+
+[[row]]
+id     = "signup_date"
+name   = "Signup date"
+source = "request.customer.signupDate"
+type   = "date"
+
+[[row]]
+id     = "is_member"
+name   = "Member"
+source = "request.customer.isMember"
+type   = "boolean"
+
+[[row]]
+id     = "country"
+name   = "Destination country"
+source = "request.shipping.country"
+type   = "string"
+
+  [[row.send]]
+  field  = "country"
+  usage  = "R"
+
+[[row]]
+id     = "shipping_method"
+name   = "Shipping method"
+source = "request.shipping.method"
+type   = "string"
+
+  [[row.send]]
+  field  = "shippingMethod"
+  usage  = "R"
+
+[[row]]
+id     = "weight_kg"
+name   = "Parcel weight (kg)"
+source = "request.order.weightKg"
+type   = "number"
+
+  [[row.send]]
+  field  = "weightKg"
+  usage  = "R"
+
+[[row]]
+id     = "subtotal"
+name   = "Subtotal"
+source = "request.order.subtotal"
+type   = "number"
+
+  [[row.send]]
+  field  = "subtotal"
+  usage  = "R"
+
+# ---------- Context and data ----------
+
+[[row]]
+id     = "request_time"
+name   = "Request time"
+source = "context.request_time"
+type   = "datetime"
+
+# ---------- Computed ----------
+
+[[row]]
+id      = "customer_years"
+name    = "Years as customer"
+uses    = ["signup_date", "request_time"]
+formula = "years_between(signup_date, request_time)"
+
+[[row]]
+id   = "loyalty_tier"
+name = "Loyalty tier"
+uses = ["is_member", "customer_years"]
+
+  [row.table]
+  columns = ["is_member", "customer_years", "=>"]
+  rows = [
+    [false, "< 2",  "Standard"],
+    [false, ">= 2", "Silver"],
+    [true,  "< 2",  "Silver"],
+    [true,  ">= 2", "Gold"],
+  ]
+
+  [[row.send]]
+  field  = "loyaltyTier"
+  usage  = "R"

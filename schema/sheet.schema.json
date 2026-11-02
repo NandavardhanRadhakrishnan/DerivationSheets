@@ -86,9 +86,9 @@
         "name": { "description": "Plain-language display name.", "type": "string", "minLength": 1 },
         "description": { "description": "Optional longer explanation.", "type": "string" },
         "source": {
-          "description": "Input rows only: request.<path>, context.<name>, db.<table> or config.<key>.",
+          "description": "Input rows only: request.<path>, context.<name>, db.<table>, config.<key>, or call.<stage>.<field> for a field of a call's response, in a sheet that belongs to a flow.",
           "type": "string",
-          "pattern": "^(request|context|db|config)\\.[A-Za-z0-9_.\\-]+$"
+          "pattern": "^(request|context|db|config|call)\\.[A-Za-z0-9_.\\-]+$"
         },
         "type": {
           "description": "Input rows only: the value type.",
@@ -128,7 +128,13 @@
           "type": "array",
           "items": { "$ref": "#/definitions/reject" }
         },
-        "send": { "$ref": "#/definitions/send" },
+        "send": {
+          "description": "Sends this row. A table, or an array of tables ([[row.send]]) when the row also goes to calls made on the way.",
+          "anyOf": [
+            { "$ref": "#/definitions/send" },
+            { "type": "array", "items": { "$ref": "#/definitions/send" }, "minItems": 1 }
+          ]
+        },
         "open_questions": {
           "description": "Unresolved questions, reported by the validator.",
           "type": "array",
@@ -194,6 +200,7 @@
       "required": ["field", "usage"],
       "additionalProperties": false,
       "properties": {
+        "target": { "description": "A call stage of the flow this sheet belongs to, e.g. \"shipping-quote\": the field goes in that call's request. Leave out for the sheet's own target.", "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
         "field": { "description": "Target field. Dots nest objects, e.g. customer.tier.", "type": "string", "minLength": 1 },
         "usage": { "description": "R: always required. S: situational, needs `when` and `otherwise`.", "enum": ["R", "S"] },
         "when": { "$ref": "#/definitions/expression", "description": "Usage S: when the field is required." },

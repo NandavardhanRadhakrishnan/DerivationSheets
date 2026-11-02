@@ -1,0 +1,15 @@
+#:schema ../../schema/flow.schema.json
+# A feed-in: the Mobile team publishes to the existing order-placed topic.
+# Check it against the flow that consumes the topic:
+#   dsheets slice flows/mobile-orders --with flows/checkout-to-payment
+flow    = "mobile-orders"
+version = 1
+title   = "Mobile orders (feeds order-placed)"
+sheet   = "."
+
+[input]
+interface = "../../interfaces/mobile/mobile-checkout.toml"
+
+[output]
+interface = "../../interfaces/orders/order-placed.toml"
+producer  = "Mobile team"

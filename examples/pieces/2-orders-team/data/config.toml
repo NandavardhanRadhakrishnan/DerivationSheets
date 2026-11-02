@@ -1,0 +1,3 @@
+# Design-time config values. Rows with a config.* source read from here.
+[tax]
+sales_tax_rate = 0.08

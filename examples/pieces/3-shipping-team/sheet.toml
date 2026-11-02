@@ -1,0 +1,38 @@
+#:schema ../../../schema/sheet.schema.json
+# Shipping team's piece of flow checkout-to-payment, exported by slice. Edit it as your own sheet.
+sheet   = "checkout-to-payment-3-shipping-team"
+version = 1
+title   = "Shipping team: quote-request to quote-response"
+
+# ---------- Received ----------
+
+[[row]]
+id     = "shipping_method"
+name   = "Shipping method"
+source = "request.method"
+type   = "string"
+
+[[row]]
+id     = "weight_kg"
+name   = "Parcel weight (kg)"
+source = "request.weightKg"
+type   = "number"
+
+[[row]]
+id     = "zone"
+name   = "Shipping zone"
+source = "request.zone"
+type   = "string"
+
+# ---------- Computed ----------
+
+[[row]]
+id     = "shipping_fee"
+name   = "Shipping fee"
+uses   = ["zone", "shipping_method", "weight_kg"]
+lookup = { from = "db.shipping_rates", key = ["zone", "shipping_method", "weight_kg"] }
+values_file = "data/shipping_rates.csv"
+
+  [[row.send]]
+  field  = "fee"
+  usage  = "R"

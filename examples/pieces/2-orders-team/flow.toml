@@ -1,0 +1,30 @@
+#:schema ../../../schema/flow.schema.json
+# Orders team's piece of flow checkout-to-payment, exported by slice.
+flow    = "checkout-to-payment-2-orders-team"
+version = 1
+title   = "Orders team: order-placed to payment-request"
+sheet   = "."
+
+[sources]
+shipping = { path = "../../../interfaces/shipping" }
+
+[input]
+interface = "../../../interfaces/orders/order-placed.toml"
+
+[[stage]]
+id       = "shipping-quote"
+kind     = "call"
+caller   = "Orders team"
+computes = ["zone", "discount_rate", "discount", "free_shipping"]
+callee   = "Shipping team"
+
+  [stage.request]
+  interface = "shipping:quote-request.toml"
+
+  [stage.response]
+  interface = "shipping:quote-response.toml"
+
+[output]
+interface = "../../../interfaces/payments/payment-request.toml"
+producer  = "Orders team"
+computes  = ["shipping_cost", "customs_value", "net_amount", "sales_tax", "total"]

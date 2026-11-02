@@ -55,6 +55,11 @@ func Expressions(r *sheet.Row) []LabeledExpr {
 	if r.Send != nil && r.Send.When != "" {
 		out = append(out, LabeledExpr{"send.when", r.Send.When})
 	}
+	for _, sd := range r.CallSends {
+		if sd.When != "" {
+			out = append(out, LabeledExpr{"send.when", sd.When})
+		}
+	}
 	return out
 }
 

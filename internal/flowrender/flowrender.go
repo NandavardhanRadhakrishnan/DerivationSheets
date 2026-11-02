@@ -50,6 +50,8 @@ type Page struct {
 	CSS       template.CSS
 	// Check is set in check mode.
 	Check bool
+	// Flows lists the flows of a combined grid; empty for a single flow.
+	Flows []string
 }
 
 // Column is a boundary or a step. Both have the same three header lines:
@@ -259,7 +261,7 @@ func boundaryCell(b *flow.Boundary, r *sheet.Row, check bool) Cell {
 	case flow.Missing:
 		c.Class = "missing"
 		c.HTML = template.HTML(`<span class="mark">✕</span> add ` + field)
-		c.Title = it.Note + "; needed by " + strings.Join(it.Consumers, ", ")
+		c.Title = it.Reason()
 	case flow.Unused:
 		c.Class = "unused"
 		c.HTML = template.HTML(field)
@@ -321,10 +323,7 @@ func agenda(a *flow.Analysis) []AgendaTeam {
 			switch it.Status {
 			case flow.Missing:
 				item = AgendaItem{Class: "missing", Mark: "✕"}
-				reason := it.Note
-				if it.Row != "" {
-					reason = "missing; needed by " + strings.Join(it.Consumers, ", ")
-				}
+				reason := it.Reason()
 				item.Text = template.HTML(fmt.Sprintf("<code>%s</code>: %s", html.EscapeString(it.Field), html.EscapeString(reason)))
 			case flow.Warn:
 				item = AgendaItem{Class: "warning", Mark: "⚠", Text: template.HTML(fmt.Sprintf("<code>%s</code>: %s",

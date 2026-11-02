@@ -157,6 +157,9 @@ func cmdSlice(args []string, out, errw io.Writer) error {
 	fs := newFlags("slice", "<flow> [--out flow.html] [--strict]", errw)
 	outFile := fs.String("out", "", "also write the flow view, with the review marked, to this HTML file")
 	strict := fs.Bool("strict", false, "exit 1 when any boundary has missing fields or warnings")
+	export := fs.String("export", "", "also write each team's piece as its own flow and sheet into this folder")
+	var with multiFlag
+	fs.Var(&with, "with", "another flow this one shares an interface with; repeat for more. Traces what a branch lacks upstream, and what a feed-in must produce for the flows downstream")
 	offline := fs.Bool("offline", false, "do not fetch git sources; use what is already fetched")
 	pos, err := parse(fs, args)
 	if err != nil {
@@ -170,6 +173,22 @@ func cmdSlice(args []string, out, errw io.Writer) error {
 	if err != nil {
 		return err
 	}
+	if len(with) > 0 && len(a.Errors) == 0 {
+		var others []*flow.Analysis
+		for _, w := range with {
+			o, err := loadFlow(w, *offline, false)
+			if err != nil {
+				return err
+			}
+			if len(o.Errors) > 0 {
+				fmt.Fprintf(out, "%s:\n", w)
+				printAnalysis(out, o)
+				return errFailed
+			}
+			others = append(others, o)
+		}
+		flow.Connect(a, others)
+	}
 	printAnalysis(out, a)
 	if len(a.Errors) > 0 {
 		return errFailed
@@ -179,6 +198,11 @@ func cmdSlice(args []string, out, errw io.Writer) error {
 			return err
 		}
 		fmt.Fprintf(out, "\nwrote %s\n", *outFile)
+	}
+	if *export != "" {
+		if err := exportPieces(a, *export, out); err != nil {
+			return err
+		}
 	}
 	c := a.Counts()
 	if *strict && (c[flow.Missing] > 0 || c[flow.Warn] > 0) {
@@ -239,13 +263,7 @@ func printAnalysis(w io.Writer, a *flow.Analysis) {
 				}
 			}
 			// Every line reads: mark, field, row, then one reason.
-			reason := it.Note
-			if it.Status == flow.Missing && it.Row != "" {
-				reason = "missing; needed by " + strings.Join(it.Consumers, ", ")
-				if rest := strings.TrimPrefix(it.Note, "not in the interface"); rest != "" {
-					reason += strings.Replace(rest, "; ", "; ", 1)
-				}
-			}
+			reason := it.Reason()
 			if reason != "" {
 				line = strings.TrimRight(line, " ") + ": " + reason
 			}
@@ -272,14 +290,75 @@ func writeFlowView(path string, a *flow.Analysis) error {
 
 // flowPage analyses a flow and renders it, printing problems to errw. check
 // adds the review layer to the plain view.
-func flowPage(dir string, check bool, w io.Writer, errw io.Writer) error {
-	a, err := loadFlow(dir, false, false)
+func flowPage(dirs []string, title string, check bool, w io.Writer, errw io.Writer) error {
+	var as []*flow.Analysis
+	for _, d := range dirs {
+		if !isFlow(d) {
+			return fmt.Errorf("%s: several folders combine into one grid, so each must hold %s", d, flow.FileName)
+		}
+		a, err := loadFlow(d, false, false)
+		if err != nil {
+			return err
+		}
+		if len(a.Errors) > 0 {
+			fmt.Fprintf(errw, "%s:\n", d)
+			printAnalysis(errw, a)
+			return errFailed
+		}
+		as = append(as, a)
+	}
+	if len(as) == 1 {
+		return flowrender.Write(w, flowrender.Build(as[0], time.Now(), check))
+	}
+	if check {
+		// Each flow is also checked against the others it shares interfaces with.
+		for i, a := range as {
+			others := append(append([]*flow.Analysis{}, as[:i]...), as[i+1:]...)
+			flow.Connect(a, others)
+		}
+	}
+	p, err := flowrender.BuildCombined(title, as, time.Now(), check)
 	if err != nil {
 		return err
 	}
-	if len(a.Errors) > 0 {
-		printAnalysis(errw, a)
-		return errFailed
-	}
-	return flowrender.Write(w, flowrender.Build(a, time.Now(), check))
+	return flowrender.Write(w, p)
 }
+
+// exportPieces writes each team's piece and checks it on its own.
+func exportPieces(a *flow.Analysis, dir string, out io.Writer) error {
+	pieces, err := a.Export(dir)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintln(out)
+	fmt.Fprintf(out, "exported %d pieces to %s:", len(pieces), dir)
+	fmt.Fprintln(out)
+	for _, ex := range pieces {
+		line := fmt.Sprintf("  %s: %s receives %s", filepath.Base(ex.Dir), ex.Piece.Team, ex.Receives)
+		for _, c := range ex.Calls {
+			line += ", calls " + c
+		}
+		line += ", produces " + ex.Produces
+		fmt.Fprintln(out, line)
+		pa, err := loadFlow(ex.Dir, true, false)
+		if err != nil {
+			return err
+		}
+		if len(pa.Errors) > 0 {
+			fmt.Fprintln(out, "    the exported piece has errors:")
+			for _, p := range pa.Errors {
+				fmt.Fprintln(out, "      "+p.String())
+			}
+			return errFailed
+		}
+		c := pa.Counts()
+		fmt.Fprintln(out, fmt.Sprintf("    checks on its own: %d carried, %d missing, %d warnings", c[flow.Carried], c[flow.Missing], c[flow.Warn]))
+	}
+	return nil
+}
+
+// multiFlag collects a repeated string flag.
+type multiFlag []string
+
+func (m *multiFlag) String() string     { return strings.Join(*m, ",") }
+func (m *multiFlag) Set(v string) error { *m = append(*m, v); return nil }

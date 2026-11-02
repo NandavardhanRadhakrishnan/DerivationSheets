@@ -264,14 +264,20 @@ func cmdRender(args []string, out, errw io.Writer) error {
 	evMode := fs.String("evidence", "", "initial state of the page's evidence switch: shown or hidden (default: the sheet's display.evidence)")
 	snap := fs.String("snapshot-date", "", "date of the database and config snapshot, YYYY-MM-DD (default: newest file in data/)")
 	check := fs.Bool("check", false, "flows only: mark missing and unfit fields, and list what each team has to agree")
+	title := fs.String("title", "", "with several flows: the title of the combined grid")
 	pos, err := parse(fs, args)
 	if err != nil {
 		return err
 	}
-	dir, err := oneWorkflow(fs, pos, errw)
-	if err != nil {
-		return err
+	dirs := pos
+	if len(pos) <= 1 {
+		dir, err := oneWorkflow(fs, pos, errw)
+		if err != nil {
+			return err
+		}
+		dirs = []string{dir}
 	}
+	dir := dirs[0]
 	if *outFlag == "" {
 		fs.Usage()
 		return errUsage
@@ -281,7 +287,7 @@ func cmdRender(args []string, out, errw io.Writer) error {
 	}
 	if isFlow(dir) {
 		var buf bytes.Buffer
-		if err := flowPage(dir, *check, &buf, errw); err != nil {
+		if err := flowPage(dirs, *title, *check, &buf, errw); err != nil {
 			return err
 		}
 		if *outFlag == "-" {
@@ -526,14 +532,20 @@ func cmdServe(args []string, out, errw io.Writer) error {
 	evMode := fs.String("evidence", "", "initial state of the evidence switch: shown or hidden (default: the sheet's display.evidence)")
 	noEv := fs.Bool("no-evidence", false, "leave evidence out of the page entirely")
 	check := fs.Bool("check", false, "flows only: mark missing and unfit fields, and list what each team has to agree")
+	title := fs.String("title", "", "with several flows: the title of the combined grid")
 	pos, err := parse(fs, args)
 	if err != nil {
 		return err
 	}
-	dir, err := oneWorkflow(fs, pos, errw)
-	if err != nil {
-		return err
+	dirs := pos
+	if len(pos) <= 1 {
+		d, err := oneWorkflow(fs, pos, errw)
+		if err != nil {
+			return err
+		}
+		dirs = []string{d}
 	}
+	dir := dirs[0]
 	mode, err := evidenceMode(*evMode, *noEv)
 	if err != nil {
 		return err
@@ -547,7 +559,7 @@ func cmdServe(args []string, out, errw io.Writer) error {
 		var msgs bytes.Buffer
 		if isFlow(dir) {
 			var buf bytes.Buffer
-			if err := flowPage(dir, *check, &buf, &msgs); err != nil {
+			if err := flowPage(dirs, *title, *check, &buf, &msgs); err != nil {
 				w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 				w.WriteHeader(http.StatusUnprocessableEntity)
 				fmt.Fprintf(w, "%s%v\n", msgs.String(), err)

@@ -1,0 +1,31 @@
+#:schema ../../schema/interface.schema.json
+interface = "mobile-checkout"
+title     = "Mobile app checkout request"
+kind      = "api-request"
+owner     = "Mobile team"
+status    = "existing"
+
+[[field]]
+name     = "customerId"
+type     = "string"
+required = true
+
+[[field]]
+name     = "country"
+type     = "string"
+required = true
+
+[[field]]
+name     = "shippingMethod"
+type     = "string"
+required = true
+
+[[field]]
+name     = "weightKg"
+type     = "number"
+required = true
+
+[[field]]
+name     = "subtotal"
+type     = "number"
+required = true
