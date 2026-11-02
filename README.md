@@ -164,3 +164,5 @@ verify. Phase 2 (visual editor, formatter, PR diffs, LLM drafting, DMN export)
 and Phase 3 (documenting existing code from traces) are not started. The
 evidence store is an interface (`internal/evidence.Store`), so trace runs can
 move to a database or CI artifacts later.
+
+See [BACKLOG.md](BACKLOG.md) for what is left.
