@@ -125,3 +125,34 @@ func TestProjectFileStopsAtRepoRoot(t *testing.T) {
 		t.Errorf("found %s outside the repository", got)
 	}
 }
+
+func TestProjectFileRepositoryKeys(t *testing.T) {
+	dir := project(t, `
+registry = { git = "https://github.com/example/dsheets-registry.git" }
+
+[sources]
+other = { git = "https://git.example.org/other-org/contracts.git" }
+
+[display]
+evidence = "hidden"
+`, minimal)
+	s, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(s.LoadIssues) > 0 || s.Display.Evidence != EvidenceHidden {
+		t.Fatalf("issues %+v, evidence %q", s.LoadIssues, s.Display.Evidence)
+	}
+}
+
+func TestProjectFileRepositoryKeysOnlyAtRoot(t *testing.T) {
+	dir := project(t, "", minimal)
+	os.WriteFile(filepath.Join(dir, ProjectFile), []byte("registry = { path = \".\" }\n"), 0o644)
+	s, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(s.LoadIssues) != 1 || !strings.Contains(s.LoadIssues[0].Message, "repository root") {
+		t.Fatalf("issues = %+v; want one saying registry is read at the repository root", s.LoadIssues)
+	}
+}

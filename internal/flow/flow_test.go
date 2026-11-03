@@ -18,7 +18,7 @@ func example(t *testing.T, mutate func(f *Flow)) *Analysis {
 	if mutate != nil {
 		mutate(f)
 	}
-	return Analyze(f, sources.NewResolver(f.Dir, f.Sources))
+	return Analyze(f, sources.NewResolver(f.Dir, f.Sources, sources.NewFetcher(t.TempDir())))
 }
 
 func item(t *testing.T, a *Analysis, iface, field string) Item {
@@ -145,7 +145,7 @@ func analyzeDir(t *testing.T, dir string) *Analysis {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a := Analyze(f, sources.NewResolver(f.Dir, f.Sources))
+	a := Analyze(f, sources.NewResolver(f.Dir, f.Sources, sources.NewFetcher(t.TempDir())))
 	if len(a.Errors) > 0 {
 		t.Fatalf("%s: %v", dir, a.Errors)
 	}

@@ -17,7 +17,7 @@ func page(t *testing.T, check bool) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a := flow.Analyze(f, sources.NewResolver(f.Dir, f.Sources))
+	a := flow.Analyze(f, sources.NewResolver(f.Dir, f.Sources, sources.NewFetcher(t.TempDir())))
 	if len(a.Errors) > 0 {
 		t.Fatal(a.Errors)
 	}
@@ -62,7 +62,7 @@ func TestCombinePieces(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	main := flow.Analyze(f, sources.NewResolver(f.Dir, f.Sources))
+	main := flow.Analyze(f, sources.NewResolver(f.Dir, f.Sources, sources.NewFetcher(t.TempDir())))
 	pieces, err := main.Export(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -73,7 +73,7 @@ func TestCombinePieces(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		as = append(as, flow.Analyze(pf, sources.NewResolver(pf.Dir, pf.Sources)))
+		as = append(as, flow.Analyze(pf, sources.NewResolver(pf.Dir, pf.Sources, sources.NewFetcher(t.TempDir()))))
 	}
 	p, err := BuildCombined("", as, time.Now(), false)
 	if err != nil {

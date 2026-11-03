@@ -106,9 +106,9 @@ func loadFlow(dir string, offline, refresh bool) (*flow.Analysis, error) {
 	if err != nil {
 		return nil, err
 	}
-	r := sources.NewResolver(f.Dir, f.Sources)
-	r.Offline, r.Refresh = offline, refresh
-	return flow.Analyze(f, r), nil
+	fe := sources.NewFetcher(filepath.Join(sources.RepoRoot("."), sources.CacheDir))
+	fe.Offline = offline
+	return flow.Analyze(f, sources.NewResolver(f.Dir, f.Sources, fe)), nil
 }
 
 func cmdFetch(args []string, out, errw io.Writer) error {
@@ -125,8 +125,7 @@ func cmdFetch(args []string, out, errw io.Writer) error {
 	if err != nil {
 		return err
 	}
-	r := sources.NewResolver(f.Dir, f.Sources)
-	r.Refresh = true
+	r := sources.NewResolver(f.Dir, f.Sources, sources.NewFetcher(filepath.Join(sources.RepoRoot("."), sources.CacheDir)))
 	aliases := make([]string, 0, len(f.Sources))
 	for a := range f.Sources {
 		aliases = append(aliases, a)

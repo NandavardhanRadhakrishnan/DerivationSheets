@@ -72,48 +72,64 @@ func repoKey(u string) string {
 // each submodule is not used: references follow the branch.
 func ParseGitmodules(text, base string) (map[string]Source, error) {
 	out := map[string]Source{}
-	name := ""
-	for n, line := range strings.Split(text, "\n") {
+	for _, m := range parseModules(text) {
+		if m.url == "" {
+			return nil, fmt.Errorf(".gitmodules: submodule %q has no url", m.name)
+		}
+		ref := m.branch
+		if ref == "." {
+			ref = ""
+		}
+		out[m.name] = Source{Alias: m.name, Git: resolveURL(base, m.url), Ref: ref, Dir: m.dir}
+	}
+	return out, nil
+}
+
+// module is one [submodule "name"] section of a .gitmodules file.
+type module struct{ name, path, url, branch, dir string }
+
+// parseModules reads .gitmodules, which uses git's config syntax. Other
+// sections, unknown keys and malformed lines are skipped, as git does for
+// keys it does not know.
+func parseModules(text string) []module {
+	var out []module
+	for _, line := range strings.Split(text, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || line[0] == '#' || line[0] == ';' {
 			continue
 		}
 		if strings.HasPrefix(line, "[") {
-			m := sectionLine.FindStringSubmatch(line)
-			name = ""
-			if m != nil {
-				name = m[1]
-				out[name] = Source{Alias: name}
+			if m := sectionLine.FindStringSubmatch(line); m != nil {
+				out = append(out, module{name: m[1]})
+			} else {
+				out = append(out, module{}) // another section: its keys are skipped
 			}
-			continue
-		}
-		if name == "" {
 			continue
 		}
 		key, value, ok := strings.Cut(line, "=")
-		if !ok {
-			return nil, fmt.Errorf(".gitmodules:%d: expected key = value", n+1)
+		if !ok || len(out) == 0 || out[len(out)-1].name == "" {
+			continue
 		}
 		value = strings.Trim(strings.TrimSpace(value), `"`)
-		s := out[name]
+		m := &out[len(out)-1]
 		switch strings.ToLower(strings.TrimSpace(key)) {
+		case "path":
+			m.path = value
 		case "url":
-			s.Git = resolveURL(base, value)
+			m.url = value
 		case "branch":
-			if value != "." {
-				s.Ref = value
-			}
+			m.branch = value
 		case "dsheets":
-			s.Dir = strings.Trim(value, "/")
-		}
-		out[name] = s
-	}
-	for n, s := range out {
-		if s.Git == "" {
-			return nil, fmt.Errorf(".gitmodules: submodule %q has no url", n)
+			m.dir = strings.Trim(value, "/")
 		}
 	}
-	return out, nil
+	kept := out[:0]
+	for _, m := range out {
+		if m.name != "" {
+			kept = append(kept, m)
+		}
+	}
+	return kept
 }
 
 var sectionLine = regexp.MustCompile(`^\[\s*submodule\s+"([^"]+)"\s*\]$`)
