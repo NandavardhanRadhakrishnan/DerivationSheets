@@ -186,3 +186,46 @@ func TestFollowed(t *testing.T) {
 		}
 	}
 }
+
+func TestFetchCleansDir(t *testing.T) {
+	repo := teamRepo(t)
+	src := shipping(repo, "")
+	src.Dir = "./sheets/"
+	root, _, err := NewFetcher(t.TempDir()).Fetch(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Base(root) != "sheets" {
+		t.Errorf("root = %s", root)
+	}
+}
+
+// A clone left half-made (an interrupted first fetch, or a cache restored
+// from CI) is made again rather than failing for good.
+func TestFetchHealsBrokenClone(t *testing.T) {
+	repo := teamRepo(t)
+	cache := t.TempDir()
+	root, _, err := NewFetcher(cache).Fetch(shipping(repo, ""))
+	if err != nil {
+		t.Fatal(err)
+	}
+	clone := filepath.Dir(root)
+	run(t, clone, "remote", "remove", "origin")
+	if err := os.Remove(filepath.Join(clone, ".git", refFile)); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := NewFetcher(cache).Fetch(shipping(repo, "")); err != nil {
+		t.Errorf("broken clone not remade: %v", err)
+	}
+}
+
+func TestGitNeverPrompts(t *testing.T) {
+	cmd := gitCommand("", "status")
+	found := false
+	for _, e := range cmd.Env {
+		found = found || e == "GIT_TERMINAL_PROMPT=0"
+	}
+	if !found {
+		t.Error("git may prompt for credentials and block")
+	}
+}

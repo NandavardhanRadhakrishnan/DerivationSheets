@@ -216,11 +216,17 @@ func (r *Resolver) root(alias string) (string, error) {
 // Fetched lists the resolved revision of each git source that was used.
 func (r *Resolver) Fetched() map[string]string { return r.revs }
 
-func git(dir string, args ...string) (string, error) {
+// gitCommand prepares a git command that never prompts for credentials, so
+// a missing token fails at once instead of blocking CI or a served page.
+func gitCommand(dir string, args ...string) *exec.Cmd {
 	cmd := exec.Command("git", args...)
-	if dir != "" {
-		cmd.Dir = dir
-	}
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GCM_INTERACTIVE=never")
+	return cmd
+}
+
+func git(dir string, args ...string) (string, error) {
+	cmd := gitCommand(dir, args...)
 	var out, errb bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &errb
 	if err := cmd.Run(); err != nil {

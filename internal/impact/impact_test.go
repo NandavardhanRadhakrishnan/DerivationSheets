@@ -327,3 +327,14 @@ func TestImpactFailsAtBaseNewError(t *testing.T) {
 		t.Errorf("new = %+v", r.New)
 	}
 }
+
+func TestImpactDirSpelledWithDot(t *testing.T) {
+	fx := setup(t, "", nil)
+	path := filepath.Join(fx.registry, ".gitmodules")
+	write(t, path, strings.Replace(read(t, path), "dsheets = sheets", "dsheets = ./sheets/", 1))
+	git(t, fx.registry, "commit", "-q", "-am", "dot")
+	r := fx.run(t, "shipping")
+	if r.Checked != 1 || len(r.Failing) != 0 || len(r.NotChecked) != 0 || len(r.New) != 0 {
+		t.Errorf("report = %+v", r)
+	}
+}

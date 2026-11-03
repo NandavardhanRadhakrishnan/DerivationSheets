@@ -99,6 +99,7 @@ func Run(o Options) (*Report, error) {
 		return nil, err
 	}
 	selfSrc := reg[self]
+	selfSrc.Dir = sources.CleanDir(selfSrc.Dir)
 	r := &Report{Self: self, Views: map[string]*flow.Analysis{}}
 
 	// The base branch of this repository, fetched like any other source.

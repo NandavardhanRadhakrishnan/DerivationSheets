@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -98,6 +99,7 @@ func (f *Fetcher) Followed(src Source) (bool, error) {
 // Fetch returns the folder the source's alias means (the clone's root joined
 // with Dir) and the short commit checked out.
 func (f *Fetcher) Fetch(src Source) (root, rev string, err error) {
+	src.Dir = CleanDir(src.Dir)
 	followed, err := f.Followed(src)
 	if err != nil {
 		return "", "", err
@@ -121,6 +123,9 @@ func (f *Fetcher) Fetch(src Source) (root, rev string, err error) {
 		return "", "", fmt.Errorf("not fetched yet and --offline is set; run fetch first")
 	case !cached || (followed && !fresh && !f.Offline):
 		if err := fetchInto(dir, src, followed); err != nil {
+			if cached {
+				err = fmt.Errorf("%v (the cached copy may be damaged; delete %s to fetch it again)", err, dir)
+			}
 			return "", "", err
 		}
 		f.s.at[dir] = time.Now()
@@ -130,6 +135,13 @@ func (f *Fetcher) Fetch(src Source) (root, rev string, err error) {
 	}
 	root, err = within(dir, src.Dir, src.Git)
 	return root, rev, err
+}
+
+// CleanDir normalises a source's folder: "./sheets/" and "sheets" are the
+// same folder, and "." or "" is the repository root.
+func CleanDir(d string) string {
+	d = path.Clean("/" + filepath.ToSlash(strings.TrimSpace(d)))
+	return strings.TrimPrefix(d, "/")
 }
 
 // within joins a source's folder to a repository root, checking it exists.
@@ -151,7 +163,16 @@ var commitHash = regexp.MustCompile(`^[0-9a-fA-F]{7,40}$`)
 // fetchInto creates or updates a shallow, sparse clone and checks out the
 // source's ref.
 func fetchInto(dir string, src Source, followed bool) error {
-	if _, err := os.Stat(filepath.Join(dir, ".git")); err != nil {
+	_, gitErr := os.Stat(filepath.Join(dir, ".git"))
+	if _, err := os.Stat(filepath.Join(dir, ".git", refFile)); gitErr == nil && err != nil {
+		// A clone without its ref file never finished its first fetch: make
+		// it again rather than fail on whatever state it was left in.
+		if err := os.RemoveAll(dir); err != nil {
+			return err
+		}
+		gitErr = os.ErrNotExist
+	}
+	if gitErr != nil {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return err
 		}
