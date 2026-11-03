@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -38,10 +39,12 @@ const (
 type Flow struct {
 	Dir, File string
 
-	Slug     string
-	Version  int
-	Title    string
-	SheetDir string
+	Slug    string
+	Version int
+	Title   string
+	// SheetRef is the end-to-end sheet as written: a folder relative to the
+	// flow, or "alias:path" in another repository. "." when absent.
+	SheetRef string
 
 	Sources map[string]sources.Source
 	Input   BoundarySpec
@@ -140,17 +143,17 @@ func Load(path string) (*Flow, error) {
 		f.Version = int(v)
 	}
 	f.Title, _ = raw["title"].(string)
-	sheetRel, _ := raw["sheet"].(string)
-	if sheetRel == "" {
-		sheetRel = "."
+	f.SheetRef, _ = raw["sheet"].(string)
+	if f.SheetRef == "" {
+		f.SheetRef = "."
 	}
-	f.SheetDir = filepath.Join(dir, filepath.FromSlash(sheetRel))
 	if srcs, ok := raw["sources"].(map[string]any); ok {
 		for alias, v := range srcs {
 			m, _ := v.(map[string]any)
 			s := sources.Source{Alias: alias}
 			s.Git, _ = m["git"].(string)
 			s.Ref, _ = m["ref"].(string)
+			s.Dir, _ = m["dir"].(string)
 			s.Path, _ = m["path"].(string)
 			f.Sources[alias] = s
 		}
@@ -202,6 +205,25 @@ func Load(path string) (*Flow, error) {
 		f.Stages = append(f.Stages, st)
 	}
 	return f, nil
+}
+
+// Aliases lists the source aliases the flow's references use: its sheet and
+// every interface, sorted.
+func (f *Flow) Aliases() []string {
+	refs := []string{f.SheetRef, f.Input.Interface, f.Output.Interface}
+	for _, st := range f.Stages {
+		refs = append(refs, st.Interface, st.Request.Interface, st.Response.Interface)
+	}
+	seen := map[string]bool{}
+	var out []string
+	for _, r := range refs {
+		if a, _ := sources.Split(r); a != "" && !seen[a] {
+			seen[a] = true
+			out = append(out, a)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 func boundarySpec(v any) BoundarySpec {

@@ -121,7 +121,13 @@ func Build(a *flow.Analysis, now time.Time, check bool) *Page {
 	if p.Title == "" {
 		p.Title = f.Slug
 	}
-	if rel, err := filepath.Rel(f.Dir, s.File); err == nil {
+	if alias, _ := sources.Split(f.SheetRef); alias != "" {
+		// From another repository: name it as written, and its commit.
+		p.SheetPath = f.SheetRef
+		if a.SheetRev != "" {
+			p.SheetPath += " @ " + a.SheetRev
+		}
+	} else if rel, err := filepath.Rel(f.Dir, s.File); err == nil {
 		p.SheetPath = filepath.ToSlash(rel)
 	}
 	c := a.Counts()

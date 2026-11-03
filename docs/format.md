@@ -34,8 +34,10 @@ evidence = "hidden"
 send = "Sent to billing as"
 ```
 
-`dsheets.toml` takes the same `[display]` table, and nothing else. `validate`
-reports unknown keys in either file with their line.
+`dsheets.toml` takes the same `[display]` table. At the repository root it
+can also name a `registry` and declare `[sources]`; see
+[repositories.md](repositories.md). `validate` reports unknown keys in either
+file with their line.
 
 ## Rows
 

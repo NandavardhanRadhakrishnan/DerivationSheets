@@ -11,18 +11,19 @@
     "version": { "type": "integer", "minimum": 1 },
     "title": { "type": "string" },
     "sheet": {
-      "description": "Folder of the end-to-end derivation sheet, relative to this file. Default: this folder.",
+      "description": "Folder of the end-to-end derivation sheet: relative to this file, or \"alias:path\" in another repository. Default: this folder.",
       "type": "string"
     },
     "sources": {
-      "description": "Other repositories that interfaces come from, by alias. Refer to their files as \"alias:path\".",
+      "description": "Other repositories this flow reads, by alias, in addition to the repository's dsheets.toml and registry. Refer to their files as \"alias:path\".",
       "type": "object",
       "additionalProperties": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
           "git": { "description": "Clone URL.", "type": "string" },
-          "ref": { "description": "Tag or commit to pin; a branch also works but moves.", "type": "string" },
+          "ref": { "description": "Branch to follow, or a tag or commit to pin. Default: the repository's default branch.", "type": "string" },
+          "dir": { "description": "Folder inside the repository that the alias means. Default: the root.", "type": "string" },
           "path": { "description": "A local checkout, relative to this file.", "type": "string" }
         }
       }
@@ -47,7 +48,7 @@
   },
   "definitions": {
     "ref": {
-      "description": "An interface file: a path relative to this file, or \"alias:path\" in a declared source.",
+      "description": "An interface file: a path relative to this file, or \"alias:path\" in another repository.",
       "type": "string",
       "minLength": 1
     },

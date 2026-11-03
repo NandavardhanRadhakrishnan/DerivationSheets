@@ -44,6 +44,10 @@ type Analysis struct {
 	Flow   *Flow
 	Sheet  *sheet.Sheet
 	Engine *eval.Engine
+	// SheetDir is where the end-to-end sheet was loaded from.
+	SheetDir string
+	// SheetRev is the commit the sheet came from, when it is in a git source.
+	SheetRev string
 
 	Boundaries []*Boundary
 	Steps      []*Step
@@ -114,7 +118,20 @@ type Step struct {
 func Analyze(f *Flow, resolve *sources.Resolver) *Analysis {
 	a := &Analysis{Flow: f, Place: map[string]int{}, Transit: map[int]map[string]string{}}
 	a.Errors = append(a.Errors, f.Problems...)
-	s, err := sheet.Load(f.SheetDir)
+	defer func() {
+		// Revisions are kept on failure too: that is when they matter most.
+		a.Revisions = resolve.Fetched()
+		for _, w := range resolve.Warnings {
+			a.warn(0, "%s", w)
+		}
+	}()
+	dir, rev, err := resolve.Resolve(f.SheetRef)
+	if err != nil {
+		a.fail(f.Line("sheet"), "end-to-end sheet %s: %v", f.SheetRef, err)
+		return a
+	}
+	a.SheetDir, a.SheetRev = dir, rev
+	s, err := sheet.Load(dir)
 	if err != nil {
 		a.fail(0, "end-to-end sheet: %v", err)
 		return a
@@ -139,7 +156,6 @@ func Analyze(f *Flow, resolve *sources.Resolver) *Analysis {
 	}
 	a.walk()
 	a.report()
-	a.Revisions = resolve.Fetched()
 	return a
 }
 

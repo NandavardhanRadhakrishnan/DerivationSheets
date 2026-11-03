@@ -57,7 +57,8 @@ is that render.
 | `serve <workflow>` | Serves the same page on localhost, re-rendered on every request, so edits show on reload. Takes the same evidence flags. |
 | `slice <flow> [--out flow.html]` | Places each row of a flow in a team's step and reports, for every boundary, which fields are carried, missing, unfit or unused. `--out` writes the view with the review marked; `--export <dir>` writes each team's piece as its own flow and sheet; `--with <flow>` checks a branch or feed against the flows already using its interface. See [docs/flows.md](docs/flows.md). |
 | `interface import <schema> --out <file>` | Imports an interface from OpenAPI (a request or response body), Avro or JSON Schema. |
-| `fetch <flow>` | Clones or updates the other teams' repositories a flow refers to. |
+| `fetch <flow>` | Fetches the other teams' repositories a flow refers to, so a later `--offline` run has them. |
+| `impact [--as alias] [--base branch]` | Run in a pull request: finds every flow in other registered repositories that reads this one, checks each against the base branch and the change, and reports only what the change breaks. `--json`, `--out impact.html`. Exits 1 when something new breaks, 3 when some consumers could not be checked. See [docs/repositories.md](docs/repositories.md). |
 | `schema [sheet\|flow\|interface]` | Prints a JSON Schema. |
 
 Exit codes: 0 for success, 1 when a check fails, 2 for a usage error.
@@ -70,8 +71,11 @@ manager writes the input, the output and the derivation; each team brings
 its existing interfaces, imported from OpenAPI, Avro or JSON Schema, and
 names the rows it computes. `render` draws the flow left to right, and
 `dsheets slice` (or `render --check`) reports what every boundary must
-carry and what each team has to change. Interfaces can live in each team's
-own repository, pinned by git tag.
+carry and what each team has to change. Each team keeps its files in its own
+repository; a registry of git submodules lists them, references read
+`alias:path` and follow the owning team's main branch, and `dsheets impact`
+tells a team in its own pull request which other teams' flows its change
+breaks. See [docs/repositories.md](docs/repositories.md).
 
 ```sh
 bin/dsheets slice  flows/checkout-to-payment

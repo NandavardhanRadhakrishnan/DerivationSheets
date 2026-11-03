@@ -1,19 +1,22 @@
 // Package sources resolves references to files in other teams' repositories.
-// A flow declares sources by alias:
+// References read "alias:path". An alias is looked up in the flow's own
+// [sources], then in the [sources] of the dsheets.toml at the repository
+// root, then in the registry that file names:
+//
+//	registry = { git = "https://example.com/dsheets-registry.git" }
 //
 //	[sources]
-//	shipping = { git = "https://example.com/shipping-contracts.git", ref = "v3.2.0" }
-//	orders   = { path = "../../orders-contracts" }
+//	shipping = { git = "https://example.com/shipping-service.git", ref = "v3.2.0", dir = "sheets" }
+//	orders   = { path = "../../orders-service" }
 //
-// and refers to their files as "shipping:interfaces/quote.toml". A reference
-// without an alias is a path relative to the flow folder. Git sources are
-// cloned into a git-ignored cache at the repository root, pinned to ref.
+// A reference without an alias is a path relative to the flow folder. Git
+// sources follow their branch (the default one without ref) unless ref pins a
+// tag or commit, and are fetched shallow and sparse into a git-ignored cache
+// at the root of the repository where the command runs.
 package sources
 
 import (
 	"bytes"
-	"crypto/sha1"
-	"encoding/hex"
 	"fmt"
 	"os"
 	"os/exec"
@@ -28,31 +31,48 @@ const CacheDir = ".dsheets/sources"
 type Source struct {
 	Alias string
 	Git   string // clone URL
-	Ref   string // tag, branch or commit; required for git sources
-	Path  string // local folder, relative to the flow folder
+	Ref   string // branch to follow, or tag or commit to pin; "" = the default branch
+	Dir   string // folder inside the repository that the alias means; "" = the root
+	Path  string // local folder; relative to the flow folder in a flow's [sources]
 }
 
 // Resolver turns references into local file paths.
 type Resolver struct {
-	// Base is the folder that relative references and local sources are
-	// resolved against: the flow folder.
-	Base    string
+	// Base is the folder that relative references and a flow's local sources
+	// are resolved against: the flow folder.
+	Base string
+	// Sources are the flow's own [sources].
 	Sources map[string]Source
-	// Cache is the folder git sources are cloned into.
-	Cache string
-	// Offline forbids network access; missing clones are an error.
-	Offline bool
-	// Refresh fetches git sources even when a clone exists.
-	Refresh bool
+	// Project is the repository's dsheets.toml; nil when there is none.
+	Project *Project
+	Fetcher *Fetcher
+	// Warnings collects advice found while resolving, such as a plain path
+	// into a submodule.
+	Warnings []string
 
-	resolved map[string]string // alias -> local root
-	revs     map[string]string // alias -> commit
+	registry    map[string]Source
+	registryErr error
+	registryRan bool
+	resolved    map[string]string // alias -> local root
+	revs        map[string]string // alias -> commit
 }
 
-// NewResolver prepares a resolver for a flow folder.
-func NewResolver(base string, srcs map[string]Source) *Resolver {
-	return &Resolver{Base: base, Sources: srcs, Cache: filepath.Join(repoRoot(base), CacheDir),
+// NewResolver prepares a resolver for a flow folder, reading the dsheets.toml
+// of the repository the folder is in. A nil fetcher clones into that
+// repository's cache.
+func NewResolver(base string, flowSources map[string]Source, f *Fetcher) *Resolver {
+	root := RepoRoot(base)
+	r := &Resolver{Base: base, Sources: flowSources, Fetcher: f,
 		resolved: map[string]string{}, revs: map[string]string{}}
+	if r.Fetcher == nil {
+		r.Fetcher = NewFetcher(filepath.Join(root, CacheDir))
+	}
+	p, err := LoadProject(root)
+	if err != nil {
+		r.Warnings = append(r.Warnings, err.Error())
+	}
+	r.Project = p
+	return r
 }
 
 // Split separates "alias:path" into its parts. Windows drive letters such as
@@ -71,7 +91,9 @@ func Split(ref string) (alias, path string) {
 func (r *Resolver) Resolve(ref string) (path, revision string, err error) {
 	alias, rel := Split(ref)
 	if alias == "" {
-		return join(r.Base, rel), "", nil
+		path = join(r.Base, rel)
+		r.checkSubmodule(rel, path)
+		return path, "", nil
 	}
 	root, err := r.root(alias)
 	if err != nil {
@@ -80,29 +102,110 @@ func (r *Resolver) Resolve(ref string) (path, revision string, err error) {
 	return filepath.Join(root, filepath.FromSlash(rel)), r.revs[alias], nil
 }
 
+// checkSubmodule warns when a plain path reads a folder of one of this
+// repository's submodules: that is the commit the submodule records, not
+// the branch, and impact cannot see it as a reference to that team.
+func (r *Resolver) checkSubmodule(ref, path string) {
+	if r.Project == nil {
+		return
+	}
+	name, rel, ok := r.Project.submoduleOf(path)
+	if !ok {
+		return
+	}
+	w := fmt.Sprintf("%s is inside submodule %s, which reads its recorded commit; refer to it as %s:%s", ref, name, name, rel)
+	for _, x := range r.Warnings {
+		if x == w {
+			return
+		}
+	}
+	r.Warnings = append(r.Warnings, w)
+}
+
+// Lookup returns the source an alias names: the flow's [sources] first, then
+// the repository's, then the registry. Only the registry is fetched.
+func (r *Resolver) Lookup(alias string) (Source, error) {
+	if src, ok := r.Sources[alias]; ok {
+		src.Alias = alias
+		if src.Path != "" {
+			src.Path = join(r.Base, src.Path)
+		}
+		return src, nil
+	}
+	if r.Project != nil {
+		if src, ok := r.Project.Sources[alias]; ok {
+			return src, nil
+		}
+	}
+	reg, err := r.Registered()
+	if err != nil {
+		return Source{}, err
+	}
+	if src, ok := reg[alias]; ok {
+		return src, nil
+	}
+	return Source{}, fmt.Errorf("unknown source %q; declare it under [sources] or add it to the registry", alias)
+}
+
+// Registered returns every registry entry by alias, or nil when the
+// repository names no registry.
+func (r *Resolver) Registered() (map[string]Source, error) {
+	if r.registryRan {
+		return r.registry, r.registryErr
+	}
+	r.registryRan = true
+	if r.Project == nil || r.Project.Registry == nil {
+		return nil, nil
+	}
+	reg := *r.Project.Registry
+	root, base := reg.Path, reg.Path
+	if root != "" {
+		// Git resolves relative submodule URLs against the remote, and
+		// against the folder only when there is none.
+		if origin, err := git(root, "remote", "get-url", "origin"); err == nil && origin != "" {
+			base = origin
+		}
+	} else {
+		var err error
+		if root, _, err = r.Fetcher.Fetch(reg); err != nil {
+			r.registryErr = fmt.Errorf("registry: %v", err)
+			return nil, r.registryErr
+		}
+		base = reg.Git
+	}
+	data, err := os.ReadFile(filepath.Join(root, ".gitmodules"))
+	if err != nil {
+		r.registryErr = fmt.Errorf("registry %s has no .gitmodules: %v", base, err)
+		return nil, r.registryErr
+	}
+	r.registry, r.registryErr = ParseGitmodules(string(data), base)
+	if r.registryErr != nil {
+		r.registryErr = fmt.Errorf("registry %s: %v", base, r.registryErr)
+	}
+	return r.registry, r.registryErr
+}
+
 func (r *Resolver) root(alias string) (string, error) {
 	if root, ok := r.resolved[alias]; ok {
 		return root, nil
 	}
-	src, ok := r.Sources[alias]
-	if !ok {
-		return "", fmt.Errorf("unknown source %q; declare it under [sources]", alias)
+	src, err := r.Lookup(alias)
+	if err != nil {
+		return "", err
 	}
 	var root string
 	switch {
 	case src.Path != "":
-		root = join(r.Base, src.Path)
+		root = filepath.Join(src.Path, filepath.FromSlash(src.Dir))
 		if _, err := os.Stat(root); err != nil {
 			return "", fmt.Errorf("source %q: %v", alias, err)
 		}
 	case src.Git != "":
-		if src.Ref == "" {
-			return "", fmt.Errorf("source %q: a git source needs ref (a tag or commit), so every reader sees the same version", alias)
-		}
-		var err error
-		if root, err = r.fetch(src); err != nil {
+		var rev string
+		if root, rev, err = r.Fetcher.Fetch(src); err != nil {
 			return "", fmt.Errorf("source %q: %v", alias, err)
 		}
+		r.revs[alias] = rev
 	default:
 		return "", fmt.Errorf("source %q needs git or path", alias)
 	}
@@ -110,52 +213,20 @@ func (r *Resolver) root(alias string) (string, error) {
 	return root, nil
 }
 
-// fetch clones or updates a git source and checks out its ref.
-func (r *Resolver) fetch(src Source) (string, error) {
-	sum := sha1.Sum([]byte(src.Git + "@" + src.Ref))
-	dir := filepath.Join(r.Cache, src.Alias+"-"+hex.EncodeToString(sum[:])[:10])
-	_, statErr := os.Stat(filepath.Join(dir, ".git"))
-	switch {
-	case statErr != nil && r.Offline:
-		return "", fmt.Errorf("not fetched yet and --offline is set; run fetch first")
-	case statErr != nil:
-		if err := os.MkdirAll(r.Cache, 0o755); err != nil {
-			return "", err
-		}
-		if _, err := git("", "clone", "--quiet", "--no-checkout", src.Git, dir); err != nil {
-			return "", err
-		}
-		if _, err := git(dir, "-c", "advice.detachedHead=false", "checkout", "--quiet", src.Ref); err != nil {
-			return "", err
-		}
-	case r.Refresh && !r.Offline:
-		if _, err := git(dir, "fetch", "--quiet", "--tags", "origin"); err != nil {
-			return "", err
-		}
-		target := src.Ref
-		if _, err := git(dir, "rev-parse", "--verify", "--quiet", "origin/"+src.Ref); err == nil {
-			target = "origin/" + src.Ref // a branch: follow the remote
-		}
-		if _, err := git(dir, "-c", "advice.detachedHead=false", "checkout", "--quiet", target); err != nil {
-			return "", err
-		}
-	}
-	rev, err := git(dir, "rev-parse", "--short", "HEAD")
-	if err != nil {
-		return "", err
-	}
-	r.revs[src.Alias] = rev
-	return dir, nil
-}
-
 // Fetched lists the resolved revision of each git source that was used.
 func (r *Resolver) Fetched() map[string]string { return r.revs }
 
-func git(dir string, args ...string) (string, error) {
+// gitCommand prepares a git command that never prompts for credentials, so
+// a missing token fails at once instead of blocking CI or a served page.
+func gitCommand(dir string, args ...string) *exec.Cmd {
 	cmd := exec.Command("git", args...)
-	if dir != "" {
-		cmd.Dir = dir
-	}
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GCM_INTERACTIVE=never")
+	return cmd
+}
+
+func git(dir string, args ...string) (string, error) {
+	cmd := gitCommand(dir, args...)
 	var out, errb bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &errb
 	if err := cmd.Run(); err != nil {
@@ -168,8 +239,8 @@ func git(dir string, args ...string) (string, error) {
 	return strings.TrimSpace(out.String()), nil
 }
 
-// repoRoot is the nearest folder at or above dir holding .git, or dir.
-func repoRoot(dir string) string {
+// RepoRoot is the nearest folder at or above dir holding .git, or dir.
+func RepoRoot(dir string) string {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
 		return dir

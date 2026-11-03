@@ -1,6 +1,8 @@
 package flow
 
 import (
+	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -18,7 +20,7 @@ func example(t *testing.T, mutate func(f *Flow)) *Analysis {
 	if mutate != nil {
 		mutate(f)
 	}
-	return Analyze(f, sources.NewResolver(f.Dir, f.Sources))
+	return Analyze(f, sources.NewResolver(f.Dir, f.Sources, sources.NewFetcher(t.TempDir())))
 }
 
 func item(t *testing.T, a *Analysis, iface, field string) Item {
@@ -139,13 +141,138 @@ func TestStructureErrors(t *testing.T) {
 	}
 }
 
+func TestSheetFromSource(t *testing.T) {
+	specs, err := filepath.Abs(filepath.Join("..", "..", "specs"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := example(t, func(f *Flow) {
+		f.SheetRef = "spec:order-checkout"
+		f.Sources["spec"] = sources.Source{Alias: "spec", Path: specs}
+	})
+	if len(a.Errors) > 0 {
+		t.Fatal(a.Errors)
+	}
+	if filepath.Base(a.SheetDir) != "order-checkout" || a.Sheet == nil {
+		t.Errorf("sheet loaded from %q", a.SheetDir)
+	}
+}
+
+func TestSheetRefDefault(t *testing.T) {
+	f, err := Load(filepath.Join("..", "..", "flows", "loyalty-report"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.SheetRef != "." {
+		t.Errorf("SheetRef = %q", f.SheetRef)
+	}
+}
+
+func TestAliases(t *testing.T) {
+	a := example(t, nil)
+	if got := a.Flow.Aliases(); !slices.Equal(got, []string{"shipping"}) {
+		t.Errorf("Aliases() = %v", got)
+	}
+	a = example(t, func(f *Flow) { f.SheetRef = "spec:order-checkout"; f.Input.Interface = "web:in.toml" })
+	if got := a.Flow.Aliases(); !slices.Equal(got, []string{"shipping", "spec", "web"}) {
+		t.Errorf("Aliases() = %v", got)
+	}
+}
+
+func TestResolverWarningsReported(t *testing.T) {
+	f, err := Load(filepath.Join("..", "..", "flows", "checkout-to-payment"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := sources.NewResolver(f.Dir, f.Sources, sources.NewFetcher(t.TempDir()))
+	r.Warnings = append(r.Warnings, "advice from the resolver")
+	a := Analyze(f, r)
+	ok := false
+	for _, w := range a.Warnings {
+		ok = ok || w.Message == "advice from the resolver"
+	}
+	if !ok {
+		t.Errorf("warnings = %v", a.Warnings)
+	}
+}
+
+func TestExportWritesDir(t *testing.T) {
+	a := example(t, nil)
+	a.Flow.Sources = map[string]sources.Source{"shipping": {Alias: "shipping", Git: "https://example.com/shipping.git", Dir: "sheets"}}
+	pieces, err := a.Export(filepath.Join(t.TempDir(), "pieces"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(pieces[0].Dir, FileName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `shipping = { git = "https://example.com/shipping.git", dir = "sheets" }`
+	if !strings.Contains(string(data), want) {
+		t.Errorf("exported flow.toml lacks %s:\n%s", want, data)
+	}
+}
+
+// gitSource commits the shipping interfaces and the example sheet into a
+// repository and returns its file:// URL.
+func gitSource(t *testing.T) string {
+	t.Helper()
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed")
+	}
+	dir := t.TempDir()
+	copyTree := func(src, dst string) {
+		filepath.WalkDir(src, func(p string, d os.DirEntry, err error) error {
+			if err != nil || d.IsDir() {
+				return err
+			}
+			rel, _ := filepath.Rel(src, p)
+			data, _ := os.ReadFile(p)
+			os.MkdirAll(filepath.Dir(filepath.Join(dst, rel)), 0o755)
+			return os.WriteFile(filepath.Join(dst, rel), data, 0o644)
+		})
+	}
+	copyTree(filepath.Join("..", "..", "interfaces", "shipping"), dir)
+	copyTree(filepath.Join("..", "..", "specs", "order-checkout"), filepath.Join(dir, "order-checkout"))
+	for _, args := range [][]string{{"init", "-q", "-b", "main"}, {"add", "."}, {"-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "-m", "x"}} {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	return "file://" + filepath.ToSlash(dir)
+}
+
+func TestRevisionsKeptOnFailure(t *testing.T) {
+	url := gitSource(t)
+	a := example(t, func(f *Flow) {
+		f.Sources["shipping"] = sources.Source{Alias: "shipping", Git: url}
+		f.Output.Producer = "Payments team" // an error, found after the interfaces load
+	})
+	if len(a.Errors) == 0 || a.Revisions["shipping"] == "" {
+		t.Errorf("errors %v, revisions %v", a.Errors, a.Revisions)
+	}
+}
+
+func TestSheetRevision(t *testing.T) {
+	url := gitSource(t)
+	a := example(t, func(f *Flow) {
+		f.Sources["shipping"] = sources.Source{Alias: "shipping", Git: url}
+		f.SheetRef = "shipping:order-checkout"
+	})
+	if len(a.Errors) > 0 || a.SheetRev == "" {
+		t.Errorf("errors %v, sheet revision %q", a.Errors, a.SheetRev)
+	}
+}
+
 func analyzeDir(t *testing.T, dir string) *Analysis {
 	t.Helper()
 	f, err := Load(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	a := Analyze(f, sources.NewResolver(f.Dir, f.Sources))
+	a := Analyze(f, sources.NewResolver(f.Dir, f.Sources, sources.NewFetcher(t.TempDir())))
 	if len(a.Errors) > 0 {
 		t.Fatalf("%s: %v", dir, a.Errors)
 	}

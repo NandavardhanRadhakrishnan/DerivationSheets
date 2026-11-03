@@ -110,7 +110,7 @@ so a subfolder file with only `[display]` never hides the registry. The
 project-file loader must accept these new keys, which today it rejects.
 
 ```toml
-registry = { git = "https://github.com/example/dsheets-registry.git" }   # optional: branch = "main"
+registry = { git = "https://github.com/example/dsheets-registry.git" }   # optional: ref = "main"
 ```
 
 From then on every alias in the registry can be used in that repository

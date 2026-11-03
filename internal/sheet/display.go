@@ -186,9 +186,18 @@ func readProjectDisplay(path string) (Display, []Issue) {
 		return Display{}, []Issue{{File: path, Line: line, Code: "project-file", Message: err.Error()}}
 	}
 	var issues []Issue
+	_, gitErr := os.Stat(filepath.Join(filepath.Dir(path), ".git"))
+	atRoot := gitErr == nil
 	for k := range raw {
-		if k != "display" {
-			issues = append(issues, Issue{File: path, Line: displayLine(string(data), k), Code: "project-file", Message: k + ": unknown key; " + ProjectFile + " only holds [display]"})
+		switch {
+		case k == "display":
+		case k == "registry" || k == "sources":
+			// Read by the sources package, and only at the repository root.
+			if !atRoot {
+				issues = append(issues, Issue{File: path, Line: displayLine(string(data), k), Code: "project-file", Message: k + ": only read from the " + ProjectFile + " at the repository root; move it there"})
+			}
+		default:
+			issues = append(issues, Issue{File: path, Line: displayLine(string(data), k), Code: "project-file", Message: k + ": unknown key; " + ProjectFile + " holds [display], and at the repository root registry and [sources]"})
 		}
 	}
 	d, problems := parseDisplay(raw["display"])
