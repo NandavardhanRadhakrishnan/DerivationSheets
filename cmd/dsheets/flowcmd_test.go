@@ -69,6 +69,27 @@ func TestFetchListsAliases(t *testing.T) {
 	}
 }
 
+func TestImpactNeedsRegistry(t *testing.T) {
+	inConsumer(t)
+	var out, errw bytes.Buffer
+	err := run([]string{"impact"}, &out, &errw)
+	if err == nil || !strings.Contains(err.Error(), "registry") {
+		t.Errorf("error = %v", err)
+	}
+}
+
+func TestImpactUsage(t *testing.T) {
+	var out, errw bytes.Buffer
+	if err := run([]string{"impact", "extra"}, &out, &errw); err != errUsage {
+		t.Errorf("error = %v; want usage", err)
+	}
+	for _, flag := range []string{"-as", "-base", "-json", "-out", "-offline"} {
+		if !strings.Contains(errw.String(), flag) {
+			t.Errorf("usage lacks %s:\n%s", flag, errw.String())
+		}
+	}
+}
+
 func TestSliceUnknownAliasArgument(t *testing.T) {
 	inConsumer(t)
 	var out, errw bytes.Buffer

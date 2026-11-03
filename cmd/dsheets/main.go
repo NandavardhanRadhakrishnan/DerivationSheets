@@ -40,6 +40,8 @@ func main() {
 		os.Exit(2)
 	case errors.Is(err, errFailed):
 		os.Exit(1)
+	case errors.Is(err, errIncomplete):
+		os.Exit(3)
 	default:
 		fmt.Fprintf(os.Stderr, "%s: %v\n", brand.Command, err)
 		os.Exit(1)
@@ -59,6 +61,7 @@ var commands = []struct {
 	{"slice", "<flow> [--out flow.html]", "place each row in a team's step and report what every boundary must carry", cmdSlice},
 	{"interface", "import <schema> --out <file.toml>", "import an interface from OpenAPI, Avro or JSON Schema", cmdInterface},
 	{"fetch", "<flow>", "fetch or update the git sources a flow refers to", cmdFetch},
+	{"impact", "[--as alias] [--base branch]", "report which other teams' flows this repository's changes break", cmdImpact},
 	{"schema", "[sheet|flow|interface]", "print a JSON Schema (default: sheet.toml)", cmdSchema},
 }
 
