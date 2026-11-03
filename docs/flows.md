@@ -133,25 +133,30 @@ step that reads them and never cross a boundary.
 `slice` reports an error when a row is placed after something that needs
 it.
 
-## Interfaces in other teams' repositories
+## Other teams' repositories
 
-Each team keeps its interfaces in its own repository. A flow declares those
-repositories once under `[sources]` and refers to files as `alias:path`:
+Each team keeps its interfaces, sheets and flows in its own repository. A
+flow refers to their files as `alias:path`; the alias comes from the
+organisation's registry, or from `[sources]`:
 
 ```toml
 [sources]
-shipping = { git = "https://github.com/example/shipping-contracts.git", ref = "v3.2.0" }
-orders   = { path = "../../../orders-contracts" }   # a local checkout
+shipping = { git = "https://github.com/example/shipping-service.git", ref = "v3.2.0", dir = "sheets" }
+orders   = { path = "../../../orders-service" }   # a local checkout
 ```
 
-- `ref` is required for git sources and should be a tag or commit, so
-  everyone in the meeting sees the same version. The report shows the
-  resolved commit.
-- Clones are cached in `.dsheets/sources/` at the repository root
-  (git-ignored). `dsheets fetch <flow>` updates them; `slice --offline`
-  never touches the network.
-- Git uses your normal credentials, so private repositories work as they do
-  for `git clone`.
+- Without `ref`, a source follows the repository's default branch, so a
+  change the owning team merges is picked up on the next run. A tag or
+  commit pins it. The report shows the commit each source resolved to.
+- Only the source's folder at its latest commit is fetched, into
+  `.dsheets/sources/` at the repository root (git-ignored). `slice
+  --offline` never touches the network.
+- The end-to-end `sheet`, `--with` flows and flows on the command line take
+  `alias:path` too.
+
+See [repositories.md](repositories.md) for the registry, the lookup order
+and `dsheets impact`, which tells a team in its own pull request which other
+teams' flows its change breaks.
 
 ## Reading the report and the view
 

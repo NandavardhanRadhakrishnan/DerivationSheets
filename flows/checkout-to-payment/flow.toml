@@ -7,11 +7,10 @@ title   = "Checkout to payment"
 # request to the payment request, ignoring who computes what.
 sheet = "../../specs/order-checkout"
 
-# Interfaces owned by other teams can live in their own repositories. Declare
-# each repository once, pinned to a tag or commit, and refer to its files as
-# "alias:path". Here the shipping contracts are a local folder; a team repo
-# looks like:
-#   shipping = { git = "https://github.com/example/shipping-contracts.git", ref = "v3.2.0" }
+# Interfaces owned by other teams can live in their own repositories, named
+# by the registry or here, and referred to as "alias:path". Here the shipping
+# contracts are a local folder; a team repository looks like:
+#   shipping = { git = "https://github.com/example/shipping-service.git", dir = "sheets" }
 [sources]
 shipping = { path = "../../interfaces/shipping" }
 

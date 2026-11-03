@@ -34,6 +34,7 @@ a recommendation, not a commitment.
     producing team, in its own pull request, which other teams' flows the
     change breaks. Design agreed:
     `docs/superpowers/specs/2026-11-03-cross-repo-references-design.md`.
+    Built 3 November 2026; see `docs/repositories.md`.
 
 ## Phase 2 from the handoff (not started)
 
@@ -80,8 +81,6 @@ Documenting existing code without changing it.
 
 ## Suggested order
 
-1. Item 15: in progress; teams need it before they can use separate
-   repositories.
-2. Item 1: closes the testing gap that piece export opened.
-3. Item 8: PR diffs make flows reviewable in a normal team workflow.
-4. Item 6: the largest remaining piece; design it before building.
+1. Item 1: closes the testing gap that piece export opened.
+2. Item 8: PR diffs make flows reviewable in a normal team workflow.
+3. Item 6: the largest remaining piece; design it before building.
