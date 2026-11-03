@@ -159,7 +159,13 @@ func (r *Resolver) Registered() (map[string]Source, error) {
 	}
 	reg := *r.Project.Registry
 	root, base := reg.Path, reg.Path
-	if root == "" {
+	if root != "" {
+		// Git resolves relative submodule URLs against the remote, and
+		// against the folder only when there is none.
+		if origin, err := git(root, "remote", "get-url", "origin"); err == nil && origin != "" {
+			base = origin
+		}
+	} else {
 		var err error
 		if root, _, err = r.Fetcher.Fetch(reg); err != nil {
 			r.registryErr = fmt.Errorf("registry: %v", err)

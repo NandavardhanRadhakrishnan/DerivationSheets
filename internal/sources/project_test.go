@@ -140,6 +140,27 @@ func TestRegistryPathDot(t *testing.T) {
 	}
 }
 
+// A relative submodule URL in a local registry resolves against the
+// registry's origin remote, as git does, not against its folder.
+func TestRegistryPathDotRelativeURL(t *testing.T) {
+	team := teamRepo(t)
+	parent := filepath.Dir(team)
+	reg := filepath.Join(parent, "registry")
+	run(t, parent, "init", "-q", "-b", "main", "registry")
+	write(t, filepath.Join(reg, ".gitmodules"), "[submodule \"shipping\"]\n\tpath = shipping\n\turl = ../"+filepath.Base(team)+"\n\tdsheets = sheets\n")
+	write(t, filepath.Join(reg, ProjectFile), "registry = { path = \".\" }\n")
+	run(t, reg, "add", ".")
+	run(t, reg, "commit", "-q", "-m", "registry")
+	clone := filepath.Join(t.TempDir(), "registry")
+	run(t, filepath.Dir(clone), "clone", "-q", fileURL(reg), clone)
+	if err := os.MkdirAll(filepath.Join(clone, "flows", "x"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if q := quoteVia(t, NewResolver(filepath.Join(clone, "flows", "x"), nil, NewFetcher(t.TempDir()))); !strings.Contains(q, "# v2") {
+		t.Errorf("got %q", q)
+	}
+}
+
 func TestNestedResolution(t *testing.T) {
 	team := teamRepo(t)
 	// The orders repository names shipping in its own dsheets.toml and has a

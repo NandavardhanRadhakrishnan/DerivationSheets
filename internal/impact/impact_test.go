@@ -242,6 +242,27 @@ func TestImpactPinned(t *testing.T) {
 	}
 }
 
+// A flow that reads this repository through a pinned alias and a followed
+// one is checked: the followed reads see the change.
+func TestImpactMixedPinnedAndFollowed(t *testing.T) {
+	fx := setup(t, "", nil)
+	text := read(t, filepath.Join(fx.orders, "sheets", "flows", "checkout-to-payment", "flow.toml"))
+	text = strings.Replace(text, "shipping:interfaces/quote-request", "aaa:interfaces/quote-request", 1)
+	text = strings.Replace(text, "[input]", "[sources]\naaa = { git = \""+fileURL(fx.producer)+"\", ref = \"v1\", dir = \"sheets\" }\n\n[input]", 1)
+	write(t, filepath.Join(fx.orders, "sheets", "flows", "mixed", "flow.toml"), text)
+	git(t, fx.orders, "add", ".")
+	git(t, fx.orders, "commit", "-q", "-m", "mixed")
+	write(t, fx.response(), dropField(read(t, fx.response()), "fee"))
+	r := fx.run(t, "shipping")
+	found := false
+	for _, f := range r.New {
+		found = found || f.Flow == "orders:flows/mixed"
+	}
+	if !found {
+		t.Errorf("mixed flow not checked: new %+v, pinned %+v", r.New, r.Pinned)
+	}
+}
+
 func TestImpactFindsSelfByOrigin(t *testing.T) {
 	fx := setup(t, "", nil)
 	git(t, fx.tree, "remote", "set-url", "origin", fileURL(fx.producer)+"/")

@@ -230,8 +230,9 @@ func flowDirs(root string) []string {
 	return out
 }
 
-// readsSelf reports whether a flow refers to the repository, and the ref it
-// pins it to, if it does.
+// readsSelf reports whether a flow refers to the repository and, when every
+// alias it reads it through is pinned, the ref it pins it to. A flow that
+// also follows the branch through another alias is checked.
 func readsSelf(f *flow.Flow, self sources.Source, fe *sources.Fetcher) (reads bool, pin string) {
 	res := sources.NewResolver(f.Dir, f.Sources, fe)
 	for _, alias := range f.Aliases() {
@@ -239,12 +240,15 @@ func readsSelf(f *flow.Flow, self sources.Source, fe *sources.Fetcher) (reads bo
 		if err != nil || src.Git == "" || !sources.SameRepo(src.Git, self.Git) {
 			continue
 		}
-		if followed, err := fe.Followed(src); err == nil && !followed {
-			return true, src.Ref
+		reads = true
+		if followed, err := fe.Followed(src); err != nil || followed {
+			return true, ""
 		}
-		return true, ""
+		if pin == "" {
+			pin = src.Ref
+		}
 	}
-	return false, ""
+	return reads, pin
 }
 
 func analyze(dir string, fe *sources.Fetcher) *flow.Analysis {
