@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"derivationsheets/internal/sheet"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sheet"
 )
 
 func fixture(t *testing.T) *Engine {

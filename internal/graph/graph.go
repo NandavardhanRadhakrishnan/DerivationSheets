@@ -5,8 +5,8 @@ import (
 	"slices"
 	"strconv"
 
-	"derivationsheets/internal/expr"
-	"derivationsheets/internal/sheet"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/expr"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sheet"
 )
 
 // RequestTimeSource is the source that resolves today().

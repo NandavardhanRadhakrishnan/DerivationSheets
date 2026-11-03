@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"derivationsheets/internal/sheet"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sheet"
 )
 
 // Connect checks a flow against other flows it shares interfaces with: the

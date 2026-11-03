@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"derivationsheets/internal/cases"
-	"derivationsheets/internal/eval"
-	"derivationsheets/internal/evidence"
-	"derivationsheets/internal/sheet"
-	"derivationsheets/internal/verify"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/cases"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/eval"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/evidence"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sheet"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/verify"
 )
 
 func engine(t *testing.T) *eval.Engine {

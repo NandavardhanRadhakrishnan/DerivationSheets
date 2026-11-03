@@ -10,7 +10,7 @@ import (
 
 	"github.com/pelletier/go-toml/v2"
 
-	"derivationsheets/internal/brand"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/brand"
 )
 
 // ProjectFile holds project-wide display defaults. It is looked up from the

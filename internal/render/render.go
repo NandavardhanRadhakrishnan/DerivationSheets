@@ -15,11 +15,11 @@ import (
 	"strings"
 	"time"
 
-	"derivationsheets/internal/analysis"
-	"derivationsheets/internal/brand"
-	"derivationsheets/internal/eval"
-	"derivationsheets/internal/evidence"
-	"derivationsheets/internal/sheet"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/analysis"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/brand"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/eval"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/evidence"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sheet"
 )
 
 //go:embed sheet.html.tmpl

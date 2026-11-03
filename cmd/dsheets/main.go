@@ -14,15 +14,15 @@ import (
 	"strings"
 	"time"
 
-	"derivationsheets/internal/brand"
-	"derivationsheets/internal/cases"
-	"derivationsheets/internal/eval"
-	"derivationsheets/internal/evidence"
-	"derivationsheets/internal/render"
-	"derivationsheets/internal/sheet"
-	"derivationsheets/internal/validate"
-	"derivationsheets/internal/verify"
-	"derivationsheets/schema"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/brand"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/cases"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/eval"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/evidence"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/render"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sheet"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/validate"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/verify"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/schema"
 )
 
 // errUsage marks a command-line mistake (exit code 2).

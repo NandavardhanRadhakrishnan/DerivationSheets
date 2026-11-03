@@ -1,4 +1,4 @@
-module derivationsheets
+module github.com/NandavardhanRadhakrishnan/DerivationSheets
 
 go 1.27
 

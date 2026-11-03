@@ -13,10 +13,10 @@ import (
 	"strings"
 	"time"
 
-	"derivationsheets/internal/analysis"
-	"derivationsheets/internal/eval"
-	"derivationsheets/internal/graph"
-	"derivationsheets/internal/sheet"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/analysis"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/eval"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/graph"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sheet"
 )
 
 // FileName is the generated file inside a workflow folder.

@@ -16,11 +16,11 @@ import (
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
 
-	"derivationsheets/internal/analysis"
-	"derivationsheets/internal/expr"
-	"derivationsheets/internal/graph"
-	"derivationsheets/internal/sheet"
-	"derivationsheets/schema"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/analysis"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/expr"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/graph"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sheet"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/schema"
 )
 
 // Severity of a diagnostic.

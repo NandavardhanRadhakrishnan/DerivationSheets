@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"derivationsheets/internal/cases"
-	"derivationsheets/internal/eval"
-	"derivationsheets/internal/evidence"
-	"derivationsheets/internal/sheet"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/cases"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/eval"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/evidence"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sheet"
 )
 
 func setup(t *testing.T) (*eval.Engine, *cases.File) {

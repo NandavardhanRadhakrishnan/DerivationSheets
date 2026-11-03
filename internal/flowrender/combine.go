@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"derivationsheets/internal/brand"
-	"derivationsheets/internal/flow"
-	"derivationsheets/internal/iface"
-	"derivationsheets/internal/sheet"
-	"derivationsheets/internal/sources"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/brand"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/flow"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/iface"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sheet"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sources"
 )
 
 // A combined grid draws several flows that share interfaces as one table.

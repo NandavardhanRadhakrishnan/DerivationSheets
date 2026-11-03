@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"derivationsheets/internal/sources"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sources"
 )
 
 func example(t *testing.T, mutate func(f *Flow)) *Analysis {

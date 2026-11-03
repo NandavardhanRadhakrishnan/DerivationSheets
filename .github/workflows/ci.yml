@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Format
+        run: |
+          unformatted=$(gofmt -l cmd internal schema)
+          if [ -n "$unformatted" ]; then
+            echo "Not gofmt-formatted:"; echo "$unformatted"; exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
+
+      - name: Build
+        run: go build -o bin/dsheets ./cmd/dsheets
+
+      - name: Validate specs
+        run: |
+          for s in specs/*/; do
+            echo "::group::validate $s"
+            bin/dsheets validate "$s"
+            echo "::endgroup::"
+          done
+
+      # The example flows deliberately leave fields to agree, to show a
+      # review in progress, so they are sliced without --strict. slice still
+      # exits 1 on errors such as an unresolved reference or a row placed
+      # after something that needs it.
+      - name: Slice flows
+        run: |
+          for f in flows/*/; do
+            echo "::group::slice $f"
+            bin/dsheets slice "$f"
+            echo "::endgroup::"
+          done

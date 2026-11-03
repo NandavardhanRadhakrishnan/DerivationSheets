@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"strings"
 
-	"derivationsheets/internal/sheet"
-	"derivationsheets/internal/sources"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sheet"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sources"
 )
 
 // Piece is one team's part of a sliced flow: from the boundary it

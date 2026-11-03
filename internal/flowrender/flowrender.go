@@ -19,12 +19,12 @@ import (
 	"strings"
 	"time"
 
-	"derivationsheets/internal/brand"
-	"derivationsheets/internal/flow"
-	"derivationsheets/internal/iface"
-	"derivationsheets/internal/render"
-	"derivationsheets/internal/sheet"
-	"derivationsheets/internal/sources"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/brand"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/flow"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/iface"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/render"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sheet"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sources"
 )
 
 //go:embed flow.html.tmpl

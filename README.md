@@ -18,6 +18,12 @@ The working name lives in `internal/brand/brand.go`; the CLI is `dsheets`.
 Requires Go 1.27 or later.
 
 ```sh
+go install github.com/NandavardhanRadhakrishnan/DerivationSheets/cmd/dsheets@latest
+```
+
+or, from a checkout:
+
+```sh
 go build -o bin/dsheets ./cmd/dsheets
 
 bin/dsheets validate specs/order-checkout

@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"derivationsheets/internal/brand"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/brand"
 )
 
 // FileStore keeps one JSON file per run under <Root>/<sheet>/.

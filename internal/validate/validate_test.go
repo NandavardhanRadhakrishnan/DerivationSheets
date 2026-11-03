@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"derivationsheets/internal/sheet"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sheet"
 )
 
 var fixtureDir = filepath.Join("..", "..", "specs", "order-checkout")

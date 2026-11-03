@@ -7,12 +7,12 @@ import (
 	"sort"
 	"strings"
 
-	"derivationsheets/internal/analysis"
-	"derivationsheets/internal/eval"
-	"derivationsheets/internal/iface"
-	"derivationsheets/internal/sheet"
-	"derivationsheets/internal/sources"
-	"derivationsheets/internal/validate"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/analysis"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/eval"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/iface"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sheet"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sources"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/validate"
 )
 
 // Boundary roles.

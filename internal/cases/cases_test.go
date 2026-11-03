@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"derivationsheets/internal/eval"
-	"derivationsheets/internal/sheet"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/eval"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sheet"
 )
 
 func fixture(t *testing.T) *eval.Engine {

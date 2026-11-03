@@ -12,10 +12,10 @@ import (
 	"sort"
 	"time"
 
-	"derivationsheets/internal/cases"
-	"derivationsheets/internal/eval"
-	"derivationsheets/internal/evidence"
-	"derivationsheets/internal/sheet"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/cases"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/eval"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/evidence"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sheet"
 )
 
 // Actual is what the system under test did for one case.

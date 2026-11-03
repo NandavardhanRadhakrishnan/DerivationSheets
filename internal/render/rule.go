@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"derivationsheets/internal/analysis"
-	"derivationsheets/internal/sheet"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/analysis"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sheet"
 )
 
 // maxCaseList is the most lookup entries shown inline as a case list.

@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"derivationsheets/internal/brand"
-	"derivationsheets/internal/flow"
-	"derivationsheets/internal/flowrender"
-	"derivationsheets/internal/iface"
-	"derivationsheets/internal/sources"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/brand"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/flow"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/flowrender"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/iface"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sources"
 )
 
 // isFlow reports whether a folder holds a flow.toml.

@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"derivationsheets/internal/flow"
-	"derivationsheets/internal/sources"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/flow"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sources"
 )
 
 func page(t *testing.T, check bool) string {

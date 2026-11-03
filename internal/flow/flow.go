@@ -20,9 +20,9 @@ import (
 
 	"github.com/pelletier/go-toml/v2"
 
-	"derivationsheets/internal/sources"
-	"derivationsheets/internal/validate"
-	"derivationsheets/schema"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sources"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/validate"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/schema"
 )
 
 // FileName is the flow file inside a flow folder.

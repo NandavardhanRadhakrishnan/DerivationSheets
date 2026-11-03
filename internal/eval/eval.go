@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"derivationsheets/internal/expr"
-	"derivationsheets/internal/graph"
-	"derivationsheets/internal/sheet"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/expr"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/graph"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sheet"
 )
 
 // MissingInputCode is the reject code for a missing required input.

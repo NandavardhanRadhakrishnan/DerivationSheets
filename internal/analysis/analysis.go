@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"derivationsheets/internal/sheet"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sheet"
 )
 
 // Other stands for "any value not named in this column". Only "-" and "!="
