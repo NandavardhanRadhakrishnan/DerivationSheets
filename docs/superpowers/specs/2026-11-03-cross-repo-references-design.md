@@ -122,7 +122,7 @@ registry (an external organisation, a local checkout):
 ```toml
 # dsheets.toml: for every flow in the repository
 [sources]
-partner = { git = "https://git.example.org/partner/contracts.git" }
+external = { git = "https://git.example.org/other-org/contracts.git" }
 
 # flow.toml: for this flow only
 [sources]
