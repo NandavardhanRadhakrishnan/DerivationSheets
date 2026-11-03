@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -247,6 +248,13 @@ func cmdCases(args []string, out, errw io.Writer) error {
 		for _, f := range c.Expected {
 			if f.Value == cases.Unknown {
 				fmt.Fprintf(out, "  case %q: fill in expected %s by hand (depends on a text rule)\n", c.ID, f.Name)
+			}
+		}
+		for _, call := range c.Calls {
+			for _, f := range call.Fields {
+				if f.Value == cases.Unknown {
+					fmt.Fprintf(out, "  case %q: fill in expected %s in the call to %s by hand (depends on a text rule)\n", c.ID, f.Name, call.Target)
+				}
 			}
 		}
 	}
@@ -488,7 +496,7 @@ func cmdEval(args []string, out, errw io.Writer) error {
 	res := e.Evaluate(in)
 	if *asJSON {
 		return writeJSON(out, map[string]any{
-			"payload": res.Payload, "reject": res.Reject, "error": res.Err, "trace": res.Steps,
+			"payload": res.Payload, "calls": res.CallPayloads, "reject": res.Reject, "error": res.Err, "trace": res.Steps,
 		})
 	}
 	printTrace(out, e, res)
@@ -518,6 +526,9 @@ func printTrace(w io.Writer, e *eval.Engine, res *eval.Result) {
 		if st.Send != nil {
 			line += fmt.Sprintf("  -> %s: %s", st.Send.Field, st.Send.Reason)
 		}
+		for _, cs := range st.CallSends {
+			line += fmt.Sprintf("  -> %s.%s: %s", cs.Target, cs.Field, cs.Reason)
+		}
 		fmt.Fprintln(w, strings.TrimRight(line, " "))
 	}
 	switch {
@@ -529,6 +540,16 @@ func printTrace(w io.Writer, e *eval.Engine, res *eval.Result) {
 		fmt.Fprintln(w, "\nPayload:")
 		b, _ := json.MarshalIndent(res.Payload, "  ", "  ")
 		fmt.Fprintf(w, "  %s\n", b)
+		targets := make([]string, 0, len(res.CallPayloads))
+		for t := range res.CallPayloads {
+			targets = append(targets, t)
+		}
+		sort.Strings(targets)
+		for _, t := range targets {
+			fmt.Fprintf(w, "\nCall %s:\n", t)
+			b, _ := json.MarshalIndent(res.CallPayloads[t], "  ", "  ")
+			fmt.Fprintf(w, "  %s\n", b)
+		}
 	}
 }
 

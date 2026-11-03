@@ -17,6 +17,7 @@ import (
 
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/analysis"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/brand"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/cases"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/eval"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/evidence"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sheet"
@@ -388,6 +389,11 @@ func (b *builder) branches(r *sheet.Row) []string {
 	if r.Send != nil && r.Send.Usage == sheet.UsageSituational && r.Send.When != "" {
 		out = append(out, r.ID+":send.when:true", r.ID+":send.when:false")
 	}
+	for _, sd := range r.CallSends {
+		if sd.Usage == sheet.UsageSituational && sd.When != "" {
+			out = append(out, cases.CallWhenKey(r.ID, sd.Target, true), cases.CallWhenKey(r.ID, sd.Target, false))
+		}
+	}
 	return out
 }
 
@@ -498,8 +504,12 @@ func (b *builder) notes(p *Page) {
 		if b.run != nil {
 			if t := b.run.Rows[r.ID]; t != nil {
 				for _, c := range t.Contradictions {
-					text := fmt.Sprintf(`case <code>%s</code>, field <code>%s</code>: expected <b>%s</b>, got <b>%s</b>`,
-						html.EscapeString(c.Case), html.EscapeString(c.Field),
+					field := fmt.Sprintf("<code>%s</code>", html.EscapeString(c.Field))
+					if c.Call != "" {
+						field += fmt.Sprintf(" in the call to <code>%s</code>", html.EscapeString(c.Call))
+					}
+					text := fmt.Sprintf(`case <code>%s</code>, field %s: expected <b>%s</b>, got <b>%s</b>`,
+						html.EscapeString(c.Case), field,
 						html.EscapeString(sheet.FormatValue(c.Expected)), html.EscapeString(sheet.FormatValue(c.Actual)))
 					if c.Note != "" {
 						text += " — " + html.EscapeString(c.Note)

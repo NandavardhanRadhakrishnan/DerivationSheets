@@ -50,9 +50,9 @@ is that render.
 | Command | What it does |
 |---|---|
 | `validate <workflow> [--json]` | Checks `sheet.toml` and its data. Reports errors and warnings with file and line. Exits 1 on errors. |
-| `cases <workflow>` | Writes `cases.toml`: the smallest practical set of cases that covers every decision-table rule, reject, both sides of every situational `when`, and isolation pairs for rows that are not sent. |
+| `cases <workflow>` | Writes `cases.toml`: the smallest practical set of cases that covers every decision-table rule, reject, both sides of every situational `when`, and isolation pairs for rows that are not sent. Each case lists the expected payload and the request expected for every call made on the way. |
 | `eval <workflow> --case ID` | Evaluates one input and prints every row's value, which table rule or lookup entry fired, rejects, and send decisions. Inputs can also come from `--input` (values by row ID) or `--request` and `--context` (read by source path). `--json` prints the result and trace as JSON. |
-| `verify <workflow> --actual results.json` | Compares the output payloads that tests captured with the expected values, then records evidence per row and per decision-table cell. Contradictions name the case and the field. Exits 1 on contradictions. |
+| `verify <workflow> --actual results.json` | Compares the output payloads and call requests that tests captured with the expected values, then records evidence per row and per decision-table cell. Contradictions name the case and the field. Exits 1 on contradictions. |
 | `render <workflow\|flow...> --out page.html` | Writes one self-contained HTML file with the latest evidence for the sheet's version merged in. Works offline and prints on A4 or Letter landscape. `--evidence shown\|hidden` sets the initial state of the page's evidence switch; `--no-evidence` leaves evidence out entirely. For a flow, draws it left to right, and several flows draw as one grid; `--check` adds the review (missing and unfit fields, and what each team has to agree). |
 | `serve <workflow>` | Serves the same page on localhost, re-rendered on every request, so edits show on reload. Takes the same evidence flags. |
 | `slice <flow> [--out flow.html]` | Places each row of a flow in a team's step and reports, for every boundary, which fields are carried, missing, unfit or unused. `--out` writes the view with the review marked; `--export <dir>` writes each team's piece as its own flow and sheet; `--with <flow>` checks a branch or feed against the flows already using its interface. See [docs/flows.md](docs/flows.md). |
@@ -149,15 +149,28 @@ script, and a printed page shows whatever state is on screen.
 }
 ```
 
-The `"cases"` wrapper is optional. An entry whose only key is neither
-`payload` nor `reject` is read as a bare payload.
+For a sheet that makes calls on the way, `calls` holds the request the
+system sent to each call stage, as the test captured it:
+
+```json
+"discount-rate-gold": {
+  "payload": { "loyaltyTier": "GLD", "totalAmount": 96 },
+  "calls":   { "shipping-quote": { "method": "STANDARD", "weightKg": 2, "zone": "DOMESTIC" } }
+}
+```
+
+A call left out of `calls` was not captured: its fields are not checked in
+that case, and `verify` says how many cases that was. The `"cases"` wrapper
+is optional. An entry with any key other than `payload`, `calls` and
+`reject` is read as a bare payload.
 
 ## How evidence is judged
 
 Each case is evaluated again to find which rows and branches it exercised.
 Each row is then judged by the compared fields it influences:
 
-- A row whose own sent field disagrees is contradicted.
+- A row whose own sent field disagrees, in the payload or in a call, is
+  contradicted.
 - A row that is not sent is contradicted only when every field it feeds
   disagrees.
 - Otherwise the row agrees, because a field downstream that matched vouches

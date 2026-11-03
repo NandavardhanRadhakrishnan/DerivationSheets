@@ -51,7 +51,10 @@ type Tally struct {
 
 // Contradiction is one observation that disagreed.
 type Contradiction struct {
-	Case     string `json:"case"`
+	Case string `json:"case"`
+	// Call is the call stage the field was sent to; empty for the sheet's
+	// own payload.
+	Call     string `json:"call,omitempty"`
 	Field    string `json:"field"`
 	Expected any    `json:"expected"`
 	Actual   any    `json:"actual"`

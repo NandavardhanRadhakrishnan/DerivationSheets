@@ -35,10 +35,12 @@ type caseTOML struct {
 	Covers         []string       `toml:"covers"`
 	Input          map[string]any `toml:"input"`
 	Expected       map[string]any `toml:"expected"`
+	ExpectedCalls  map[string]any `toml:"expected_calls"`
 	ExpectedReject string         `toml:"expected_reject"`
 }
 
-// Read parses cases.toml. Expected fields come back flattened, in name order.
+// Read parses cases.toml. Expected fields come back flattened, in name
+// order; expected calls in stage order.
 func Read(path string) (*File, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -54,18 +56,36 @@ func Read(path string) (*File, error) {
 		for k, v := range c.Input {
 			cs.Input[k] = sheet.Normalize(v)
 		}
-		flat := Flatten(sheet.Normalize(c.Expected).(map[string]any))
-		names := make([]string, 0, len(flat))
-		for k := range flat {
-			names = append(names, k)
+		cs.Expected = sortedFields(c.Expected)
+		targets := make([]string, 0, len(c.ExpectedCalls))
+		for t := range c.ExpectedCalls {
+			targets = append(targets, t)
 		}
-		sort.Strings(names)
-		for _, k := range names {
-			cs.Expected = append(cs.Expected, Field{k, flat[k]})
+		sort.Strings(targets)
+		for _, t := range targets {
+			m, ok := c.ExpectedCalls[t].(map[string]any)
+			if !ok {
+				return nil, fmt.Errorf("%s: case %q: expected_calls.%s is not a table", path, c.ID, t)
+			}
+			cs.Calls = append(cs.Calls, Call{Target: t, Fields: sortedFields(m)})
 		}
 		f.Cases = append(f.Cases, cs)
 	}
 	return f, nil
+}
+
+func sortedFields(m map[string]any) []Field {
+	flat := Flatten(sheet.Normalize(m).(map[string]any))
+	names := make([]string, 0, len(flat))
+	for k := range flat {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+	out := make([]Field, 0, len(names))
+	for _, k := range names {
+		out = append(out, Field{k, flat[k]})
+	}
+	return out
 }
 
 // Path returns the cases.toml path for a workflow folder.
@@ -82,19 +102,29 @@ func Preserve(cases []Case, old *File) int {
 		byID[c.ID] = c
 	}
 	n := 0
+	keep := func(fields, prev []Field) {
+		for j, f := range fields {
+			if f.Value != Unknown {
+				continue
+			}
+			for _, pf := range prev {
+				if pf.Name == f.Name && pf.Value != Unknown {
+					fields[j].Value = pf.Value
+					n++
+				}
+			}
+		}
+	}
 	for i := range cases {
 		prev, ok := byID[cases[i].ID]
 		if !ok {
 			continue
 		}
-		for j, f := range cases[i].Expected {
-			if f.Value != Unknown {
-				continue
-			}
-			for _, pf := range prev.Expected {
-				if pf.Name == f.Name && pf.Value != Unknown {
-					cases[i].Expected[j].Value = pf.Value
-					n++
+		keep(cases[i].Expected, prev.Expected)
+		for _, c := range cases[i].Calls {
+			for _, pc := range prev.Calls {
+				if pc.Target == c.Target {
+					keep(c.Fields, pc.Fields)
 				}
 			}
 		}
@@ -132,6 +162,9 @@ func Write(path string, s *sheet.Sheet, inputOrder []*sheet.Row, refTime time.Ti
 			fmt.Fprintf(&b, "expected_reject = %s\n", quote(c.ExpectedReject))
 		} else {
 			fmt.Fprintf(&b, "expected = %s\n", inlineTable(c.Expected))
+			for _, call := range c.Calls {
+				fmt.Fprintf(&b, "expected_calls.%s = %s\n", key(call.Target), inlineTable(call.Fields))
+			}
 		}
 	}
 	return os.WriteFile(path, []byte(b.String()), 0o644)

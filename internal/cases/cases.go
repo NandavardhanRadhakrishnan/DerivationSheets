@@ -1,6 +1,7 @@
 // Package cases generates and reads cases.toml: test inputs with expected
-// output payloads that together cover every decision-table rule, reject,
-// situational condition, and isolate every intermediate row.
+// output payloads, and the requests expected for calls made on the way, that
+// together cover every decision-table rule, reject, situational condition,
+// and isolate every intermediate row.
 package cases
 
 import (
@@ -36,11 +37,40 @@ const MaxCandidates = 60000
 
 // Case is one test case.
 type Case struct {
-	ID             string
-	Covers         []string
-	Input          map[string]any
-	Expected       []Field // in send order
+	ID       string
+	Covers   []string
+	Input    map[string]any
+	Expected []Field // in send order
+	// Calls are the requests expected for calls made on the way, in the
+	// order their first field is sent.
+	Calls          []Call
 	ExpectedReject string
+}
+
+// Call is the expected request to one call stage.
+type Call struct {
+	Target string
+	Fields []Field
+}
+
+// Expectation is one expected field, in the payload or in a call.
+type Expectation struct {
+	Key   SendKey
+	Value any
+}
+
+// Expectations lists every expected field: the payload's, then each call's.
+func (c Case) Expectations() []Expectation {
+	var out []Expectation
+	for _, f := range c.Expected {
+		out = append(out, Expectation{SendKey{Field: f.Name}, f.Value})
+	}
+	for _, call := range c.Calls {
+		for _, f := range call.Fields {
+			out = append(out, Expectation{SendKey{call.Target, f.Name}, f.Value})
+		}
+	}
+	return out
 }
 
 // Field is one expected payload field, with a dotted name.
@@ -87,6 +117,11 @@ func Targets(e *eval.Engine) []Target {
 		if r.Send != nil && r.Send.Usage == sheet.UsageSituational && r.Send.When != "" {
 			ts = append(ts, Target{r.ID + ":send.when:true", r.ID, "send-when"}, Target{r.ID + ":send.when:false", r.ID, "send-when"})
 		}
+		for _, sd := range r.CallSends {
+			if sd.Usage == sheet.UsageSituational && sd.When != "" {
+				ts = append(ts, Target{CallWhenKey(r.ID, sd.Target, true), r.ID, "send-when"}, Target{CallWhenKey(r.ID, sd.Target, false), r.ID, "send-when"})
+			}
+		}
 	}
 	for _, r := range IsolationRows(e) {
 		ts = append(ts, Target{r.ID + ":isolation", r.ID, "isolation"})
@@ -94,12 +129,17 @@ func Targets(e *eval.Engine) []Target {
 	return ts
 }
 
-// IsolationRows are computable derived rows that are not sent, so a wrong
-// value only shows through rows downstream.
+// CallWhenKey is the branch key of one side of a situational send to a call.
+func CallWhenKey(row, target string, side bool) string {
+	return fmt.Sprintf("%s:send.%s.when:%t", row, target, side)
+}
+
+// IsolationRows are computable derived rows that are not sent, to the
+// target or to a call, so a wrong value only shows through rows downstream.
 func IsolationRows(e *eval.Engine) []*sheet.Row {
 	var out []*sheet.Row
 	for _, r := range e.Graph.Order {
-		if r.IsInput() || r.Send != nil || r.Rule() == sheet.RuleText || len(e.Graph.Users[r.ID]) == 0 {
+		if r.IsInput() || r.Send != nil || len(r.CallSends) > 0 || r.Rule() == sheet.RuleText || len(e.Graph.Users[r.ID]) == 0 {
 			continue
 		}
 		out = append(out, r)
@@ -123,6 +163,11 @@ func Covers(e *eval.Engine, res *eval.Result) []string {
 		}
 		if st.Send != nil && st.Send.When != nil && r.Send.Usage == sheet.UsageSituational {
 			out = append(out, fmt.Sprintf("%s:send.when:%t", st.Row, *st.Send.When))
+		}
+		for _, cs := range st.CallSends {
+			if cs.When != nil {
+				out = append(out, CallWhenKey(st.Row, cs.Target, *cs.When))
+			}
 		}
 	}
 	if res.Reject != nil && res.Reject.Index >= 0 {
@@ -233,19 +278,86 @@ func toCase(e *eval.Engine, c *candidate) Case {
 		cs.ExpectedReject = c.res.Reject.Code
 		return cs
 	}
-	for _, r := range e.Graph.Order {
-		if r.Send == nil {
-			continue
-		}
-		st := c.res.ByRow[r.ID].Send
+	expect := func(st *eval.SendStep) (Field, bool) {
 		switch {
 		case st != nil && st.Sent:
-			cs.Expected = append(cs.Expected, Field{r.Send.Field, st.Value})
+			return Field{st.Field, st.Value}, true
 		case st != nil && st.Reason == "value cannot be computed":
-			cs.Expected = append(cs.Expected, Field{r.Send.Field, Unknown})
+			return Field{st.Field, Unknown}, true
+		}
+		return Field{}, false
+	}
+	call := map[string]int{}
+	for _, r := range e.Graph.Order {
+		step := c.res.ByRow[r.ID]
+		if r.Send != nil {
+			if f, ok := expect(step.Send); ok {
+				cs.Expected = append(cs.Expected, f)
+			}
+		}
+		for _, st := range step.CallSends {
+			f, ok := expect(st)
+			if !ok {
+				continue
+			}
+			i, seen := call[st.Target]
+			if !seen {
+				i = len(cs.Calls)
+				call[st.Target] = i
+				cs.Calls = append(cs.Calls, Call{Target: st.Target})
+			}
+			cs.Calls[i].Fields = append(cs.Calls[i].Fields, f)
 		}
 	}
 	return cs
+}
+
+// SendKey names one sent field: Target is empty for the sheet's own
+// payload, or a call stage.
+type SendKey struct {
+	Target string
+	Field  string
+}
+
+// Label is how a field reads in messages: the bare name for the sheet's
+// own payload, "field in the call to stage" for a call.
+func (k SendKey) Label() string {
+	if k.Target == "" {
+		return k.Field
+	}
+	return k.Field + " in the call to " + k.Target
+}
+
+// SendKeys lists a row's sends, its own first.
+func SendKeys(r *sheet.Row) []SendKey {
+	var out []SendKey
+	if r.Send != nil {
+		out = append(out, SendKey{Field: r.Send.Field})
+	}
+	for _, sd := range r.CallSends {
+		out = append(out, SendKey{sd.Target, sd.Field})
+	}
+	return out
+}
+
+// Observed flattens what an evaluation sends: the payload and every call
+// request.
+func Observed(res *eval.Result) map[SendKey]any {
+	return ObservedIn(res.Payload, res.CallPayloads)
+}
+
+// ObservedIn flattens a payload and call requests into sent fields.
+func ObservedIn(payload map[string]any, calls map[string]map[string]any) map[SendKey]any {
+	out := map[SendKey]any{}
+	for k, v := range Flatten(payload) {
+		out[SendKey{Field: k}] = v
+	}
+	for t, p := range calls {
+		for k, v := range Flatten(p) {
+			out[SendKey{t, k}] = v
+		}
+	}
+	return out
 }
 
 // findPair looks for two chosen, non-rejected cases whose inputs differ only
@@ -276,18 +388,20 @@ func isolates(e *eval.Engine, a, b *candidate, r *sheet.Row, anc map[string]bool
 	if !oka || !okb || sheet.Equal(va, vb) {
 		return false
 	}
-	// The payloads must differ in a field that r feeds, so the difference is
+	// What is sent must differ in a field that r feeds, so the difference is
 	// one that a wrong value in r would cause.
-	fa, fb := Flatten(a.res.Payload), Flatten(b.res.Payload)
+	fa, fb := Observed(a.res), Observed(b.res)
 	desc := e.Graph.Descendants(r.ID)
 	for _, x := range e.Graph.Order {
-		if x.Send == nil || !desc[x.ID] {
+		if !desc[x.ID] {
 			continue
 		}
-		wa, ina := fa[x.Send.Field]
-		wb, inb := fb[x.Send.Field]
-		if ina && inb && !sheet.Equal(wa, wb) {
-			return true
+		for _, k := range SendKeys(x) {
+			wa, ina := fa[k]
+			wb, inb := fb[k]
+			if ina && inb && !sheet.Equal(wa, wb) {
+				return true
+			}
 		}
 	}
 	return false
@@ -311,7 +425,7 @@ func isolate(e *eval.Engine, chosen, cands []*candidate, r *sheet.Row) (int, *ca
 					changed++
 				}
 			}
-			score := changed*1000 + diffFields(base.res.Payload, c.res.Payload)
+			score := changed*1000 + diffFields(Observed(base.res), Observed(c.res))
 			if score < bestScore {
 				bestBase, bestScore, best = i, score, c
 			}
@@ -323,10 +437,7 @@ func isolate(e *eval.Engine, chosen, cands []*candidate, r *sheet.Row) (int, *ca
 	return bestBase, best
 }
 
-func payloadEqual(a, b map[string]any) bool { return diffFields(a, b) == 0 }
-
-func diffFields(a, b map[string]any) int {
-	fa, fb := Flatten(a), Flatten(b)
+func diffFields(fa, fb map[SendKey]any) int {
 	n := 0
 	for k, v := range fa {
 		if w, ok := fb[k]; !ok || !sheet.Equal(v, w) {
@@ -641,10 +752,14 @@ func describe(e *eval.Engine, c *Case, targets []Target, claimed map[string]bool
 					}
 				}
 			case "send-when":
+				id := slug(r.ID) + "-not-sent"
 				if strings.HasSuffix(t.Key, ":true") {
-					return slug(r.ID) + "-sent"
+					id = slug(r.ID) + "-sent"
 				}
-				return slug(r.ID) + "-not-sent"
+				if target, ok := callTarget(r, t.Key); ok {
+					id += "-to-" + slug(target)
+				}
+				return id
 			case "input-when":
 				return slug(r.ID) + "-" + slug(t.Key[strings.LastIndex(t.Key, ":")+1:])
 			case "lookup-value":
@@ -660,6 +775,16 @@ func describe(e *eval.Engine, c *Case, targets []Target, claimed map[string]bool
 		return id
 	}
 	return "case"
+}
+
+// callTarget returns the call stage a send-when key belongs to.
+func callTarget(r *sheet.Row, key string) (string, bool) {
+	for _, sd := range r.CallSends {
+		if strings.HasPrefix(key, r.ID+":send."+sd.Target+".when:") {
+			return sd.Target, true
+		}
+	}
+	return "", false
 }
 
 var nonSlug = regexp.MustCompile(`[^a-z0-9]+`)

@@ -103,9 +103,11 @@ name   = "Shipping fee"
 source = "call.shipping-quote.fee"   # from the call's response
 ```
 
-A row has at most one send without `target`. `eval` returns what each call
-is sent alongside the payload; `cases` and `verify` compare the sheet's own
-payload only.
+A row has at most one send without `target`. `eval` prints what each call
+is sent after the payload. `cases` writes the expected request of every
+call (`expected_calls`), and `verify` compares it with the request tests
+captured; a call response is an ordinary input in `input`, keyed by its row
+ID, for the test to stub.
 
 ## Decision tables
 
@@ -198,6 +200,13 @@ input  = { signup_date = "2020-10-02", is_member = true, country = "CA", ... }
 expected = { loyaltyTier = "GLD", discountAmount = 10, freeShipping = true, customsValue = 89, ... }
 ```
 
+In a sheet that makes calls, each case that is not rejected also lists the
+request every call should receive, one line per call stage:
+
+```toml
+expected_calls.shipping-quote = { method = "STANDARD", weightKg = 2, zone = "DOMESTIC" }
+```
+
 Coverage keys, which are also the branch keys used for evidence:
 
 | Key | Branch |
@@ -205,9 +214,10 @@ Coverage keys, which are also the branch keys used for evidence:
 | `row:[c1,c2]` | Decision-table rule, identified by its input cells |
 | `row:reject:CODE` | Reject condition |
 | `row:send.when:true` / `:false` | Both sides of a situational send |
+| `row:send.STAGE.when:true` / `:false` | Both sides of a situational send to a call |
 | `row:when:true` / `:false` | Both sides of a situational input |
 | `row:KEY` | An inline lookup value, such as `discount_rate:Gold` |
-| `row:isolation` | A pair of cases that differ only in inputs feeding this unsent row, so a wrong value in it would show in the payload |
+| `row:isolation` | A pair of cases that differ only in inputs feeding this unsent row, so a wrong value in it would show in the payload or in a call. Rows sent to a call are checked directly and need no pair. |
 
 Dates are placed relative to `reference_time`, which is fixed so the output
 stays stable from run to run.

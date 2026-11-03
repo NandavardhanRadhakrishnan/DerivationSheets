@@ -9,10 +9,11 @@ a recommendation, not a commitment.
 
 ## Gaps in what is built
 
-1. **Calls in cases and verify.** `cases` and `verify` compare only a
-   sheet's own payload. What a piece sends to a call (`[[row.send]]` with
-   `target`) and reads back (`call.<stage>.<field>`) gets no generated
-   cases and no evidence. `eval` already returns the call payloads.
+1. ~~**Calls in cases and verify.**~~ Done 3 November 2026: each case
+   lists the request expected for every call (`expected_calls`), `verify`
+   compares it with captured requests (`calls` in results.json), and rows
+   sent to a call are checked directly instead of through isolation pairs.
+   Call responses stay ordinary inputs that the test stubs.
 2. **Evidence per piece in a flow.** Evidence is recorded per sheet.
    There is no view of evidence per piece or per team inside a flow, or in
    the combined grid.
@@ -76,11 +77,13 @@ Documenting existing code without changing it.
 - In a combined grid, a value a shared interface does not carry yet shows
   as separate rows on each side until the field exists or is declared on
   both sides.
+- A rejected case expects no call requests: the evaluator applies sends
+  only once nothing is rejected, so a call made before the reject is not
+  checked in that case.
 - Enum checks need the row's possible values (tables, lookups, booleans);
   type checks need a known type (typed inputs, tables, lookups).
 
 ## Suggested order
 
-1. Item 1: closes the testing gap that piece export opened.
-2. Item 8: PR diffs make flows reviewable in a normal team workflow.
-3. Item 6: the largest remaining piece; design it before building.
+1. Item 8: PR diffs make flows reviewable in a normal team workflow.
+2. Item 6: the largest remaining piece; design it before building.
