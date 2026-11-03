@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -101,13 +102,49 @@ func findUp(dir, rel string) string {
 	}
 }
 
-func loadFlow(dir string, offline, refresh bool) (*flow.Analysis, error) {
+// newFetcher makes the run's fetcher, cloning into the cache of the
+// repository the command runs in.
+func newFetcher(offline bool) *sources.Fetcher {
+	cwd, err := os.Getwd()
+	if err != nil {
+		cwd = "."
+	}
+	f := sources.NewFetcher(filepath.Join(sources.RepoRoot(cwd), sources.CacheDir))
+	f.Offline = offline
+	return f
+}
+
+// argPath resolves a command-line argument: "alias:path" through the current
+// repository's sources and registry, anything else unchanged.
+func argPath(arg string, f *sources.Fetcher) (string, error) {
+	if alias, _ := sources.Split(arg); alias == "" {
+		return arg, nil
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	path, _, err := sources.NewResolver(cwd, nil, f).Resolve(arg)
+	return path, err
+}
+
+func argPaths(args []string, f *sources.Fetcher) ([]string, error) {
+	out := make([]string, len(args))
+	for i, a := range args {
+		p, err := argPath(a, f)
+		if err != nil {
+			return nil, err
+		}
+		out[i] = p
+	}
+	return out, nil
+}
+
+func loadFlow(dir string, fe *sources.Fetcher) (*flow.Analysis, error) {
 	f, err := flow.Load(dir)
 	if err != nil {
 		return nil, err
 	}
-	fe := sources.NewFetcher(filepath.Join(sources.RepoRoot("."), sources.CacheDir))
-	fe.Offline = offline
 	return flow.Analyze(f, sources.NewResolver(f.Dir, f.Sources, fe)), nil
 }
 
@@ -117,7 +154,12 @@ func cmdFetch(args []string, out, errw io.Writer) error {
 	if err != nil {
 		return err
 	}
-	dir, err := oneWorkflow(fs, pos, errw)
+	arg, err := oneWorkflow(fs, pos, errw)
+	if err != nil {
+		return err
+	}
+	fe := newFetcher(false)
+	dir, err := argPath(arg, fe)
 	if err != nil {
 		return err
 	}
@@ -125,10 +167,12 @@ func cmdFetch(args []string, out, errw io.Writer) error {
 	if err != nil {
 		return err
 	}
-	r := sources.NewResolver(f.Dir, f.Sources, sources.NewFetcher(filepath.Join(sources.RepoRoot("."), sources.CacheDir)))
-	aliases := make([]string, 0, len(f.Sources))
+	r := sources.NewResolver(f.Dir, f.Sources, fe)
+	aliases := f.Aliases()
 	for a := range f.Sources {
-		aliases = append(aliases, a)
+		if !slices.Contains(aliases, a) {
+			aliases = append(aliases, a)
+		}
 	}
 	sort.Strings(aliases)
 	failed := false
@@ -139,9 +183,13 @@ func cmdFetch(args []string, out, errw io.Writer) error {
 			failed = true
 			continue
 		}
-		src := f.Sources[a]
+		src, _ := r.Lookup(a)
 		if src.Git != "" {
-			fmt.Fprintf(out, "%-12s %s @ %s (%s)\n", a, src.Git, src.Ref, rev)
+			ref := src.Ref
+			if ref == "" {
+				ref = "default branch"
+			}
+			fmt.Fprintf(out, "%-12s %s @ %s (%s)\n", a, src.Git, ref, rev)
 		} else {
 			fmt.Fprintf(out, "%-12s local %s\n", a, path)
 		}
@@ -164,18 +212,27 @@ func cmdSlice(args []string, out, errw io.Writer) error {
 	if err != nil {
 		return err
 	}
-	dir, err := oneWorkflow(fs, pos, errw)
+	arg, err := oneWorkflow(fs, pos, errw)
 	if err != nil {
 		return err
 	}
-	a, err := loadFlow(dir, *offline, false)
+	fe := newFetcher(*offline)
+	dir, err := argPath(arg, fe)
+	if err != nil {
+		return err
+	}
+	a, err := loadFlow(dir, fe)
 	if err != nil {
 		return err
 	}
 	if len(with) > 0 && len(a.Errors) == 0 {
 		var others []*flow.Analysis
 		for _, w := range with {
-			o, err := loadFlow(w, *offline, false)
+			wdir, err := argPath(w, fe)
+			if err != nil {
+				return err
+			}
+			o, err := loadFlow(wdir, fe)
 			if err != nil {
 				return err
 			}
@@ -199,7 +256,7 @@ func cmdSlice(args []string, out, errw io.Writer) error {
 		fmt.Fprintf(out, "\nwrote %s\n", *outFile)
 	}
 	if *export != "" {
-		if err := exportPieces(a, *export, out); err != nil {
+		if err := exportPieces(a, *export, fe, out); err != nil {
 			return err
 		}
 	}
@@ -228,6 +285,14 @@ func printAnalysis(w io.Writer, a *flow.Analysis) {
 		title = f.Slug
 	}
 	fmt.Fprintf(w, "%s (flow %s, version %d), end-to-end sheet %s\n", title, f.Slug, f.Version, a.Sheet.File)
+	if len(a.Revisions) > 0 {
+		var revs []string
+		for alias, rev := range a.Revisions {
+			revs = append(revs, alias+"@"+rev)
+		}
+		sort.Strings(revs)
+		fmt.Fprintf(w, "sources: %s\n", strings.Join(revs, ", "))
+	}
 	for i, b := range a.Boundaries {
 		if i > 0 {
 			st := a.Steps[i-1]
@@ -289,13 +354,13 @@ func writeFlowView(path string, a *flow.Analysis) error {
 
 // flowPage analyses a flow and renders it, printing problems to errw. check
 // adds the review layer to the plain view.
-func flowPage(dirs []string, title string, check bool, w io.Writer, errw io.Writer) error {
+func flowPage(dirs []string, title string, check bool, fe *sources.Fetcher, w io.Writer, errw io.Writer) error {
 	var as []*flow.Analysis
 	for _, d := range dirs {
 		if !isFlow(d) {
 			return fmt.Errorf("%s: several folders combine into one grid, so each must hold %s", d, flow.FileName)
 		}
-		a, err := loadFlow(d, false, false)
+		a, err := loadFlow(d, fe)
 		if err != nil {
 			return err
 		}
@@ -324,7 +389,7 @@ func flowPage(dirs []string, title string, check bool, w io.Writer, errw io.Writ
 }
 
 // exportPieces writes each team's piece and checks it on its own.
-func exportPieces(a *flow.Analysis, dir string, out io.Writer) error {
+func exportPieces(a *flow.Analysis, dir string, fe *sources.Fetcher, out io.Writer) error {
 	pieces, err := a.Export(dir)
 	if err != nil {
 		return err
@@ -339,7 +404,9 @@ func exportPieces(a *flow.Analysis, dir string, out io.Writer) error {
 		}
 		line += ", produces " + ex.Produces
 		fmt.Fprintln(out, line)
-		pa, err := loadFlow(ex.Dir, true, false)
+		offline := *fe
+		offline.Offline = true
+		pa, err := loadFlow(ex.Dir, &offline)
 		if err != nil {
 			return err
 		}
