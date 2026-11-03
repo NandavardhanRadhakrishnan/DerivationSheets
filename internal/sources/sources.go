@@ -12,8 +12,6 @@ package sources
 
 import (
 	"bytes"
-	"crypto/sha1"
-	"encoding/hex"
 	"fmt"
 	"os"
 	"os/exec"
@@ -28,7 +26,8 @@ const CacheDir = ".dsheets/sources"
 type Source struct {
 	Alias string
 	Git   string // clone URL
-	Ref   string // tag, branch or commit; required for git sources
+	Ref   string // branch to follow, or tag or commit to pin; "" = the default branch
+	Dir   string // folder inside the repository that the alias means; "" = the root
 	Path  string // local folder, relative to the flow folder
 }
 
@@ -45,6 +44,7 @@ type Resolver struct {
 	// Refresh fetches git sources even when a clone exists.
 	Refresh bool
 
+	fetcher  *Fetcher
 	resolved map[string]string // alias -> local root
 	revs     map[string]string // alias -> commit
 }
@@ -96,56 +96,21 @@ func (r *Resolver) root(alias string) (string, error) {
 			return "", fmt.Errorf("source %q: %v", alias, err)
 		}
 	case src.Git != "":
-		if src.Ref == "" {
-			return "", fmt.Errorf("source %q: a git source needs ref (a tag or commit), so every reader sees the same version", alias)
+		if r.fetcher == nil {
+			r.fetcher = NewFetcher(r.Cache)
+			r.fetcher.Offline = r.Offline
 		}
 		var err error
-		if root, err = r.fetch(src); err != nil {
+		var rev string
+		if root, rev, err = r.fetcher.Fetch(src); err != nil {
 			return "", fmt.Errorf("source %q: %v", alias, err)
 		}
+		r.revs[alias] = rev
 	default:
 		return "", fmt.Errorf("source %q needs git or path", alias)
 	}
 	r.resolved[alias] = root
 	return root, nil
-}
-
-// fetch clones or updates a git source and checks out its ref.
-func (r *Resolver) fetch(src Source) (string, error) {
-	sum := sha1.Sum([]byte(src.Git + "@" + src.Ref))
-	dir := filepath.Join(r.Cache, src.Alias+"-"+hex.EncodeToString(sum[:])[:10])
-	_, statErr := os.Stat(filepath.Join(dir, ".git"))
-	switch {
-	case statErr != nil && r.Offline:
-		return "", fmt.Errorf("not fetched yet and --offline is set; run fetch first")
-	case statErr != nil:
-		if err := os.MkdirAll(r.Cache, 0o755); err != nil {
-			return "", err
-		}
-		if _, err := git("", "clone", "--quiet", "--no-checkout", src.Git, dir); err != nil {
-			return "", err
-		}
-		if _, err := git(dir, "-c", "advice.detachedHead=false", "checkout", "--quiet", src.Ref); err != nil {
-			return "", err
-		}
-	case r.Refresh && !r.Offline:
-		if _, err := git(dir, "fetch", "--quiet", "--tags", "origin"); err != nil {
-			return "", err
-		}
-		target := src.Ref
-		if _, err := git(dir, "rev-parse", "--verify", "--quiet", "origin/"+src.Ref); err == nil {
-			target = "origin/" + src.Ref // a branch: follow the remote
-		}
-		if _, err := git(dir, "-c", "advice.detachedHead=false", "checkout", "--quiet", target); err != nil {
-			return "", err
-		}
-	}
-	rev, err := git(dir, "rev-parse", "--short", "HEAD")
-	if err != nil {
-		return "", err
-	}
-	r.revs[src.Alias] = rev
-	return dir, nil
 }
 
 // Fetched lists the resolved revision of each git source that was used.
