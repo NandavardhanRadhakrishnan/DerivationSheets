@@ -289,10 +289,9 @@ func TestImpactUnreachable(t *testing.T) {
 	}
 }
 
-func TestImpactFailsAtBase(t *testing.T) {
-	fx := setup(t, "", nil)
-	// A consumer flow broken before this change is reported as not checked,
-	// never as new or resolved.
+// breakConsumer commits an unrelated error into the consumer's flow.
+func (fx fixture) breakConsumer(t *testing.T) {
+	t.Helper()
 	path := filepath.Join(fx.orders, "sheets", "flows", "checkout-to-payment", "flow.toml")
 	text := read(t, path)
 	broken := strings.Replace(text, `computes  = ["customer_years", "loyalty_tier"]`, `computes  = ["customer_years", "loyalty_tier", "no_such_row"]`, 1)
@@ -301,12 +300,30 @@ func TestImpactFailsAtBase(t *testing.T) {
 	}
 	write(t, path, broken)
 	git(t, fx.orders, "commit", "-q", "-am", "break")
+}
+
+// A consumer flow already failing before this change is listed, its
+// unchanged error is neither new nor resolved, and it does not change the
+// exit code.
+func TestImpactFailsAtBase(t *testing.T) {
+	fx := setup(t, "", nil)
+	fx.breakConsumer(t)
+	r := fx.run(t, "shipping")
+	if len(r.New) != 0 || len(r.Resolved) != 0 || len(r.NotChecked) != 0 || r.ExitCode() != 0 {
+		t.Errorf("report = %+v", r)
+	}
+	if len(r.Failing) != 1 || r.Failing[0].Flow != "orders:flows/checkout-to-payment" || !strings.Contains(r.Failing[0].Reason, "no_such_row") {
+		t.Errorf("failing = %+v", r.Failing)
+	}
+}
+
+// A new error in a flow that already failed is still reported.
+func TestImpactFailsAtBaseNewError(t *testing.T) {
+	fx := setup(t, "", nil)
+	fx.breakConsumer(t)
 	write(t, fx.response(), dropField(read(t, fx.response()), "fee"))
 	r := fx.run(t, "shipping")
-	if len(r.New) != 0 || len(r.Resolved) != 0 {
-		t.Errorf("new %+v, resolved %+v", r.New, r.Resolved)
-	}
-	if len(r.NotChecked) != 1 || r.NotChecked[0].Flow != "orders:flows/checkout-to-payment" || r.ExitCode() != 3 {
-		t.Errorf("not checked = %+v", r.NotChecked)
+	if len(r.New) != 1 || !strings.Contains(r.New[0].Message, `"fee"`) || r.ExitCode() != 1 {
+		t.Errorf("new = %+v", r.New)
 	}
 }

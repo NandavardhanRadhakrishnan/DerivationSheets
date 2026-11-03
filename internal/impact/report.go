@@ -83,6 +83,12 @@ func (r *Report) WriteText(w io.Writer) error {
 			b.WriteString(fmt.Sprintf("  %s pins %s to %s\n", p.Flow, r.Self, p.Ref))
 		}
 	}
+	if len(r.Failing) > 0 {
+		b.WriteString("\nAlready failing before this change (only errors compared)\n")
+		for _, f := range r.Failing {
+			b.WriteString("  " + f.Flow + ": " + f.Reason + "\n")
+		}
+	}
 	if len(r.NotChecked) > 0 {
 		b.WriteString("\nNot checked\n")
 		for _, s := range r.NotChecked {
@@ -119,6 +125,9 @@ func (r *Report) WriteJSON(w io.Writer) error {
 	}
 	if out.NotChecked == nil {
 		out.NotChecked = []Skipped{}
+	}
+	if out.Failing == nil {
+		out.Failing = []Skipped{}
 	}
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
@@ -182,7 +191,7 @@ func (r *Report) WriteHTML(w io.Writer) error {
 	}
 	return page.Execute(w, map[string]any{
 		"Self": r.Self, "Summary": summary, "Groups": groups, "Views": views,
-		"Resolved": r.Resolved, "Pinned": r.Pinned, "NotChecked": r.NotChecked,
+		"Resolved": r.Resolved, "Pinned": r.Pinned, "NotChecked": r.NotChecked, "Failing": r.Failing,
 		"Generated": time.Now().Format("2 Jan 2006 15:04"),
 	})
 }
@@ -225,6 +234,9 @@ section.repo { background: var(--panel); border: 1px solid var(--line); border-r
 <ul>{{range .Resolved}}<li>{{.Flow}}{{if .Field}}, {{.Where}}: {{.Interface}} {{.Field}}{{else}}: {{.Message}}{{end}}</li>{{end}}</ul>{{end}}
 {{if .Pinned}}<h2>Pinned, not affected yet</h2>
 <ul>{{range .Pinned}}<li>{{.Flow}} pins {{$.Self}} to {{.Ref}}</li>{{end}}</ul>{{end}}
+{{if .Failing}}<h2>Already failing before this change</h2>
+<p class="muted">Only errors are compared for these flows.</p>
+<ul>{{range .Failing}}<li>{{.Flow}}: {{.Reason}}</li>{{end}}</ul>{{end}}
 {{if .NotChecked}}<h2>Not checked</h2>
 <ul>{{range .NotChecked}}<li>{{if .Flow}}{{.Flow}}{{else}}{{.Repo}}{{end}}: {{.Reason}}</li>{{end}}</ul>{{end}}
 {{range .Views}}

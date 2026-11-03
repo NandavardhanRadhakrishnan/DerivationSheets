@@ -59,7 +59,10 @@ type Report struct {
 	Resolved   []Finding `json:"resolved"`
 	Pinned     []Pinned  `json:"pinned"`
 	NotChecked []Skipped `json:"not_checked"`
-	Checked    int       `json:"checked"`
+	// Failing are flows with errors before this change: only their errors
+	// are compared, since their fields cannot be checked.
+	Failing []Skipped `json:"failing"`
+	Checked int       `json:"checked"`
 	// Views are the affected flows, analysed with this change, by flow name.
 	Views map[string]*flow.Analysis `json:"-"`
 }
@@ -141,17 +144,18 @@ func Run(o Options) (*Report, error) {
 				continue
 			}
 			b := analyze(dir, before)
-			if b == nil || len(b.Errors) > 0 {
-				reason := "does not load"
-				if b != nil {
-					reason = "already fails before this change: " + normalise(b.Errors[0].Message, paths)
-				}
-				r.NotChecked = append(r.NotChecked, Skipped{Repo: repo.alias, Flow: name, Reason: reason})
+			if b == nil {
+				r.NotChecked = append(r.NotChecked, Skipped{Repo: repo.alias, Flow: name, Reason: "does not load at the base branch"})
 				continue
 			}
 			a := analyze(dir, after)
 			r.Checked++
 			was, now := findings(repo.alias, name, b, paths), findings(repo.alias, name, a, paths)
+			if len(b.Errors) > 0 {
+				// Fields were never compared before, so only errors can be.
+				r.Failing = append(r.Failing, Skipped{Repo: repo.alias, Flow: name, Reason: normalise(b.Errors[0].Message, paths)})
+				now = errorsOnly(now)
+			}
 			added, gone := diff(was, now), diff(now, was)
 			if len(added) > 0 {
 				r.Views[name] = a
@@ -279,6 +283,16 @@ func findings(repo, name string, a *flow.Analysis, paths map[string]string) []Fi
 			}
 			out = append(out, Finding{Repo: repo, Flow: name, Interface: b.Iface.Name, Owner: b.Iface.Owner,
 				Where: where, Field: it.Field, Status: it.Status, Message: it.Reason()})
+		}
+	}
+	return out
+}
+
+func errorsOnly(fs []Finding) []Finding {
+	var out []Finding
+	for _, f := range fs {
+		if f.Status == StatusError {
+			out = append(out, f)
 		}
 	}
 	return out

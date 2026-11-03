@@ -43,6 +43,7 @@ func TestWriteTextSections(t *testing.T) {
 		Resolved:   []Finding{{Flow: "orders:flows/a", Where: "stage q", Interface: "quote-request", Field: "zone", Status: flow.Missing}},
 		Pinned:     []Pinned{{Repo: "orders", Flow: "orders:flows/b", Ref: "v1"}},
 		NotChecked: []Skipped{{Repo: "billing", Reason: "git fetch: not found"}},
+		Failing:    []Skipped{{Repo: "orders", Flow: "orders:flows/c", Reason: "computes \"x\""}},
 	}
 	var buf bytes.Buffer
 	if err := r.WriteText(&buf); err != nil {
@@ -50,7 +51,7 @@ func TestWriteTextSections(t *testing.T) {
 	}
 	out := buf.String()
 	for _, w := range []string{"Resolved by this change", "orders:flows/a", "Pinned, not affected yet", "orders:flows/b pins shipping to v1",
-		"Not checked", "billing: git fetch: not found", "No new problems in 1 checked flow"} {
+		"Not checked", "billing: git fetch: not found", "Already failing before this change", "orders:flows/c: computes", "No new problems in 1 checked flow"} {
 		if !strings.Contains(out, w) {
 			t.Errorf("output lacks %q:\n%s", w, out)
 		}
