@@ -35,6 +35,10 @@ type Finding struct {
 	Field     string `json:"field"`
 	Status    string `json:"status"` // flow.Missing, flow.Warn, or "error"
 	Message   string `json:"message"`
+	// Cause says why a missing field is new: the interface no longer has
+	// it (CauseRemoved), or the flow now needs a value the interface never
+	// carried (CauseNeeded). Empty for other findings.
+	Cause string `json:"cause,omitempty"`
 }
 
 // Skipped is a repository or flow that could not be checked.
@@ -81,6 +85,12 @@ func (r *Report) ExitCode() int {
 	}
 	return 0
 }
+
+// Causes of a new missing field.
+const (
+	CauseRemoved = "removed"
+	CauseNeeded  = "needed"
+)
 
 // Status of a finding that is a flow error rather than a field.
 const StatusError = "error"
@@ -157,13 +167,19 @@ func Run(o Options) (*Report, error) {
 			}
 			a := analyze(dir, after)
 			r.Checked++
-			was, now := findings(repo.alias, name, b, paths), findings(repo.alias, name, a, paths)
+			was := findings(repo.alias, name, b, paths, baseDir)
+			now := findings(repo.alias, name, a, paths, filepath.Join(root, filepath.FromSlash(selfSrc.Dir)))
 			if len(b.Errors) > 0 {
 				// Fields were never compared before, so only errors can be.
 				r.Failing = append(r.Failing, Skipped{Repo: repo.alias, Flow: name, Reason: normalise(b.Errors[0].Message, paths)})
 				now = errorsOnly(now)
 			}
 			added, gone := diff(was, now), diff(now, was)
+			for i := range added {
+				if added[i].Status == flow.Missing {
+					added[i].Cause = causeOf(b, added[i])
+				}
+			}
 			if len(added) > 0 {
 				r.Views[name] = a
 			}
@@ -283,7 +299,10 @@ func analyze(dir string, fe *sources.Fetcher) *flow.Analysis {
 }
 
 // findings lists every missing or unfit field and every error of a flow.
-func findings(repo, name string, a *flow.Analysis, paths map[string]string) []Finding {
+// selfRoot is where this repository's files were read from: a field missing
+// from one of its own interfaces is not followed by advice to ask its owner,
+// since that owner is the team running the check.
+func findings(repo, name string, a *flow.Analysis, paths map[string]string, selfRoot string) []Finding {
 	var out []Finding
 	for _, p := range a.Errors {
 		out = append(out, Finding{Repo: repo, Flow: name, Status: StatusError, Message: normalise(p.Message, paths)})
@@ -292,19 +311,53 @@ func findings(repo, name string, a *flow.Analysis, paths map[string]string) []Fi
 		if b.Iface == nil {
 			continue
 		}
-		where := b.Role
-		if b.Role != flow.RoleInput && b.Role != flow.RoleOutput {
-			where = "stage " + b.StageID
-		}
+		own := within(selfRoot, b.Iface.File)
 		for _, it := range b.Items {
 			if it.Status != flow.Missing && it.Status != flow.Warn {
 				continue
 			}
+			msg := it.Reason()
+			if own && it.Status == flow.Missing && it.Row != "" {
+				msg = "missing; needed by " + strings.Join(it.Consumers, ", ")
+			}
 			out = append(out, Finding{Repo: repo, Flow: name, Interface: b.Iface.Name, Owner: b.Iface.Owner,
-				Where: where, Field: it.Field, Status: it.Status, Message: it.Reason()})
+				Where: whereOf(b), Field: it.Field, Status: it.Status, Message: msg})
 		}
 	}
 	return out
+}
+
+// whereOf names a boundary's place in its flow.
+func whereOf(b *flow.Boundary) string {
+	if b.Role == flow.RoleInput || b.Role == flow.RoleOutput {
+		return b.Role
+	}
+	return "stage " + b.StageID
+}
+
+// causeOf tells whether a new missing field was removed from the interface
+// or is newly needed: before is the flow's analysis at the base branch.
+func causeOf(before *flow.Analysis, f Finding) string {
+	for _, b := range before.Boundaries {
+		if b.Iface == nil || b.Iface.Name != f.Interface || whereOf(b) != f.Where {
+			continue
+		}
+		for _, field := range b.Iface.Fields {
+			if field.Name == f.Field {
+				return CauseRemoved
+			}
+		}
+	}
+	return CauseNeeded
+}
+
+// within reports whether path lies inside dir.
+func within(dir, path string) bool {
+	if dir == "" {
+		return false
+	}
+	r, err := filepath.Rel(dir, path)
+	return err == nil && r != ".." && !strings.HasPrefix(r, ".."+string(filepath.Separator)) && !filepath.IsAbs(r)
 }
 
 func errorsOnly(fs []Finding) []Finding {

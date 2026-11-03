@@ -189,6 +189,11 @@ func TestImpactDroppedField(t *testing.T) {
 		f.Where != "stage shipping-quote" || !strings.Contains(f.Message, "needed by") {
 		t.Errorf("finding = %+v", f)
 	}
+	// Shipping removed the field from its own interface: the report does not
+	// tell Shipping to ask itself to add it back.
+	if f.Cause != CauseRemoved || strings.Contains(f.Message, "ask ") {
+		t.Errorf("cause %q, message %q", f.Cause, f.Message)
+	}
 	if r.Views[f.Flow] == nil {
 		t.Error("no view kept for the affected flow")
 	}

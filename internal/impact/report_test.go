@@ -93,3 +93,35 @@ func TestWriteHTML(t *testing.T) {
 		}
 	}
 }
+
+// A value the flow newly needs, which the interface never carried, is not
+// reported as a field the interface lost.
+func TestWriteTextNewNeed(t *testing.T) {
+	r := &Report{Self: "shipping", Checked: 1, New: []Finding{{Repo: "orders", Flow: "orders:flows/checkout-to-payment",
+		Interface: "order-placed", Owner: "Orders team", Where: "stage order-placed", Field: "giftWrap",
+		Status: flow.Missing, Cause: CauseNeeded, Message: "missing; needed by Gift wrap (Orders team); ask Orders team to add it"}}}
+	var buf bytes.Buffer
+	if err := r.WriteText(&buf); err != nil {
+		t.Fatal(err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "orders:flows/checkout-to-payment now needs giftWrap, which order-placed (Orders team) does not carry\n") ||
+		strings.Contains(out, "no longer carries") {
+		t.Errorf("output:\n%s", out)
+	}
+}
+
+func TestCauseOf(t *testing.T) {
+	f, err := flow.Load(filepath.Join(repoRoot, "flows", "checkout-to-payment"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := flow.Analyze(f, sources.NewResolver(f.Dir, f.Sources, sources.NewFetcher(t.TempDir())))
+	cases := map[string]string{"weightKg": CauseRemoved, "giftWrap": CauseNeeded}
+	for field, want := range cases {
+		got := causeOf(before, Finding{Interface: "order-placed", Where: "stage order-placed", Field: field, Status: flow.Missing})
+		if got != want {
+			t.Errorf("causeOf(%s) = %q; want %q", field, got, want)
+		}
+	}
+}

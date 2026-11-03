@@ -153,14 +153,21 @@ change introduces is reported:
 
 ```
 quote-request (Shipping team) no longer carries zone
-  orders:flows/checkout-to-payment, stage shipping-quote: needed by Shipping fee (Shipping team); ask Shipping team to add it
+  orders:flows/checkout-to-payment, stage shipping-quote: needed by Shipping fee (Shipping team)
 
 Pinned, not affected yet
   orders:flows/pinned pins shipping to v1
 
-sources: orders@1f3c2ab, shipping (base)@9d41e07
+sources: orders@2c99338, registry@69d52ae, shipping (base)@148cbcc
 1 new problem in 1 checked flow
 ```
+
+A heading says what changed. *no longer carries* means the interface lost
+the field. When the change instead makes a flow need a value an interface
+never carried (a new row in a sheet this repository owns, say), the heading
+names the flow: *orders:flows/checkout-to-payment now needs giftWrap, which
+order-placed (Orders team) does not carry*, and the line under it says which
+team would add the field.
 
 The report also lists problems the change **resolves**; flows that **pin**
 this repository to a tag or commit (not affected until that team moves the

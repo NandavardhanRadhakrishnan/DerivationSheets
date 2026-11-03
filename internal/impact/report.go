@@ -22,6 +22,9 @@ func heading(f Finding) string {
 	}
 	switch f.Status {
 	case flow.Missing:
+		if f.Cause == CauseNeeded {
+			return f.Flow + " now needs " + f.Field + ", which " + iface + " does not carry"
+		}
 		return iface + " no longer carries " + f.Field
 	case flow.Warn:
 		return iface + " " + f.Field + " no longer fits"
