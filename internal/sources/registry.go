@@ -1,6 +1,8 @@
 package sources
 
 import (
+	"fmt"
+	"path"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -54,10 +56,84 @@ func repoKey(u string) string {
 	} else if m := scpLike.FindStringSubmatch(u); m != nil {
 		u = m[1] + "/" + m[2]
 	}
-	host, path, _ := strings.Cut(u, "/")
+	host, p, _ := strings.Cut(u, "/")
 	if i := strings.Index(host, ":"); i >= 0 {
 		host = host[:i] // a port
 	}
-	path = strings.TrimSuffix(strings.Trim(path, "/"), ".git")
-	return strings.ToLower(host + "/" + path)
+	p = strings.TrimSuffix(strings.Trim(p, "/"), ".git")
+	return strings.ToLower(host + "/" + p)
+}
+
+// ParseGitmodules reads a registry's .gitmodules. Each submodule's name is an
+// alias; url is where to fetch it, branch the branch to follow ("." or none:
+// the default branch), and the dsheets key the folder that holds its sheets.
+// base is the registry's own clone URL or folder, which relative URLs such as
+// "../orders-sheets.git" are resolved against. The commit git records for
+// each submodule is not used: references follow the branch.
+func ParseGitmodules(text, base string) (map[string]Source, error) {
+	out := map[string]Source{}
+	name := ""
+	for n, line := range strings.Split(text, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || line[0] == '#' || line[0] == ';' {
+			continue
+		}
+		if strings.HasPrefix(line, "[") {
+			m := sectionLine.FindStringSubmatch(line)
+			name = ""
+			if m != nil {
+				name = m[1]
+				out[name] = Source{Alias: name}
+			}
+			continue
+		}
+		if name == "" {
+			continue
+		}
+		key, value, ok := strings.Cut(line, "=")
+		if !ok {
+			return nil, fmt.Errorf(".gitmodules:%d: expected key = value", n+1)
+		}
+		value = strings.Trim(strings.TrimSpace(value), `"`)
+		s := out[name]
+		switch strings.ToLower(strings.TrimSpace(key)) {
+		case "url":
+			s.Git = resolveURL(base, value)
+		case "branch":
+			if value != "." {
+				s.Ref = value
+			}
+		case "dsheets":
+			s.Dir = strings.Trim(value, "/")
+		}
+		out[name] = s
+	}
+	for n, s := range out {
+		if s.Git == "" {
+			return nil, fmt.Errorf(".gitmodules: submodule %q has no url", n)
+		}
+	}
+	return out, nil
+}
+
+var sectionLine = regexp.MustCompile(`^\[\s*submodule\s+"([^"]+)"\s*\]$`)
+
+// resolveURL resolves a relative submodule URL ("./x", "../x") against the
+// registry's URL or folder, as git does: the registry's URL counts as a
+// folder, so "../x" is a sibling repository.
+func resolveURL(base, u string) string {
+	if !strings.HasPrefix(u, "./") && !strings.HasPrefix(u, "../") {
+		return u
+	}
+	base = strings.TrimRight(filepath.ToSlash(base), "/")
+	prefix := ""
+	if loc := scheme.FindStringIndex(base); loc != nil {
+		rest := base[loc[1]:]
+		host, p, _ := strings.Cut(rest, "/")
+		prefix, base = base[:loc[1]]+host, "/"+p
+	} else if m := scpLike.FindStringSubmatch(base); m != nil && !winDrive.MatchString(base) {
+		i := strings.Index(base, ":")
+		prefix, base = base[:i+1], base[i+1:]
+	}
+	return prefix + path.Join(base, u)
 }
