@@ -100,3 +100,15 @@ func TestCombinePieces(t *testing.T) {
 		t.Errorf("%d values, want 18 as in the end-to-end flow", len(seen))
 	}
 }
+
+func TestSheetFromSourceShowsRevision(t *testing.T) {
+	f, err := flow.Load(filepath.Join("..", "..", "flows", "checkout-to-payment"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := flow.Analyze(f, sources.NewResolver(f.Dir, f.Sources, sources.NewFetcher(t.TempDir())))
+	a.Flow.SheetRef, a.SheetRev = "product:specs/order-checkout", "abc1234"
+	if got := Build(a, time.Now(), false).SheetPath; got != "product:specs/order-checkout @ abc1234" {
+		t.Errorf("SheetPath = %q", got)
+	}
+}

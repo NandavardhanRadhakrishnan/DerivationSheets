@@ -2,6 +2,7 @@ package flow
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -209,6 +210,59 @@ func TestExportWritesDir(t *testing.T) {
 	want := `shipping = { git = "https://example.com/shipping.git", dir = "sheets" }`
 	if !strings.Contains(string(data), want) {
 		t.Errorf("exported flow.toml lacks %s:\n%s", want, data)
+	}
+}
+
+// gitSource commits the shipping interfaces and the example sheet into a
+// repository and returns its file:// URL.
+func gitSource(t *testing.T) string {
+	t.Helper()
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed")
+	}
+	dir := t.TempDir()
+	copyTree := func(src, dst string) {
+		filepath.WalkDir(src, func(p string, d os.DirEntry, err error) error {
+			if err != nil || d.IsDir() {
+				return err
+			}
+			rel, _ := filepath.Rel(src, p)
+			data, _ := os.ReadFile(p)
+			os.MkdirAll(filepath.Dir(filepath.Join(dst, rel)), 0o755)
+			return os.WriteFile(filepath.Join(dst, rel), data, 0o644)
+		})
+	}
+	copyTree(filepath.Join("..", "..", "interfaces", "shipping"), dir)
+	copyTree(filepath.Join("..", "..", "specs", "order-checkout"), filepath.Join(dir, "order-checkout"))
+	for _, args := range [][]string{{"init", "-q", "-b", "main"}, {"add", "."}, {"-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "-m", "x"}} {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	return "file://" + filepath.ToSlash(dir)
+}
+
+func TestRevisionsKeptOnFailure(t *testing.T) {
+	url := gitSource(t)
+	a := example(t, func(f *Flow) {
+		f.Sources["shipping"] = sources.Source{Alias: "shipping", Git: url}
+		f.Output.Producer = "Payments team" // an error, found after the interfaces load
+	})
+	if len(a.Errors) == 0 || a.Revisions["shipping"] == "" {
+		t.Errorf("errors %v, revisions %v", a.Errors, a.Revisions)
+	}
+}
+
+func TestSheetRevision(t *testing.T) {
+	url := gitSource(t)
+	a := example(t, func(f *Flow) {
+		f.Sources["shipping"] = sources.Source{Alias: "shipping", Git: url}
+		f.SheetRef = "shipping:order-checkout"
+	})
+	if len(a.Errors) > 0 || a.SheetRev == "" {
+		t.Errorf("errors %v, sheet revision %q", a.Errors, a.SheetRev)
 	}
 }
 

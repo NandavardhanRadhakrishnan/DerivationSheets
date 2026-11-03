@@ -161,6 +161,15 @@ func TestImpactNoChange(t *testing.T) {
 	if len(r.New) != 0 || len(r.NotChecked) != 0 || r.Checked != 1 || r.ExitCode() != 0 {
 		t.Errorf("report = %+v", r)
 	}
+	// The commits compared are named, so a run can be reproduced.
+	if r.Sources["orders"] == "" || r.Sources["shipping (base)"] == "" {
+		t.Errorf("sources = %v", r.Sources)
+	}
+	var buf strings.Builder
+	r.WriteText(&buf)
+	if !strings.Contains(buf.String(), "sources: orders@"+r.Sources["orders"]) {
+		t.Errorf("text lacks the sources line:\n%s", buf.String())
+	}
 }
 
 func (fx fixture) request() string {

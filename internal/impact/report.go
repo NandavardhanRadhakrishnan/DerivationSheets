@@ -102,6 +102,14 @@ func (r *Report) WriteText(w io.Writer) error {
 	if len(heads) > 0 || b.Len() > 0 {
 		b.WriteString("\n")
 	}
+	if len(r.Sources) > 0 {
+		var revs []string
+		for alias, rev := range r.Sources {
+			revs = append(revs, alias+"@"+rev)
+		}
+		sort.Strings(revs)
+		b.WriteString("sources: " + strings.Join(revs, ", ") + "\n")
+	}
 	checked := plural(r.Checked, "checked flow", "checked flows")
 	if len(r.New) == 0 {
 		b.WriteString("No new problems in " + checked + "\n")

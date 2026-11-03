@@ -63,6 +63,9 @@ type Report struct {
 	// are compared, since their fields cannot be checked.
 	Failing []Skipped `json:"failing"`
 	Checked int       `json:"checked"`
+	// Sources name the commit of each repository compared: the consumers,
+	// and this repository's base as "<alias> (base)".
+	Sources map[string]string `json:"sources"`
 	// Views are the affected flows, analysed with this change, by flow name.
 	Views map[string]*flow.Analysis `json:"-"`
 }
@@ -100,17 +103,18 @@ func Run(o Options) (*Report, error) {
 	}
 	selfSrc := reg[self]
 	selfSrc.Dir = sources.CleanDir(selfSrc.Dir)
-	r := &Report{Self: self, Views: map[string]*flow.Analysis{}}
+	r := &Report{Self: self, Views: map[string]*flow.Analysis{}, Sources: map[string]string{}}
 
 	// The base branch of this repository, fetched like any other source.
 	baseSrc := selfSrc
 	if o.Base != "" {
 		baseSrc.Ref = o.Base
 	}
-	baseDir, _, err := o.Fetcher.Fetch(baseSrc)
+	baseDir, baseRev, err := o.Fetcher.Fetch(baseSrc)
 	if err != nil {
 		return nil, fmt.Errorf("fetching %s at its base branch: %v", self, err)
 	}
+	r.Sources[self+" (base)"] = baseRev
 	baseRoot := strings.TrimSuffix(baseDir, filepath.FromSlash(selfSrc.Dir))
 	before := o.Fetcher.WithSubstitute(&sources.Substitute{URL: selfSrc.Git, Root: filepath.Clean(baseRoot)})
 	after := o.Fetcher.WithSubstitute(&sources.Substitute{URL: selfSrc.Git, Root: root})
@@ -122,13 +126,15 @@ func Run(o Options) (*Report, error) {
 	}
 
 	for _, repo := range consumers(res, reg, self) {
-		repoRoot, _, err := o.Fetcher.Fetch(repo.src)
-		if repo.local != "" {
-			repoRoot, err = repo.local, nil
-		}
-		if err != nil {
-			r.NotChecked = append(r.NotChecked, Skipped{Repo: repo.alias, Reason: err.Error()})
-			continue
+		repoRoot := repo.local
+		if repoRoot == "" {
+			var rev string
+			var err error
+			if repoRoot, rev, err = o.Fetcher.Fetch(repo.src); err != nil {
+				r.NotChecked = append(r.NotChecked, Skipped{Repo: repo.alias, Reason: err.Error()})
+				continue
+			}
+			r.Sources[repo.alias] = rev
 		}
 		for _, dir := range flowDirs(repoRoot) {
 			name := repo.alias + ":" + rel(repoRoot, dir)
