@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/pelletier/go-toml/v2"
 )
@@ -53,6 +54,9 @@ func LoadProject(root string) (*Project, error) {
 			if !ok {
 				return nil, fmt.Errorf("%s: registry must be a table such as { git = \"…\" } or { path = \".\" }", file)
 			}
+			if err := knownKeys(file, "registry", m, "git", "ref", "path"); err != nil {
+				return nil, err
+			}
 			src := sourceFrom("registry", m, root)
 			if src.Git == "" && src.Path == "" {
 				return nil, fmt.Errorf("%s: registry needs git or path", file)
@@ -69,6 +73,9 @@ func LoadProject(root string) (*Project, error) {
 				if !ok {
 					return nil, fmt.Errorf("%s: sources.%s must be a table such as { git = \"…\" }", file, alias)
 				}
+				if err := knownKeys(file, "sources."+alias, sm, "git", "ref", "dir", "path"); err != nil {
+					return nil, err
+				}
 				p.Sources[alias] = sourceFrom(alias, sm, root)
 			}
 		}
@@ -81,6 +88,25 @@ func LoadProject(root string) (*Project, error) {
 		}
 	}
 	return p, nil
+}
+
+// knownKeys rejects keys a source does not take, so a typo such as
+// branch for ref is not silently ignored.
+func knownKeys(file, where string, m map[string]any, keys ...string) error {
+	for k := range m {
+		ok := false
+		for _, want := range keys {
+			ok = ok || k == want
+		}
+		if !ok {
+			hint := ""
+			if k == "branch" {
+				hint = "; the branch to follow goes in ref"
+			}
+			return fmt.Errorf("%s: %s.%s: unknown key; expected %s%s", file, where, k, strings.Join(keys, ", "), hint)
+		}
+	}
+	return nil
 }
 
 // SourceFrom reads one [sources] entry. A relative path is resolved against

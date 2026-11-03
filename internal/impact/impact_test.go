@@ -338,3 +338,12 @@ func TestImpactDirSpelledWithDot(t *testing.T) {
 		t.Errorf("report = %+v", r)
 	}
 }
+
+func TestImpactUnknownSelfHidesToken(t *testing.T) {
+	fx := setup(t, "", nil)
+	git(t, fx.tree, "remote", "set-url", "origin", "https://x-access-token:SECRET123@example.com/elsewhere.git")
+	_, err := Run(Options{Root: fx.tree, Fetcher: sources.NewFetcher(fx.cache)})
+	if err == nil || strings.Contains(err.Error(), "SECRET123") || !strings.Contains(err.Error(), "example.com/elsewhere") {
+		t.Errorf("error = %v", err)
+	}
+}

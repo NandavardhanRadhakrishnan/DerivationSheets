@@ -212,3 +212,17 @@ func TestUnknownAlias(t *testing.T) {
 		t.Errorf("error = %v", err)
 	}
 }
+
+func TestLoadProjectUnknownKeys(t *testing.T) {
+	for _, text := range []string{
+		"registry = { git = \"https://example.com/r.git\", branch = \"main\" }\n",
+		"[sources]\nx = { git = \"https://example.com/x.git\", folder = \"sheets\" }\n",
+	} {
+		root := t.TempDir()
+		write(t, filepath.Join(root, ProjectFile), text)
+		_, err := LoadProject(root)
+		if err == nil || !strings.Contains(err.Error(), "unknown key") {
+			t.Errorf("%q: error = %v", text, err)
+		}
+	}
+}

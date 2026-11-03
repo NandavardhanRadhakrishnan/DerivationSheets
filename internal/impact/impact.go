@@ -187,7 +187,19 @@ func findSelf(o Options, root string, reg map[string]sources.Source) (string, er
 			}
 		}
 	}
-	return "", fmt.Errorf("this repository's origin (%s) is not in the registry; name its alias with --as", origin)
+	return "", fmt.Errorf("this repository's origin (%s) is not in the registry; name its alias with --as", redact(origin))
+}
+
+// redact drops user information from a URL, such as a token that a git
+// insteadOf rule put there, before it is printed.
+func redact(u string) string {
+	if i := strings.Index(u, "://"); i >= 0 {
+		rest := u[i+3:]
+		if at := strings.Index(rest, "@"); at >= 0 && at < strings.IndexAny(rest+"/", "/") {
+			return u[:i+3] + rest[at+1:]
+		}
+	}
+	return u
 }
 
 type consumer struct {
