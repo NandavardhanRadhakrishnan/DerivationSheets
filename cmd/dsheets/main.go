@@ -20,6 +20,7 @@ import (
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/evidence"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/render"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sheet"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sources"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/validate"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/verify"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/schema"
@@ -562,6 +563,30 @@ func cmdServe(args []string, out, errw io.Writer) error {
 	if err != nil {
 		return err
 	}
+	h := serveHandler(pos, serveOptions{Title: *title, Check: *check, EvidenceDir: *evDir, Mode: mode}, fe, errw)
+	ln, err := net.Listen("tcp", *addr)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(out, "serving %s at http://%s/ (re-rendered on every request; Ctrl+C to stop)\n", dir, ln.Addr())
+	return http.Serve(ln, h)
+}
+
+// serveOptions are the page settings serve passes to every request.
+type serveOptions struct {
+	Title, EvidenceDir, Mode string
+	Check                    bool
+}
+
+// serveHandler re-renders the page on every request. Arguments given as
+// alias:path are resolved again each time, so a flow from another
+// repository follows its branch; the fetcher's MaxAge keeps that cheap.
+func serveHandler(pos []string, o serveOptions, fe *sources.Fetcher, errw io.Writer) http.Handler {
+	fail := func(w http.ResponseWriter, msgs *bytes.Buffer, err error) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		fmt.Fprintf(w, "%s%v\n", msgs.String(), err)
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
@@ -569,23 +594,24 @@ func cmdServe(args []string, out, errw io.Writer) error {
 			return
 		}
 		var msgs bytes.Buffer
-		if isFlow(dir) {
+		dirs, err := argPaths(pos, fe)
+		if err != nil {
+			fail(w, &msgs, err)
+			return
+		}
+		if isFlow(dirs[0]) {
 			var buf bytes.Buffer
-			if err := flowPage(dirs, *title, *check, fe, &buf, &msgs); err != nil {
-				w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-				w.WriteHeader(http.StatusUnprocessableEntity)
-				fmt.Fprintf(w, "%s%v\n", msgs.String(), err)
+			if err := flowPage(dirs, o.Title, o.Check, fe, &buf, &msgs); err != nil {
+				fail(w, &msgs, err)
 				return
 			}
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			w.Write(buf.Bytes())
 			return
 		}
-		page, err := buildPage(dir, *evDir, mode, "", &msgs)
+		page, err := buildPage(dirs[0], o.EvidenceDir, o.Mode, "", &msgs)
 		if err != nil {
-			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-			w.WriteHeader(http.StatusUnprocessableEntity)
-			fmt.Fprintf(w, "%s%v\n", msgs.String(), err)
+			fail(w, &msgs, err)
 			return
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -593,12 +619,7 @@ func cmdServe(args []string, out, errw io.Writer) error {
 			fmt.Fprintln(errw, err)
 		}
 	})
-	ln, err := net.Listen("tcp", *addr)
-	if err != nil {
-		return err
-	}
-	fmt.Fprintf(out, "serving %s at http://%s/ (re-rendered on every request; Ctrl+C to stop)\n", dir, ln.Addr())
-	return http.Serve(ln, mux)
+	return mux
 }
 
 func cmdSchema(args []string, out, errw io.Writer) error {

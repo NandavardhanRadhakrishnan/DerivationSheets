@@ -126,6 +126,9 @@ repository root. Display settings keep their own rule (the nearest
   fetch is a minute old.
 - Clones live in `.dsheets/sources/` at the root of the repository where the
   command runs (git-ignored). Git uses your normal credentials.
+- git never prompts for a password: a missing token fails at once. A cached
+  copy left half-made (an interrupted fetch, a restored CI cache) is fetched
+  again from scratch.
 - `--offline` (on `slice`, `render`, `serve` and `impact`) uses only what is
   cached. `dsheets fetch <flow>` fills the cache ahead of an offline run.
 - The text report names each git source and the commit it resolved to
@@ -155,13 +158,17 @@ quote-request (Shipping team) no longer carries zone
 Pinned, not affected yet
   orders:flows/pinned pins shipping to v1
 
+sources: orders@1f3c2ab, shipping (base)@9d41e07
 1 new problem in 1 checked flow
 ```
 
-The report also lists problems the change **resolves**, flows that **pin**
+The report also lists problems the change **resolves**; flows that **pin**
 this repository to a tag or commit (not affected until that team moves the
-pin), and anything **not checked**: a repository that could not be fetched,
-or a flow that already fails at the base branch.
+pin; a flow that also reads it through a followed alias is checked); flows
+**already failing** before the change, for which only errors are compared;
+and anything **not checked**, such as a repository that could not be
+fetched. A last `sources:` line names the commit of each repository
+compared, including this repository's base.
 
 | Exit code | Meaning |
 |---|---|

@@ -2,11 +2,14 @@ package main
 
 import (
 	"bytes"
+	"io"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // inConsumer runs the test from a fresh repository whose dsheets.toml names
@@ -96,5 +99,68 @@ func TestSliceUnknownAliasArgument(t *testing.T) {
 	err := run([]string{"slice", "nope:flows/x"}, &out, &errw)
 	if err == nil || !strings.Contains(err.Error(), "nope") {
 		t.Errorf("error = %v", err)
+	}
+}
+
+// gitRepoOfExample commits the example flow, sheet and interfaces into a
+// repository, keeping their relative layout, and returns it.
+func gitRepoOfExample(t *testing.T) string {
+	t.Helper()
+	self, _ := filepath.Abs(filepath.Join("..", ".."))
+	dir := t.TempDir()
+	for _, sub := range []string{"flows/checkout-to-payment", "specs/order-checkout", "interfaces"} {
+		src := filepath.Join(self, filepath.FromSlash(sub))
+		filepath.WalkDir(src, func(p string, d os.DirEntry, err error) error {
+			if err != nil || d.IsDir() {
+				return err
+			}
+			rel, _ := filepath.Rel(self, p)
+			data, _ := os.ReadFile(p)
+			os.MkdirAll(filepath.Dir(filepath.Join(dir, rel)), 0o755)
+			return os.WriteFile(filepath.Join(dir, rel), data, 0o644)
+		})
+	}
+	gitIn(t, dir, "init", "-q", "-b", "main")
+	gitIn(t, dir, "add", ".")
+	gitIn(t, dir, "commit", "-q", "-m", "example")
+	return dir
+}
+
+func gitIn(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", append([]string{"-c", "user.name=t", "-c", "user.email=t@example.com"}, args...)...)
+	cmd.Dir = dir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
+}
+
+// A served flow given as alias:path follows its branch on reload.
+func TestServeRefetchesAliasFlows(t *testing.T) {
+	repo := gitRepoOfExample(t)
+	inConsumer(t)
+	cwd, _ := os.Getwd()
+	os.WriteFile(filepath.Join(cwd, "dsheets.toml"), []byte("[sources]\nup = { git = \"file://"+filepath.ToSlash(repo)+"\" }\n"), 0o644)
+	fe := newFetcher(false)
+	fe.MaxAge = time.Nanosecond
+	h := serveHandler([]string{"up:flows/checkout-to-payment"}, serveOptions{}, fe, io.Discard)
+	get := func() string {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest("GET", "/", nil))
+		if rec.Code != 200 {
+			t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+		}
+		return rec.Body.String()
+	}
+	if !strings.Contains(get(), "Checkout to payment") {
+		t.Fatal("first page lacks the flow title")
+	}
+	path := filepath.Join(repo, "flows", "checkout-to-payment", "flow.toml")
+	data, _ := os.ReadFile(path)
+	os.WriteFile(path, []byte(strings.Replace(string(data), `title   = "Checkout to payment"`, `title   = "Checkout renamed"`, 1)), 0o644)
+	gitIn(t, repo, "commit", "-q", "-am", "rename")
+	time.Sleep(time.Millisecond)
+	if !strings.Contains(get(), "Checkout renamed") {
+		t.Error("reload still shows the startup commit")
 	}
 }
