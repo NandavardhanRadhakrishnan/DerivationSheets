@@ -255,7 +255,14 @@ func (a *Analysis) exportPiece(n int, p Piece, pdir string, lines []string) (Exp
 		for _, al := range aliases {
 			src := a.Flow.Sources[al]
 			if src.Git != "" {
-				fmt.Fprintf(&fb, "%s = { git = %q, ref = %q }\n", al, src.Git, src.Ref)
+				entry := fmt.Sprintf("git = %q", src.Git)
+				if src.Ref != "" {
+					entry += fmt.Sprintf(", ref = %q", src.Ref)
+				}
+				if src.Dir != "" {
+					entry += fmt.Sprintf(", dir = %q", src.Dir)
+				}
+				fmt.Fprintf(&fb, "%s = { %s }\n", al, entry)
 			} else {
 				fmt.Fprintf(&fb, "%s = { path = %q }\n", al, relocate(a.Flow.Dir, src.Path, pdir))
 			}

@@ -1,6 +1,7 @@
 package flow
 
 import (
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -136,6 +137,78 @@ func TestStructureErrors(t *testing.T) {
 		if !ok {
 			t.Errorf("no error containing %q in %v", w, a.Errors)
 		}
+	}
+}
+
+func TestSheetFromSource(t *testing.T) {
+	specs, err := filepath.Abs(filepath.Join("..", "..", "specs"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := example(t, func(f *Flow) {
+		f.SheetRef = "spec:order-checkout"
+		f.Sources["spec"] = sources.Source{Alias: "spec", Path: specs}
+	})
+	if len(a.Errors) > 0 {
+		t.Fatal(a.Errors)
+	}
+	if filepath.Base(a.SheetDir) != "order-checkout" || a.Sheet == nil {
+		t.Errorf("sheet loaded from %q", a.SheetDir)
+	}
+}
+
+func TestSheetRefDefault(t *testing.T) {
+	f, err := Load(filepath.Join("..", "..", "flows", "loyalty-report"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.SheetRef != "." {
+		t.Errorf("SheetRef = %q", f.SheetRef)
+	}
+}
+
+func TestAliases(t *testing.T) {
+	a := example(t, nil)
+	if got := a.Flow.Aliases(); !slices.Equal(got, []string{"shipping"}) {
+		t.Errorf("Aliases() = %v", got)
+	}
+	a = example(t, func(f *Flow) { f.SheetRef = "spec:order-checkout"; f.Input.Interface = "web:in.toml" })
+	if got := a.Flow.Aliases(); !slices.Equal(got, []string{"shipping", "spec", "web"}) {
+		t.Errorf("Aliases() = %v", got)
+	}
+}
+
+func TestResolverWarningsReported(t *testing.T) {
+	f, err := Load(filepath.Join("..", "..", "flows", "checkout-to-payment"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := sources.NewResolver(f.Dir, f.Sources, sources.NewFetcher(t.TempDir()))
+	r.Warnings = append(r.Warnings, "advice from the resolver")
+	a := Analyze(f, r)
+	ok := false
+	for _, w := range a.Warnings {
+		ok = ok || w.Message == "advice from the resolver"
+	}
+	if !ok {
+		t.Errorf("warnings = %v", a.Warnings)
+	}
+}
+
+func TestExportWritesDir(t *testing.T) {
+	a := example(t, nil)
+	a.Flow.Sources = map[string]sources.Source{"shipping": {Alias: "shipping", Git: "https://example.com/shipping.git", Dir: "sheets"}}
+	pieces, err := a.Export(filepath.Join(t.TempDir(), "pieces"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(pieces[0].Dir, FileName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `shipping = { git = "https://example.com/shipping.git", dir = "sheets" }`
+	if !strings.Contains(string(data), want) {
+		t.Errorf("exported flow.toml lacks %s:\n%s", want, data)
 	}
 }
 

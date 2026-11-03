@@ -44,6 +44,8 @@ type Analysis struct {
 	Flow   *Flow
 	Sheet  *sheet.Sheet
 	Engine *eval.Engine
+	// SheetDir is where the end-to-end sheet was loaded from.
+	SheetDir string
 
 	Boundaries []*Boundary
 	Steps      []*Step
@@ -114,7 +116,18 @@ type Step struct {
 func Analyze(f *Flow, resolve *sources.Resolver) *Analysis {
 	a := &Analysis{Flow: f, Place: map[string]int{}, Transit: map[int]map[string]string{}}
 	a.Errors = append(a.Errors, f.Problems...)
-	s, err := sheet.Load(f.SheetDir)
+	defer func() {
+		for _, w := range resolve.Warnings {
+			a.warn(0, "%s", w)
+		}
+	}()
+	dir, _, err := resolve.Resolve(f.SheetRef)
+	if err != nil {
+		a.fail(f.Line("sheet"), "end-to-end sheet %s: %v", f.SheetRef, err)
+		return a
+	}
+	a.SheetDir = dir
+	s, err := sheet.Load(dir)
 	if err != nil {
 		a.fail(0, "end-to-end sheet: %v", err)
 		return a
