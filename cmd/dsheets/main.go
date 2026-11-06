@@ -630,6 +630,14 @@ func serveHandler(pos []string, o serveOptions, fe *sources.Fetcher, errw io.Wri
 			fail(w, &msgs, err)
 			return
 		}
+		if o.Edit != nil {
+			st, err := o.Edit.stateJSON()
+			if err != nil {
+				fail(w, &msgs, err)
+				return
+			}
+			page.Edit = render.NewEditView(st)
+		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		if err := render.Write(w, page); err != nil {
 			fmt.Fprintln(errw, err)

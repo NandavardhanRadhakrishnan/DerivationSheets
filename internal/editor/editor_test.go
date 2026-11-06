@@ -303,3 +303,17 @@ func TestSheetRefs(t *testing.T) {
 		t.Errorf("cycle for discount = %v", c)
 	}
 }
+
+func TestSheetRefsIncludeConditions(t *testing.T) {
+	_, ed := workspace(t, false)
+	f := load(t, ed, sheetPath)
+	r := rowOf(t, f.Data, "customs_value")
+	r.Formula = "subtotal"
+	refs, err := ed.SheetRefs(SheetDraft{File: sheetPath, Token: f.Token, Rows: map[string]RowData{"customs_value": r}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := refs.Uses["customs_value"]; !slices.Equal(got, []string{"subtotal", "zone"}) {
+		t.Errorf("uses = %v; want the formula's rows, then the send condition's", got)
+	}
+}

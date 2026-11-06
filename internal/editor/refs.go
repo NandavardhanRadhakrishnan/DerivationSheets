@@ -11,11 +11,12 @@ import (
 
 // Refs is what the formula editor needs to know about a draft.
 type Refs struct {
-	// Uses lists, for each row in the draft with a formula, the rows the
-	// formula names, in the order it names them.
+	// Uses lists, for each row in the draft with a formula, the rows its
+	// expressions name (the formula, then any reject or send condition), in
+	// the order they name them; the row itself is left out.
 	Uses map[string][]string `json:"uses"`
 	// Unknown lists, for each row in the draft with a formula, the names
-	// in it that are not rows.
+	// in its expressions that are not rows.
 	Unknown map[string][]string `json:"unknown"`
 	// Cycle lists, for every row, the rows that would make a cycle if it
 	// used them: itself and every row that depends on it.
@@ -52,16 +53,22 @@ func (ed *Editor) SheetRefs(d SheetDraft) (*Refs, error) {
 		if r == nil || r.Formula == "" {
 			continue
 		}
-		names, err := x.Identifiers(r.Formula)
-		if err != nil {
-			continue // the formula does not parse yet; validation says why
-		}
 		uses, unknown := []string{}, []string{}
-		for _, n := range names {
-			if s.ByID[n] != nil {
-				uses = append(uses, n)
-			} else {
-				unknown = append(unknown, n)
+		seen := map[string]bool{id: true}
+		for _, le := range graph.Expressions(r) {
+			names, err := x.Identifiers(le.Expr)
+			if err != nil {
+				continue // does not parse yet; validation says why
+			}
+			for _, n := range names {
+				switch {
+				case seen[n]:
+				case s.ByID[n] != nil:
+					uses = append(uses, n)
+				default:
+					unknown = append(unknown, n)
+				}
+				seen[n] = true
 			}
 		}
 		refs.Uses[id], refs.Unknown[id] = uses, unknown

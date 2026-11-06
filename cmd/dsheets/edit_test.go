@@ -239,3 +239,19 @@ func TestEditRefusesAliasAndRemoteAddr(t *testing.T) {
 		}
 	}
 }
+
+func TestEditPageCarriesState(t *testing.T) {
+	dir := editRepo(t)
+	page := request(editHandler(t, dir), "GET", "/", nil, nil).Body.String()
+	for _, want := range []string{`id="edit-state"`, `"saved_ids"`, "dsheets-editor", `"functions"`} {
+		if !strings.Contains(page, want) {
+			t.Errorf("edit page lacks %s", want)
+		}
+	}
+	plain := request(serveHandler([]string{dir}, serveOptions{}, newFetcher(true), io.Discard), "GET", "/", nil, nil).Body.String()
+	for _, absent := range []string{"edit-state", "dsheets-editor"} {
+		if strings.Contains(plain, absent) {
+			t.Errorf("read-only page mentions %s", absent)
+		}
+	}
+}

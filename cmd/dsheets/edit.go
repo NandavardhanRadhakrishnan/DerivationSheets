@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/editor"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/expr"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sheet"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sources"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/store"
@@ -147,15 +148,37 @@ func (es *editServer) guard(post bool, h http.HandlerFunc) http.HandlerFunc {
 }
 
 func (es *editServer) state(w http.ResponseWriter, r *http.Request) {
-	f, err := es.ed.Store.Load(es.file)
+	st, err := es.stateJSON()
 	if err != nil {
 		jsonError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Write(st)
+}
+
+// celFunctions are the standard CEL functions offered while typing a
+// formula, after the custom ones.
+var celFunctions = []expr.FunctionDoc{
+	{Signature: "size(x)", Description: "The length of a string or list."},
+	{Signature: "int(x)", Description: "x as a whole number."},
+	{Signature: "double(x)", Description: "x as a number with a fraction."},
+	{Signature: "string(x)", Description: "x as text."},
+	{Signature: "has(x.f)", Description: "Whether the field f is present."},
+}
+
+// stateJSON is what the page starts from: the sheet's rows as the editor
+// sees them, the token of the version loaded, and the functions a formula
+// can call.
+func (es *editServer) stateJSON() ([]byte, error) {
+	f, err := es.ed.Store.Load(es.file)
+	if err != nil {
+		return nil, err
+	}
 	doc, err := tomledit.Parse(f.Data, tomledit.Sheet)
 	if err != nil {
-		jsonError(w, http.StatusUnprocessableEntity, fmt.Sprintf("%s does not parse: %v", f.Path, err))
-		return
+		return nil, fmt.Errorf("%s does not parse: %v", f.Path, err)
 	}
 	st := map[string]any{"file": f.Path, "token": f.Token, "version": 0, "title": ""}
 	if k := doc.Get("version"); k != nil {
@@ -175,7 +198,13 @@ func (es *editServer) state(w http.ResponseWriter, r *http.Request) {
 	// Every row in the file has been saved, so its ID is fixed; only rows
 	// still in the browser's draft can change theirs.
 	st["rows"], st["ids"], st["saved_ids"] = rows, ids, ids
-	writeJSONStatus(w, http.StatusOK, st)
+	var fns []map[string]string
+	for _, d := range append(append([]expr.FunctionDoc{}, expr.CustomFunctions...), celFunctions...) {
+		name, _, _ := strings.Cut(d.Signature, "(")
+		fns = append(fns, map[string]string{"name": name, "signature": d.Signature, "description": d.Description})
+	}
+	st["functions"] = fns
+	return json.Marshal(st)
 }
 
 // draft reads the request body as a draft for the served sheet.
