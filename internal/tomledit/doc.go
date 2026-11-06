@@ -76,6 +76,36 @@ type keyOrig struct {
 	trailing   string   // what follows the value on its last line
 	above      []string // comment lines above the key, trimmed on the left
 	start, end int      // the key's own lines
+	elems      []elemOrig
+}
+
+// elemOrig is an element of a multi-line array and its comments.
+type elemOrig struct {
+	value    any
+	above    []string // comment lines above it, trimmed on the left
+	trailing string   // a comment after it on its line, with the space before
+}
+
+// extent returns the bytes a value node covers, from the scalars inside
+// it: array and inline table nodes have no range of their own.
+func extent(n *unstable.Node) (from, to int, ok bool) {
+	if n.Kind != unstable.Array && n.Kind != unstable.InlineTable && n.Raw.Length > 0 {
+		return int(n.Raw.Offset), int(n.Raw.Offset + n.Raw.Length), true
+	}
+	for it := n.Children(); it.Next(); {
+		f, t, k := extent(it.Node())
+		if !k {
+			continue
+		}
+		if !ok || f < from {
+			from = f
+		}
+		if !ok || t > to {
+			to = t
+		}
+		ok = true
+	}
+	return from, to, ok
 }
 
 // tableOrig is a table as it was in the file.
@@ -190,6 +220,38 @@ func Parse(data []byte, l *Layout) (*Doc, error) {
 			}
 			ko.above = comments(d.lines, prev+1, ko.start)
 			prev = ko.end - 1
+			if vn := e.Value(); vn.Kind == unstable.Array && ko.end-ko.start > 1 {
+				// Comments on the elements of a multi-line array, such as
+				// the rules of a decision table.
+				var elems []*unstable.Node
+				for it := vn.Children(); it.Next(); {
+					elems = append(elems, it.Node())
+				}
+				above := ko.start
+				for i, n := range elems {
+					el := elemOrig{value: copyValue(v.([]any)[i])}
+					if from, to, ok := extent(n); ok {
+						first, last := lineOf(from), lineOf(to-1)
+						el.above = comments(d.lines, above+1, first)
+						shared := false
+						if i+1 < len(elems) {
+							if next, _, ok := extent(elems[i+1]); ok && lineOf(next) == last {
+								shared = true
+							}
+						}
+						if r := rest(to); !shared && last != ko.start && last != ko.end-1 {
+							if j := strings.IndexByte(r, '#'); j >= 0 {
+								for j > 0 && (r[j-1] == ' ' || r[j-1] == '\t') {
+									j--
+								}
+								el.trailing = r[j:]
+							}
+						}
+						above = last
+					}
+					ko.elems = append(ko.elems, el)
+				}
+			}
 			if cur == nil {
 				d.Top = append(d.Top, k)
 				d.top[k.Name] = ko
@@ -291,6 +353,81 @@ func (t *Table) Sub(name string) []*Table {
 	for _, s := range t.Subs {
 		if s.Name == name {
 			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// Set changes a top-level key, or inserts it after the last key that comes
+// before it in the layout's order.
+func (d *Doc) Set(name string, v any) {
+	if k := d.Get(name); k != nil {
+		k.Value = v
+		return
+	}
+	order := d.layout.table("").Order
+	r := rank(order, name)
+	at := len(d.Top)
+	if r < len(order) {
+		at = 0
+		for i, k := range d.Top {
+			if rank(order, k.Name) < r {
+				at = i + 1
+			}
+		}
+	}
+	d.Top = append(d.Top[:at], append([]*Key{{Name: name, Value: v}}, d.Top[at:]...)...)
+}
+
+// Delete removes a top-level key.
+func (d *Doc) Delete(name string) { d.Top = deleteKey(d.Top, name) }
+
+// Insert puts a table into Tables at index i.
+func (d *Doc) Insert(i int, t *Table) {
+	i = max(0, min(i, len(d.Tables)))
+	d.Tables = append(d.Tables[:i], append([]*Table{t}, d.Tables[i:]...)...)
+}
+
+// Remove takes a table out of Tables.
+func (d *Doc) Remove(t *Table) bool {
+	for i, x := range d.Tables {
+		if x == t {
+			d.Tables = append(d.Tables[:i], d.Tables[i+1:]...)
+			return true
+		}
+	}
+	return false
+}
+
+// Set changes a key, or adds it.
+func (t *Table) Set(name string, v any) {
+	if k := t.Get(name); k != nil {
+		k.Value = v
+		return
+	}
+	t.Keys = append(t.Keys, &Key{Name: name, Value: v})
+}
+
+// Delete removes a key.
+func (t *Table) Delete(name string) { t.Keys = deleteKey(t.Keys, name) }
+
+// Clone returns a deep copy that is written as a new span.
+func (t *Table) Clone() *Table {
+	c := &Table{Name: t.Name, Array: t.Array}
+	for _, k := range t.Keys {
+		c.Keys = append(c.Keys, &Key{Name: k.Name, Value: copyValue(k.Value)})
+	}
+	for _, s := range t.Subs {
+		c.Subs = append(c.Subs, s.Clone())
+	}
+	return c
+}
+
+func deleteKey(keys []*Key, name string) []*Key {
+	out := keys[:0]
+	for _, k := range keys {
+		if k.Name != name {
+			out = append(out, k)
 		}
 	}
 	return out

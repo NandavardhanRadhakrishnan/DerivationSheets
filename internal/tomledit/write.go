@@ -7,50 +7,215 @@ import (
 	"unicode/utf8"
 )
 
-// Bytes writes the document back.
-func (d *Doc) Bytes() ([]byte, error) {
-	var b strings.Builder
-	for _, sg := range d.segs {
-		for _, line := range d.lines[sg.start:sg.end] {
-			b.WriteString(line)
-		}
-	}
-	return []byte(b.String()), nil
-}
+// Bytes writes the document back: unchanged spans as they were, changed
+// and new spans in canonical form, free text where it was. A table keeps
+// its identity wherever it moves in Tables; a table that is gone is deleted
+// together with the blank line before it.
+func (d *Doc) Bytes() ([]byte, error) { return d.write(false) }
 
 // Format writes every span in canonical form. Values keep their text as
 // written; comments and free text are kept.
-func (d *Doc) Format() ([]byte, error) {
-	tables := map[*tableOrig]*Table{}
-	for _, t := range d.Tables {
-		if t.orig != nil {
-			tables[t.orig] = t
-		}
-	}
-	widths := d.topWidths()
-	w := &writer{nl: d.nl}
-	for _, sg := range d.segs {
+func (d *Doc) Format() ([]byte, error) { return d.write(true) }
+
+// item is a top-level key or table in the new order, with the index of its
+// original segment, or -1 when it is new.
+type item struct {
+	key   *Key
+	table *Table
+	seg   int
+}
+
+func (d *Doc) write(all bool) ([]byte, error) {
+	keySeg, tableSeg := map[string]int{}, map[*tableOrig]int{}
+	for i, sg := range d.segs {
 		switch {
 		case sg.free:
-			w.verbatim(d.lines[sg.start:sg.end])
 		case sg.table != nil:
-			w.verbatim(d.lines[sg.start : sg.start+len(sg.table.above)])
-			lines, err := d.renderTable(tables[sg.table], sg.table, "", "")
-			if err != nil {
-				return nil, err
-			}
-			w.rendered(lines)
+			tableSeg[sg.table] = i
 		default:
-			ko := d.top[sg.key]
-			w.verbatim(d.lines[sg.start:ko.start])
-			lines, err := d.renderKey(d.Get(sg.key), ko, "", widths[sg.key], d.layout.table(""))
-			if err != nil {
+			keySeg[sg.key] = i
+		}
+	}
+	used := map[int]bool{}
+	var items []item
+	for _, k := range d.Top {
+		seg := -1
+		if i, ok := keySeg[k.Name]; ok && !used[i] {
+			seg, used[i] = i, true
+		}
+		items = append(items, item{key: k, seg: seg})
+	}
+	for _, t := range d.Tables {
+		seg := -1
+		if i, ok := tableSeg[t.orig]; ok && t.orig != nil && !used[i] {
+			seg, used[i] = i, true
+		}
+		items = append(items, item{table: t, seg: seg})
+	}
+
+	// Items whose original positions still increase stay where they are;
+	// the others are new or moved, and go after the item before them.
+	anchor := anchors(items)
+	keep := map[int]bool{}
+	after := map[int][]item{}
+	var head []item
+	last := -1
+	for i, it := range items {
+		if anchor[i] {
+			keep[it.seg] = true
+			last = it.seg
+		} else if last < 0 {
+			head = append(head, it)
+		} else {
+			after[last] = append(after[last], it)
+		}
+	}
+	dropped := func(si int) bool { return si < len(d.segs) && !d.segs[si].free && !keep[si] }
+	blankAt := func(si int) bool { return si >= len(d.segs) || d.segs[si].free && blank(d.lines[d.segs[si].start]) }
+
+	widths := d.topWidths()
+	w := &writer{nl: d.nl}
+	emit := func(it item) error {
+		lines, err := d.renderItem(w, it, all, widths)
+		if err == nil {
+			w.rendered(lines)
+		}
+		return err
+	}
+	for si, sg := range d.segs {
+		if sg.free {
+			lines := d.lines[sg.start:sg.end]
+			if dropped(si+1) && blankAt(si+2) {
+				for len(lines) > 0 && blank(lines[len(lines)-1]) {
+					lines = lines[:len(lines)-1]
+				}
+			}
+			w.verbatim(lines)
+			continue
+		}
+		if !keep[si] {
+			continue
+		}
+		for _, it := range head {
+			if err := emit(it); err != nil {
 				return nil, err
 			}
-			w.rendered(lines)
+			if it.table != nil {
+				w.rendered([]string{""})
+			}
+		}
+		head = nil
+		if err := emit(items[indexOfSeg(items, si)]); err != nil {
+			return nil, err
+		}
+		for _, it := range after[si] {
+			if it.table != nil {
+				w.rendered([]string{""})
+			}
+			if err := emit(it); err != nil {
+				return nil, err
+			}
+		}
+	}
+	// Nothing was kept: everything is new.
+	for i, it := range head {
+		if it.table != nil && (i > 0 || w.b.Len() > 0) {
+			w.rendered([]string{""})
+		}
+		if err := emit(it); err != nil {
+			return nil, err
 		}
 	}
 	return w.bytes(d.endsWithNewline()), nil
+}
+
+func indexOfSeg(items []item, seg int) int {
+	for i, it := range items {
+		if it.seg == seg {
+			return i
+		}
+	}
+	return -1
+}
+
+func blank(line string) bool { return strings.TrimSpace(line) == "" }
+
+// anchors marks the longest run of items whose original segments appear in
+// increasing order.
+func anchors(items []item) []bool {
+	var tails []int // index into items of the smallest tail of each length
+	prev := make([]int, len(items))
+	for i, it := range items {
+		prev[i] = -1
+		if it.seg < 0 {
+			continue
+		}
+		n := sort.Search(len(tails), func(j int) bool { return items[tails[j]].seg >= it.seg })
+		if n > 0 {
+			prev[i] = tails[n-1]
+		}
+		if n == len(tails) {
+			tails = append(tails, i)
+		} else {
+			tails[n] = i
+		}
+	}
+	out := make([]bool, len(items))
+	if len(tails) > 0 {
+		for i := tails[len(tails)-1]; i >= 0; i = prev[i] {
+			out[i] = true
+		}
+	}
+	return out
+}
+
+// renderItem writes an unchanged original item as it was, and returns the
+// rendered lines of anything else, after writing its original leading
+// comments.
+func (d *Doc) renderItem(w *writer, it item, all bool, widths map[string]int) ([]string, error) {
+	if it.key != nil {
+		var ko *keyOrig
+		if it.seg >= 0 {
+			sg := d.segs[it.seg]
+			ko = d.top[it.key.Name]
+			if !all && equal(ko.value, it.key.Value) {
+				w.verbatim(d.lines[sg.start:sg.end])
+				return nil, nil
+			}
+			w.verbatim(d.lines[sg.start:ko.start])
+		}
+		return d.renderKey(it.key, ko, "", widths[it.key.Name], d.layout.table(""))
+	}
+	var o *tableOrig
+	if it.seg >= 0 {
+		sg := d.segs[it.seg]
+		o = it.table.orig
+		if !all && sameTable(it.table, o) {
+			w.verbatim(d.lines[sg.start:sg.end])
+			return nil, nil
+		}
+		w.verbatim(d.lines[sg.start : sg.start+len(o.above)])
+	}
+	return d.renderTable(it.table, o, "", "")
+}
+
+// sameTable reports whether a table still says what it said in the file:
+// the same keys and values in any order, and the same sub-tables in order.
+func sameTable(t *Table, o *tableOrig) bool {
+	if o == nil || t.Name != o.name || t.Array != o.array || len(t.Keys) != len(o.keys) || len(t.Subs) != len(o.subs) {
+		return false
+	}
+	for _, k := range t.Keys {
+		if ko := o.key(k.Name); ko == nil || !equal(ko.value, k.Value) {
+			return false
+		}
+	}
+	for i, s := range t.Subs {
+		if !sameTable(s, o.subs[i]) {
+			return false
+		}
+	}
+	return true
 }
 
 // writer assembles output from original lines, which carry their own
@@ -63,6 +228,9 @@ type writer struct {
 func (w *writer) verbatim(lines []string) {
 	for _, l := range lines {
 		w.b.WriteString(l)
+		if !strings.HasSuffix(l, "\n") {
+			w.b.WriteString(w.nl)
+		}
 	}
 }
 
@@ -143,8 +311,12 @@ func (d *Doc) renderKey(k *Key, ko *keyOrig, indent string, width int, tl TableL
 		}
 	}
 	if value == nil {
+		var elems []elemOrig
+		if ko != nil {
+			elems = ko.elems
+		}
 		var err error
-		value, err = d.formatValueLines(k.Value, indent, has(tl.Multiline, k.Name))
+		value, err = d.formatValueLines(k.Value, indent, has(tl.Multiline, k.Name), elems)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", k.Name, err)
 		}
@@ -155,8 +327,9 @@ func (d *Doc) renderKey(k *Key, ko *keyOrig, indent string, width int, tl TableL
 }
 
 // formatValueLines writes a value as lines. A multiline array is written
-// one element per line, cells lined up.
-func (d *Doc) formatValueLines(v any, indent string, multiline bool) ([]string, error) {
+// one element per line, cells lined up; an element equal to one of the
+// original elements keeps that element's comments.
+func (d *Doc) formatValueLines(v any, indent string, multiline bool, elems []elemOrig) ([]string, error) {
 	arr, ok := v.([]any)
 	if !multiline || !ok || len(arr) == 0 {
 		s, err := FormatValue(v, d.nl)
@@ -193,10 +366,24 @@ func (d *Doc) formatValueLines(v any, indent string, multiline bool) ([]string, 
 			}
 		}
 	}
+	used := make([]bool, len(elems))
+	comments := func(e any) ([]string, string) {
+		for j, el := range elems {
+			if !used[j] && equal(el.value, e) {
+				used[j] = true
+				return el.above, el.trailing
+			}
+		}
+		return nil, ""
+	}
 	lines := []string{"["}
-	for i := range arr {
+	for i, e := range arr {
+		above, trailing := comments(e)
+		for _, c := range above {
+			lines = append(lines, indent+"  "+c)
+		}
 		if cells[i] == nil {
-			lines = append(lines, indent+"  "+texts[i]+",")
+			lines = append(lines, indent+"  "+texts[i]+","+trailing)
 			continue
 		}
 		var b strings.Builder
@@ -210,7 +397,7 @@ func (d *Doc) formatValueLines(v any, indent string, multiline bool) ([]string, 
 			b.WriteString(strings.Repeat(" ", widths[j]-utf8.RuneCountInString(c)))
 		}
 		b.WriteString("],")
-		lines = append(lines, indent+"  "+b.String())
+		lines = append(lines, indent+"  "+b.String()+trailing)
 	}
 	return append(lines, indent+"]"), nil
 }
