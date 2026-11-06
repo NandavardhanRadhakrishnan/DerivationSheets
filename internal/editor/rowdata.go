@@ -351,14 +351,16 @@ func conform(old, v any) any {
 		if !ok || len(n) != len(o) {
 			return v
 		}
-		out := make(tomledit.Inline, len(n))
 		for i, k := range n {
 			if k.Name != o[i].Name {
 				return v
 			}
-			out[i] = &tomledit.Key{Name: k.Name, Value: conform(o[i].Value, k.Value)}
 		}
-		return out
+		// Reuse the parsed keys, which remember how the file spells them.
+		for i, k := range n {
+			o[i].Value = conform(o[i].Value, k.Value)
+		}
+		return o
 	}
 	return v
 }

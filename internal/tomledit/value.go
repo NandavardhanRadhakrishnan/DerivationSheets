@@ -54,7 +54,8 @@ func decode(n *unstable.Node, data []byte) (any, error) {
 			if err != nil {
 				return nil, err
 			}
-			out = append(out, &Key{Name: keyName(kv), Value: v})
+			name := keyName(kv)
+			out = append(out, &Key{Name: name, Value: v, text: keyText(kv, data), textFor: name})
 		}
 		return out, nil
 	}
@@ -169,11 +170,33 @@ func FormatValue(v any, nl string) (string, error) {
 			if err != nil {
 				return "", fmt.Errorf("%s: %w", k.Name, err)
 			}
-			parts[i] = formatKey(k.Name) + " = " + s
+			parts[i] = k.writtenInline() + " = " + s
 		}
 		return "{ " + strings.Join(parts, ", ") + " }", nil
 	}
 	return "", fmt.Errorf("cannot write a value of type %T", v)
+}
+
+// formatDotted writes a key name with each "."-separated part quoted as
+// needed: x.y is the key y in the table x.
+func formatDotted(name string) string {
+	parts := strings.Split(name, ".")
+	for i, p := range parts {
+		parts[i] = formatKey(p)
+	}
+	return strings.Join(parts, ".")
+}
+
+// keyText returns a key node's parts as written, quotes included, joined
+// with ".".
+func keyText(n *unstable.Node, data []byte) string {
+	var parts []string
+	it := n.Key()
+	for it.Next() {
+		r := it.Node().Raw
+		parts = append(parts, string(data[r.Offset:r.Offset+r.Length]))
+	}
+	return strings.Join(parts, ".")
 }
 
 // keyName joins the parts of a key node's key with ".".
@@ -199,7 +222,7 @@ func copyValue(v any) any {
 	case Inline:
 		out := make(Inline, len(x))
 		for i, k := range x {
-			out[i] = &Key{Name: k.Name, Value: copyValue(k.Value)}
+			out[i] = &Key{Name: k.Name, Value: copyValue(k.Value), text: k.text, textFor: k.textFor}
 		}
 		return out
 	}

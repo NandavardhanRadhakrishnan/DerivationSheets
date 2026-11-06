@@ -313,3 +313,17 @@ func TestPairJSON(t *testing.T) {
 		t.Error("a three-element pair was accepted")
 	}
 }
+
+func TestSendMapKeysWithDots(t *testing.T) {
+	data := read(t, orderCheckout)
+	r := rowOf(t, data, "discount_rate")
+	r.Sends = []SendData{{Field: "discountRate", Usage: "R", Map: []Pair{{"0", "NONE"}, {"0.05", "FIVE"}, {"0.1", "TEN"}}}}
+	out, err := SheetDraft{Rows: map[string]RowData{"discount_rate": r}}.Apply(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := rowOf(t, out, "discount_rate").Sends
+	if len(got) != 1 || len(got[0].Map) != 3 || got[0].Map[1].Key != "0.05" || got[0].Map[1].Value != "FIVE" {
+		t.Errorf("map read back as %+v\n%s", got, out)
+	}
+}
