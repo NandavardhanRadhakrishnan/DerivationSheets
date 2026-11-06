@@ -1,8 +1,10 @@
 package cases
 
 import (
+	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -267,5 +269,54 @@ func TestSituationalCallSend(t *testing.T) {
 	}
 	if c, ok := ids["express-not-sent-to-quote"]; !ok || len(c.Calls) != 0 {
 		t.Errorf("express-not-sent-to-quote = %+v (found %t)", c, ok)
+	}
+}
+
+// TestInputRejectsCovered checks that rejects on input rows are reached: one
+// that tests a weight above every rate in the lookup data, and one on the
+// subtotal that also names another input.
+func TestInputRejectsCovered(t *testing.T) {
+	dir := filepath.Join("..", "..", "specs", "order-checkout")
+	b, err := os.ReadFile(filepath.Join(dir, sheet.FileName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := strings.ReplaceAll(string(b), "\r\n", "\n")
+	for _, ed := range [][2]string{
+		{"source = \"request.order.weightKg\"\ntype   = \"number\"\n", "  [[row.reject]]\n  when = \"weight_kg > 30\"\n  code = \"OVERWEIGHT\"\n"},
+		{"source = \"request.order.subtotal\"\ntype   = \"number\"\n", "  [[row.reject]]\n  when = \"subtotal > 1000 && !is_member\"\n  code = \"NON_MEMBER_LIMIT\"\n"},
+	} {
+		if !strings.Contains(text, ed[0]) {
+			t.Fatalf("fixture does not contain %q", ed[0])
+		}
+		text = strings.Replace(text, ed[0], ed[0]+"\n"+ed[1], 1)
+	}
+	s, err := sheet.Parse(dir, filepath.Join(dir, sheet.FileName), text)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, err := eval.New(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref, _ := time.Parse(time.RFC3339, DefaultReferenceTime)
+	res := Generate(e, ref)
+	if len(res.Uncovered) > 0 {
+		t.Errorf("uncovered targets: %+v", res.Uncovered)
+	}
+	got := map[string]bool{}
+	for _, c := range res.Cases {
+		for _, k := range c.Covers {
+			got[k] = true
+		}
+		r := e.Evaluate(eval.Input(c.Input))
+		if r.Err != nil || (r.Reject == nil) != (c.ExpectedReject == "") || (r.Reject != nil && r.Reject.Code != c.ExpectedReject) {
+			t.Errorf("%s: expected reject %q, got %+v, err %v", c.ID, c.ExpectedReject, r.Reject, r.Err)
+		}
+	}
+	for _, k := range []string{"weight_kg:reject:OVERWEIGHT", "subtotal:reject:NON_MEMBER_LIMIT"} {
+		if !got[k] {
+			t.Errorf("%s not covered", k)
+		}
 	}
 }

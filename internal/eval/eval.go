@@ -174,7 +174,9 @@ func (e *Engine) Evaluate(in Input) *Result {
 				ctx = expr.Context{RequestTime: t, HasRequestTime: true}
 			}
 		}
-		if st.Status != StatusUnknown {
+		// An input's rejects check its value, so a missing input that is not
+		// required, or one whose rejects name an unknown value, is not checked.
+		if st.Status != StatusUnknown && known && st.Status != StatusNotRequired {
 			rj := e.rejects(r, res, ctx)
 			if res.Err != nil {
 				return res

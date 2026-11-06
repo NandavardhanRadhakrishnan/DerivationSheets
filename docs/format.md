@@ -60,7 +60,7 @@ or `text`.
 | `lookup` | derived | `{ from = "db.x" or "config.x", key = [ids] }` |
 | `values` / `values_file` | lookups | Design-time values: inline (one key only) or a CSV in `data/` |
 | `text` | derived | Plain-language rule. Not computable, so it is reported as an open item. |
-| `[[row.reject]]` | derived | `when`, `code`, `message`. Rejects the whole request. |
+| `[[row.reject]]` | any | `when`, `code`, `message`. Rejects the whole request. Checked once the row has a value: a situational input that is missing while not required is not checked. |
 | `[row.send]` | any | `field`, `usage`, `when`, `otherwise`, `map`, and `target` for a call. Use `[[row.send]]` for several sends. |
 | `open_questions` | any | Unresolved questions. `validate` reports them as warnings. |
 
@@ -173,7 +173,8 @@ the data covers (a warning). Integer bounds that differ by one, as in
 `formula`, `when`, `reject.when` and `send.when` use
 [CEL](https://cel.dev). Identifiers are row IDs, and every identifier must
 appear in the row's `uses`. Rejects and `send.when` may also refer to the row
-itself. An input row's `when` may refer to other rows directly.
+itself. Input rows have no `uses`: an input row's `when` and rejects refer to
+other rows directly, and the input is read after the rows they name.
 
 Sheets have a single number type, so every number is a CEL double: integer
 literals are read as doubles (`x * 2` means `x * 2.0`). `date` and `datetime`

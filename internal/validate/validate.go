@@ -223,12 +223,6 @@ func (c *checker) checkRow(r *sheet.Row) {
 	for _, le := range graph.Expressions(r) {
 		c.checkExpr(r, le)
 	}
-	for i, rj := range r.Rejects {
-		if r.IsInput() {
-			c.add(Error, "reject-on-input", r, c.line(r, "reject."+strconv.Itoa(i)), "reject conditions belong on derived rows; add a derived row for the check")
-		}
-		_ = rj
-	}
 	c.checkUsesReferenced(r)
 	for _, q := range r.OpenQuestions {
 		c.add(Warning, "open-question", r, c.line(r, "open_questions"), "open question: %s", q)
@@ -321,9 +315,9 @@ func (c *checker) checkExpr(r *sheet.Row, le graph.LabeledExpr) {
 	}
 	selfOK := le.Key != "formula" && le.Key != "when"
 	for _, id := range ids {
-		if r.IsInput() && le.Key == "when" {
+		if r.IsInput() && (le.Key == "when" || graph.IsRejectWhen(le.Key)) {
 			if c.s.ByID[id] == nil {
-				c.add(Error, "ref-undefined", r, line, "when refers to %q, which is not a row%s", id, suggest(id, c.s))
+				c.add(Error, "ref-undefined", r, line, "%s refers to %q, which is not a row%s", le.Key, id, suggest(id, c.s))
 			}
 			continue
 		}

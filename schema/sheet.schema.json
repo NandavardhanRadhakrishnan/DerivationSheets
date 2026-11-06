@@ -124,7 +124,7 @@
         },
         "text": { "description": "Rule: a plain-language description only. Reported as an open item.", "type": "string", "minLength": 1 },
         "reject": {
-          "description": "Conditions that reject the whole request.",
+          "description": "Conditions that reject the whole request, checked once this row has a value. On a derived row, the rows a condition names must be in uses; on an input row, a condition names the row itself and other rows directly.",
           "type": "array",
           "items": { "$ref": "#/definitions/reject" }
         },
