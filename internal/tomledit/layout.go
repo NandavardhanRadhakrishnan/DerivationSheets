@@ -25,12 +25,56 @@ type TableLayout struct {
 	Subs []string
 }
 
-// Layouts of the three kinds of file the editor writes.
-var (
-	Sheet     = &Layout{}
-	Flow      = &Layout{}
-	Interface = &Layout{}
-)
+// Sheet is the layout of specs/order-checkout/sheet.toml.
+var Sheet = &Layout{Tables: map[string]TableLayout{
+	"": {Order: []string{"sheet", "version", "title", "request_schema", "target_schema"},
+		Unaligned: []string{"request_schema", "target_schema"}},
+	"row": {Order: []string{"id", "name", "description", "source", "type", "usage", "when", "default", "uses", "formula", "lookup", "values", "values_file", "text", "open_questions"},
+		Unaligned: []string{"description", "values_file", "open_questions"}, Subs: []string{"table", "reject", "send"}},
+	"row.table": {Order: []string{"hit_policy", "columns", "rows"},
+		Unaligned: []string{"hit_policy", "columns", "rows"}, Multiline: []string{"rows"}},
+	"row.reject":       {Order: []string{"when", "code", "message"}},
+	"row.send":         {Order: []string{"target", "field", "usage", "when", "otherwise", "map"}},
+	"display":          {Order: []string{"evidence"}, Subs: []string{"columns", "sections"}},
+	"display.columns":  {Order: []string{"number", "value", "rule", "send", "evidence"}},
+	"display.sections": {Order: []string{"request", "context", "data", "derived"}},
+}}
+
+// Flow is the layout of flows/checkout-to-payment/flow.toml.
+var Flow = &Layout{Tables: map[string]TableLayout{
+	"":      {Order: []string{"flow", "version", "title", "sheet"}},
+	"input": {Order: []string{"interface", "carries"}},
+	"stage": {Order: []string{"id", "kind", "interface", "carries", "producer", "caller", "computes", "callee", "callee_computes"},
+		Unaligned: []string{"callee_computes"}, Subs: []string{"request", "response"}},
+	"stage.request":  {Order: []string{"interface", "carries"}},
+	"stage.response": {Order: []string{"interface", "carries"}},
+	"output":         {Order: []string{"interface", "carries", "producer", "computes"}},
+}}
+
+// Interface is the layout `dsheets interface import` writes.
+var Interface = &Layout{Tables: map[string]TableLayout{
+	"":      {Order: []string{"interface", "title", "kind", "owner", "status", "version", "imported", "description"}},
+	"field": {Order: []string{"name", "type", "required", "enum", "description"}, Unaligned: []string{"description"}},
+}}
+
+func (l *Layout) table(path string) TableLayout {
+	if l == nil {
+		return TableLayout{}
+	}
+	return l.Tables[path]
+}
+
+// rank is the position of name in order, or len(order) when absent.
+func rank(order []string, name string) int {
+	for i, x := range order {
+		if x == name {
+			return i
+		}
+	}
+	return len(order)
+}
+
+func has(xs []string, x string) bool { return rank(xs, x) < len(xs) }
 
 var firstKey = regexp.MustCompile(`^([A-Za-z0-9_\-]+)\s*=`)
 

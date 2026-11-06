@@ -3,6 +3,7 @@ package tomledit
 import (
 	"fmt"
 	"math"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -58,6 +59,121 @@ func decode(n *unstable.Node, data []byte) (any, error) {
 		return out, nil
 	}
 	return nil, fmt.Errorf("unexpected TOML value of kind %s", n.Kind)
+}
+
+var bareKey = regexp.MustCompile(`^[A-Za-z0-9_\-]+$`)
+
+// formatKey writes one part of a key, quoted when it is not bare.
+func formatKey(k string) string {
+	if bareKey.MatchString(k) {
+		return k
+	}
+	return quote(k, "")
+}
+
+// quote writes a basic string; a string with a newline becomes a multi-line
+// basic string whose lines end with nl.
+func quote(s, nl string) string {
+	multi := nl != "" && strings.Contains(s, "\n")
+	var b strings.Builder
+	if multi {
+		b.WriteString(`"""` + nl)
+	} else {
+		b.WriteByte('"')
+	}
+	for _, r := range s {
+		switch {
+		case r == '\\':
+			b.WriteString(`\\`)
+		case r == '"':
+			b.WriteString(`\"`)
+		case r == '\n' && multi:
+			b.WriteString(nl)
+		case r == '\n':
+			b.WriteString(`\n`)
+		case r == '\t':
+			b.WriteString(`\t`)
+		case r == '\r':
+			b.WriteString(`\r`)
+		case r == '\b':
+			b.WriteString(`\b`)
+		case r == '\f':
+			b.WriteString(`\f`)
+		case r < 0x20 || r == 0x7f:
+			fmt.Fprintf(&b, `\u%04X`, r)
+		default:
+			b.WriteRune(r)
+		}
+	}
+	if multi {
+		b.WriteString(`"""`)
+	} else {
+		b.WriteByte('"')
+	}
+	return b.String()
+}
+
+func formatFloat(f float64) string {
+	switch {
+	case math.IsNaN(f):
+		return "nan"
+	case math.IsInf(f, 1):
+		return "inf"
+	case math.IsInf(f, -1):
+		return "-inf"
+	case f == math.Trunc(f) && math.Abs(f) < 1<<53:
+		return strconv.FormatInt(int64(f), 10)
+	}
+	if s := strconv.FormatFloat(f, 'f', -1, 64); strings.Contains(s, ".") {
+		return s
+	}
+	return strconv.FormatFloat(f, 'e', -1, 64)
+}
+
+// FormatValue writes v as canonical TOML value text. nl is the line ending
+// for multi-line strings.
+func FormatValue(v any, nl string) (string, error) {
+	switch x := v.(type) {
+	case string:
+		return quote(x, nl), nil
+	case bool:
+		return strconv.FormatBool(x), nil
+	case int:
+		return strconv.Itoa(x), nil
+	case int64:
+		return strconv.FormatInt(x, 10), nil
+	case float64:
+		return formatFloat(x), nil
+	case Raw:
+		return string(x), nil
+	case []any:
+		parts := make([]string, len(x))
+		for i, e := range x {
+			s, err := FormatValue(e, nl)
+			if err != nil {
+				return "", err
+			}
+			parts[i] = s
+		}
+		return "[" + strings.Join(parts, ", ") + "]", nil
+	case Inline:
+		if len(x) == 0 {
+			return "{}", nil
+		}
+		parts := make([]string, len(x))
+		for i, k := range x {
+			if k == nil {
+				return "", fmt.Errorf("inline table with a missing key")
+			}
+			s, err := FormatValue(k.Value, nl)
+			if err != nil {
+				return "", fmt.Errorf("%s: %w", k.Name, err)
+			}
+			parts[i] = formatKey(k.Name) + " = " + s
+		}
+		return "{ " + strings.Join(parts, ", ") + " }", nil
+	}
+	return "", fmt.Errorf("cannot write a value of type %T", v)
 }
 
 // keyName joins the parts of a key node's key with ".".

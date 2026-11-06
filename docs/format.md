@@ -222,6 +222,33 @@ Coverage keys, which are also the branch keys used for evidence:
 Dates are placed relative to `reference_time`, which is fixed so the output
 stays stable from run to run.
 
+## Canonical layout
+
+Indentation and alignment carry no meaning, but tools that write sheets,
+flows and interfaces (the editor, and a future formatter) write them the
+way `specs/order-checkout/sheet.toml` is written, so the git diff of a
+change shows only what changed:
+
+- Keys in a fixed order. A row: `id`, `name`, `description`, `source`,
+  `type`, `usage`, `when`, `default`, `uses`, `formula`, `lookup`, `values`,
+  `values_file`, `text`, `open_questions`; then `[row.table]`,
+  `[[row.reject]]` and `[row.send]`. A send: `target`, `field`, `usage`,
+  `when`, `otherwise`, `map`.
+- The `=` of the keys in one table lines up with the longest key, except
+  long ones that would push the rest too far: `description`, `values_file`
+  and `open_questions` in a row, every key in `[row.table]`,
+  `callee_computes` in a stage, `description` in an interface field.
+- Sub-tables are indented two spaces and preceded by a blank line.
+- A decision table's `rows` has one rule per line, cells lined up.
+- Values keep the text they were written with (`0.10` stays `0.10`) until
+  they change.
+
+A tool that changes a file rewrites only the rows, stages, interface
+fields and top-level keys the change touches. Comments directly above a row
+move and are deleted with it; section comments such as
+`# ---------- Derived ----------` and blank lines between rows stay where
+they are.
+
 ## Evidence
 
 Evidence is never stored in the sheet. `verify` writes one JSON file per run
