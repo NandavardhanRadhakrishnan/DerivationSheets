@@ -218,3 +218,98 @@ func TestCommittedVersion(t *testing.T) {
 		t.Fatalf("no version = %d %v %v", v, ok, err)
 	}
 }
+
+func TestPathsConfinedByIdentity(t *testing.T) {
+	dir, s := repo(t)
+	// A short (8.3) name of .git on Windows, when the volume makes them.
+	if _, err := os.Stat(filepath.Join(dir, "GIT~1", "config")); err == nil {
+		if _, err := s.Save(Write{Path: "GIT~1/config", Data: []byte("x"), Token: Token([]byte(read(t, filepath.Join(dir, ".git", "config"))))}); !errors.Is(err, ErrReadOnly) {
+			t.Errorf("Save(GIT~1/config): err = %v", err)
+		}
+	}
+	for _, p := range []string{".git::$INDEX_ALLOCATION/config", "a/sheet.toml:stream"} {
+		if _, err := s.Save(Write{Path: p, Data: []byte("x")}); err == nil {
+			t.Errorf("Save(%q) accepted", p)
+		}
+	}
+}
+
+func TestLinksRefused(t *testing.T) {
+	dir, s := repo(t)
+	outside := t.TempDir()
+	write(t, filepath.Join(outside, "f.toml"), "secret = 1\n")
+	link := filepath.Join(dir, "a", "link")
+	if err := os.Symlink(outside, link); err != nil {
+		// Windows without symlink rights: try a junction.
+		if out, jerr := exec.Command("cmd", "/c", "mklink", "/J", link, outside).CombinedOutput(); jerr != nil {
+			t.Skipf("cannot make a link: %v; %v %s", err, jerr, out)
+		}
+	}
+	if _, err := s.Load("a/link/f.toml"); !errors.Is(err, ErrOutside) {
+		t.Errorf("Load through a link: err = %v", err)
+	}
+	tok := Token([]byte(read(t, filepath.Join(outside, "f.toml"))))
+	if _, err := s.Save(Write{Path: "a/link/f.toml", Data: []byte("x"), Token: tok}); !errors.Is(err, ErrOutside) {
+		t.Errorf("Save through a link: err = %v", err)
+	}
+	if got := read(t, filepath.Join(outside, "f.toml")); got != "secret = 1\n" {
+		t.Errorf("file outside the root written: %q", got)
+	}
+}
+
+func TestSaveSamePathTwice(t *testing.T) {
+	dir, s := repo(t)
+	f, _ := s.Load("a/sheet.toml")
+	_, err := s.Save(
+		Write{Path: "a/sheet.toml", Data: []byte("version = 2\n"), Token: f.Token},
+		Write{Path: "a/./sheet.toml", Data: []byte("version = 3\n"), Token: f.Token},
+	)
+	if err == nil {
+		t.Fatal("the same file twice in one save was accepted")
+	}
+	if got := read(t, filepath.Join(dir, "a", "sheet.toml")); got != "version = 1\n" {
+		t.Fatalf("disk = %q", got)
+	}
+}
+
+func TestSaveRollsBack(t *testing.T) {
+	dir, s := repo(t)
+	f, _ := s.Load("a/sheet.toml")
+	n := 0
+	rename = func(from, to string) error {
+		if n++; n == 2 {
+			return errors.New("file in use")
+		}
+		return os.Rename(from, to)
+	}
+	defer func() { rename = os.Rename }()
+	_, err := s.Save(
+		Write{Path: "a/sheet.toml", Data: []byte("version = 2\n"), Token: f.Token},
+		Write{Path: "a/new.toml", Data: []byte("x = 1\n")},
+	)
+	if err == nil {
+		t.Fatal("Save succeeded")
+	}
+	if got := read(t, filepath.Join(dir, "a", "sheet.toml")); got != "version = 1\n" {
+		t.Errorf("first file not restored: %q", got)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "a", "new.toml")); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("second file exists: %v", err)
+	}
+	entries, _ := os.ReadDir(filepath.Join(dir, "a"))
+	for _, e := range entries {
+		if e.Name() != "sheet.toml" {
+			t.Errorf("left behind: %s", e.Name())
+		}
+	}
+}
+
+func TestCommittedAnyCase(t *testing.T) {
+	dir, s := repo(t)
+	if _, err := os.Stat(filepath.Join(dir, "A", "SHEET.toml")); err != nil {
+		t.Skip("case-sensitive file system")
+	}
+	if v, ok, err := CommittedVersion(s, "A/SHEET.toml"); err != nil || !ok || v != 1 {
+		t.Errorf("committed = %d %v %v", v, ok, err)
+	}
+}

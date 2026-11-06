@@ -112,7 +112,7 @@ func TestParseSheet(t *testing.T) {
 		t.Fatalf("first rule = %#v", rows[0])
 	}
 	want := Inline{{Name: "Standard", Value: int64(0)}, {Name: "Silver", Value: 0.05}, {Name: "Gold", Value: 0.1}}
-	if got := d.Find("row", "id", "discount_rate").Get("values").Value; !reflect.DeepEqual(got, want) {
+	if got := d.Find("row", "id", "discount_rate").Get("values").Value; !equal(got, want) {
 		t.Fatalf("values = %#v", got)
 	}
 	if d.Find("row", "id", "customs_value").Sub("send")[0].Array {
@@ -136,7 +136,7 @@ func TestParseFlow(t *testing.T) {
 		t.Fatalf("request interface = %#v", v)
 	}
 	want := Inline{{Name: "path", Value: "../../interfaces/shipping"}}
-	if got := d.Tables[0].Get("shipping").Value; !reflect.DeepEqual(got, want) {
+	if got := d.Tables[0].Get("shipping").Value; !equal(got, want) {
 		t.Fatalf("shipping = %#v", got)
 	}
 }

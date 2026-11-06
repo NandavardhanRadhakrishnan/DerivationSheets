@@ -32,6 +32,12 @@ var pageCSS string
 //go:embed sheet.js
 var pageJS string
 
+//go:embed editor.css
+var editorCSS string
+
+//go:embed editor.js
+var editorJS string
+
 // Options control rendering.
 type Options struct {
 	// Run is the evidence to merge in, or nil.
@@ -73,6 +79,22 @@ type Page struct {
 	SpanAll int
 	CSS     template.CSS
 	JS      template.JS
+	// Edit is set when the page is served with --edit.
+	Edit *EditView
+}
+
+// EditView adds the editor to a page: its starting state as JSON, and the
+// editor's own style and script.
+type EditView struct {
+	State template.JS
+	CSS   template.CSS
+	JS    template.JS
+}
+
+// NewEditView wraps the editor's starting state, which must be JSON with
+// "<" escaped, as encoding/json writes it.
+func NewEditView(state []byte) *EditView {
+	return &EditView{State: template.JS(state), CSS: template.CSS(editorCSS), JS: template.JS(editorJS)}
 }
 
 // Section is a group of rows.

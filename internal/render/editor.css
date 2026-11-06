@@ -1,0 +1,137 @@
+/* dsheets-editor: the side panel of serve --edit. It uses the sheet's own
+   colour tokens, so it follows light, dark and print like the page. */
+:root { --ed-panel: 400px; --ed-bar: 48px; }
+body.editing { padding-bottom: calc(var(--ed-bar) + 24px); }
+@media (min-width: 1100px) {
+  body.panel-open { padding-right: calc(var(--ed-panel) + 16px); }
+}
+
+.ed-actions { display: flex; gap: 6px; }
+
+.ed-btn {
+  font: inherit; font-size: 12px; line-height: 1.2; padding: 5px 10px; cursor: pointer;
+  color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 3px;
+}
+.ed-btn:hover:not(:disabled) { border-color: var(--fg); }
+.ed-btn:disabled { color: var(--muted); cursor: default; opacity: 0.6; }
+.ed-btn:focus-visible, .ed-panel input:focus-visible, .ed-panel textarea:focus-visible,
+.ed-panel select:focus-visible, tr.ed-selectable:focus-visible, .ed-seg input:focus-visible + label {
+  outline: 2px solid var(--accent); outline-offset: 1px;
+}
+.ed-btn.ed-primary { background: var(--accent); border-color: var(--accent); color: var(--bg); font-weight: 600; }
+.ed-btn.ed-quiet { border-color: transparent; color: var(--accent); padding: 3px 6px; }
+.ed-btn.ed-quiet:hover:not(:disabled) { border-color: var(--line); }
+.ed-btn.ed-danger { color: var(--danger); }
+.ed-btn.ed-chip { font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace; font-size: 11px; padding: 2px 6px; }
+
+/* Rows on the sheet. */
+tr.ed-selectable { cursor: pointer; }
+tr.ed-selectable:hover > td { background: var(--up); }
+tr.ed-selected > td { background: var(--focus) !important; }
+tr.ed-changed > td.num { box-shadow: inset 3px 0 0 var(--accent); color: var(--accent); }
+tr.ed-problem > td.num { box-shadow: inset 3px 0 0 var(--warn); }
+tr.ed-new-problem > td.num { box-shadow: inset 3px 0 0 var(--danger); color: var(--danger); font-weight: 700; }
+tr.ed-deleted > td:not(.num) { opacity: 0.4; text-decoration: line-through; }
+
+/* The unsaved-changes bar. */
+.ed-bar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; min-height: var(--ed-bar);
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px;
+  padding: 8px 16px; background: var(--sec); border-top: 1px solid var(--line); font-size: 12.5px;
+}
+.ed-bar.dirty { border-top: 2px solid var(--accent); }
+.ed-bar-left { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; min-width: 0; }
+.ed-bar-right { display: flex; gap: 6px; }
+.ed-count { font-weight: 600; }
+.ed-bar:not(.dirty) .ed-count { color: var(--muted); font-weight: 400; }
+.ed-new-rows { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.ed-msg.danger { color: var(--danger); }
+.ed-msg.success { color: var(--success); font-weight: 600; }
+.ed-msg.muted { color: var(--muted); }
+.ed-details {
+  flex-basis: 100%; color: var(--muted); font-size: 11.5px; max-height: 6.5em; overflow: auto;
+  font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace; white-space: pre-wrap;
+}
+
+/* The side panel. */
+.ed-panel {
+  position: fixed; top: 0; right: 0; bottom: var(--ed-bar); z-index: 10; width: var(--ed-panel); max-width: 100vw;
+  overflow-y: auto; padding: 12px 16px 24px; background: var(--bg);
+  border-left: 1.5px solid var(--line-strong); font-size: 13px;
+}
+.ed-panel[hidden] { display: none; }
+.ed-panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.ed-panel h2 { font-size: 15px; text-transform: none; letter-spacing: 0; margin: 0; font-weight: 650; }
+.ed-panel h3 { font-size: 13px; margin: 0; font-weight: 650; }
+.ed-field { margin: 0 0 10px; min-width: 0; flex: 1; }
+.ed-field > label, .ed-label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 3px; }
+.ed-hint { font-size: 11.5px; color: var(--muted); margin-top: 3px; }
+.ed-hint.danger { color: var(--danger); }
+.ed-panel input[type="text"], .ed-panel textarea, .ed-panel select {
+  width: 100%; font: inherit; font-size: 13px; padding: 5px 7px; color: var(--fg); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 3px;
+}
+.ed-panel textarea { resize: vertical; line-height: 1.4; }
+.ed-panel ::placeholder { color: var(--muted); opacity: 0.6; }
+.ed-panel input:disabled { color: var(--muted); background: var(--sec); }
+.ed-panel input:invalid { border-color: var(--danger); }
+.ed-panel .mono { font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, "Liberation Mono", monospace; font-size: 12.5px; }
+.ed-row { display: flex; gap: 8px; align-items: flex-start; }
+.ed-row > select { flex: 0 0 auto; width: auto; }
+.ed-check { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--fg); margin-bottom: 4px; }
+.ed-note { color: var(--muted); font-size: 12.5px; }
+.ed-readonly { display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; margin: 0 0 10px; }
+.ed-readonly dt { color: var(--muted); }
+.ed-readonly dd { margin: 0; }
+
+/* Rule kind: one choice of three, as a segmented control. */
+.ed-seg { display: inline-flex; border: 1px solid var(--line); border-radius: 3px; overflow: hidden; }
+.ed-seg input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.ed-seg label { padding: 4px 12px; font-size: 12.5px; cursor: pointer; border-left: 1px solid var(--line); }
+.ed-seg label:first-of-type { border-left: 0; }
+.ed-seg input:checked + label { background: var(--fg); color: var(--bg); font-weight: 600; }
+
+/* The formula: suggestions while typing, and the rows it uses. */
+.ed-formula { position: relative; }
+.ed-formula textarea { border-color: var(--line-strong); }
+.ed-suggest {
+  position: absolute; left: 0; right: 0; z-index: 5; margin: 2px 0 0; padding: 2px 0; list-style: none;
+  background: var(--bg); border: 1px solid var(--line-strong); border-radius: 3px; max-height: 15em; overflow-y: auto;
+}
+.ed-suggest[hidden] { display: none; }
+.ed-suggest li { display: flex; gap: 8px; align-items: baseline; padding: 3px 8px; cursor: pointer; }
+.ed-suggest li span { color: var(--muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ed-suggest li.active, .ed-suggest li:hover { background: var(--focus); }
+.ed-suggest li.blocked { cursor: not-allowed; opacity: 0.45; }
+.ed-suggest li.blocked:hover { background: none; }
+.ed-uses { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; margin: -4px 0 12px; }
+.ed-uses .ed-label { margin: 0 4px 0 0; }
+.ed-use code { color: var(--accent); border-bottom: 1px dotted var(--accent); }
+.ed-unknown { flex-basis: 100%; color: var(--danger); font-size: 12.5px; margin-top: 4px; }
+.ed-unknown .ed-btn { margin-left: 4px; }
+
+.ed-list { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 12px; }
+.ed-list-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.ed-item { border-left: 2px solid var(--line); padding: 2px 0 2px 10px; margin-bottom: 10px; }
+.ed-question { margin-bottom: 6px; }
+
+.ed-status:empty { display: none; }
+.ed-status { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 8px; }
+.ed-problem { font-size: 12.5px; margin-bottom: 4px; }
+.ed-problem.new { color: var(--danger); }
+.ed-problem.error { color: var(--warn); }
+.ed-problem.warning { color: var(--muted); }
+.ed-tag { font-size: 11px; font-weight: 700; }
+.ed-panel-foot { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 10px; }
+
+@media (max-width: 1099px) {
+  .ed-panel {
+    top: auto; left: 0; width: auto; height: 62vh; border-left: 0; border-top: 1.5px solid var(--line-strong);
+  }
+}
+
+@media print {
+  .ed-panel, .ed-bar, .ed-actions { display: none !important; }
+  body.editing, body.panel-open { padding: 0; }
+  tr.ed-changed > td.num, tr.ed-problem > td.num, tr.ed-new-problem > td.num { box-shadow: none; }
+}

@@ -35,10 +35,34 @@ type Doc struct {
 }
 
 // Key is a key and its value: string, bool, int64, float64, []any, Inline
-// or Raw. Dotted keys are joined with ".".
+// or Raw. Dotted keys are joined with "." and keep their spelling while the
+// name is unchanged. A new name with dots is written as a dotted key in a
+// table, and as one quoted key in an inline table.
 type Key struct {
 	Name  string
 	Value any
+
+	// text is the key as written, quotes included, for the name textFor.
+	text, textFor string
+}
+
+// written is the key as the file writes it: as parsed while the name is
+// unchanged, otherwise each "."-separated part quoted as needed.
+func (k *Key) written() string {
+	if k.text != "" && k.textFor == k.Name {
+		return k.text
+	}
+	return formatDotted(k.Name)
+}
+
+// writtenInline is a key of an inline table as the file writes it: as
+// parsed while the name is unchanged, otherwise one key, quoted as needed.
+// Inline keys made in code are single keys, such as "0.05" in a send map.
+func (k *Key) writtenInline() string {
+	if k.text != "" && k.textFor == k.Name {
+		return k.text
+	}
+	return formatKey(k.Name)
 }
 
 // Inline is an inline table, in written order.
@@ -114,6 +138,7 @@ type tableOrig struct {
 	name       string
 	array      bool
 	header     string   // what follows the header's closing bracket
+	text       string   // the table's own key parts as written, joined with "."
 	above      []string // comment lines above the header, trimmed on the left
 	keys       []*keyOrig
 	subs       []*tableOrig
@@ -213,7 +238,8 @@ func Parse(data []byte, l *Layout) (*Doc, error) {
 			for valStart < end && (data[valStart] == ' ' || data[valStart] == '\t') {
 				valStart++
 			}
-			k := &Key{Name: keyName(e), Value: v}
+			name := keyName(e)
+			k := &Key{Name: name, Value: v, text: keyText(e, data), textFor: name}
 			ko := &keyOrig{
 				name: k.Name, value: copyValue(v), text: string(data[valStart:end]), trailing: rest(end),
 				start: lineOf(start), end: lineOf(end-1) + 1,
@@ -262,12 +288,13 @@ func Parse(data []byte, l *Layout) (*Doc, error) {
 			cur.orig.keys = append(cur.orig.keys, ko)
 			items[len(items)-1].last = prev
 		case unstable.Table, unstable.ArrayTable:
-			var parts []string
+			var parts, texts []string
 			first, last := -1, 0
 			it := e.Key()
 			for it.Next() {
 				n := it.Node()
 				parts = append(parts, string(n.Data))
+				texts = append(texts, string(data[n.Raw.Offset:n.Raw.Offset+n.Raw.Length]))
 				if first < 0 {
 					first = int(n.Raw.Offset)
 				}
@@ -285,11 +312,13 @@ func Parse(data []byte, l *Layout) (*Doc, error) {
 			t := &Table{Array: array, orig: o}
 			if topTable != nil && len(parts) > len(topParts) && strings.Join(parts[:len(topParts)], ".") == strings.Join(topParts, ".") {
 				o.name = strings.Join(parts[len(topParts):], ".")
+				o.text = strings.Join(texts[len(topParts):], ".")
 				topTable.Subs = append(topTable.Subs, t)
 				topTable.orig.subs = append(topTable.orig.subs, o)
 				items[len(items)-1].last = line
 			} else {
 				o.name = strings.Join(parts, ".")
+				o.text = strings.Join(texts, ".")
 				d.Tables = append(d.Tables, t)
 				topTable, topParts = t, parts
 				items = append(items, &item{first: line, last: line, table: o})

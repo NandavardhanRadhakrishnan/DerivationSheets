@@ -196,7 +196,7 @@ func (d *Doc) renderItem(w *writer, it item, all bool, widths map[string]int) ([
 		}
 		w.verbatim(d.lines[sg.start : sg.start+len(o.above)])
 	}
-	return d.renderTable(it.table, o, "", "")
+	return d.renderTable(it.table, o, "", "", "")
 }
 
 // sameTable reports whether a table still says what it said in the file:
@@ -265,7 +265,7 @@ func (d *Doc) topWidths() map[string]int {
 	flush := func() {
 		width := 0
 		for _, k := range group {
-			if n := len(formatKey(k.Name)); !has(tl.Unaligned, k.Name) && n > width {
+			if n := len(k.written()); !has(tl.Unaligned, k.Name) && n > width {
 				width = n
 			}
 		}
@@ -292,10 +292,7 @@ func (d *Doc) topWidths() map[string]int {
 // equal to the original keeps its original text.
 func (d *Doc) renderKey(k *Key, ko *keyOrig, indent string, width int, tl TableLayout) ([]string, error) {
 	var lines []string
-	name := formatKey(k.Name)
-	if strings.Contains(k.Name, ".") && ko != nil {
-		name = k.Name // a dotted key, written as it was parsed
-	}
+	name := k.written()
 	pad := ""
 	if !has(tl.Unaligned, k.Name) && width > len(name) {
 		pad = strings.Repeat(" ", width-len(name))
@@ -316,7 +313,15 @@ func (d *Doc) renderKey(k *Key, ko *keyOrig, indent string, width int, tl TableL
 			elems = ko.elems
 		}
 		var err error
-		value, err = d.formatValueLines(k.Value, indent, has(tl.Multiline, k.Name), elems)
+		// A multi-line array with comments on its elements stays multi-line,
+		// so the comments are kept.
+		multiline := has(tl.Multiline, k.Name)
+		for _, el := range elems {
+			if len(el.above) > 0 || el.trailing != "" {
+				multiline = true
+			}
+		}
+		value, err = d.formatValueLines(k.Value, indent, multiline, elems)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", k.Name, err)
 		}
@@ -404,8 +409,9 @@ func (d *Doc) formatValueLines(v any, indent string, multiline bool, elems []ele
 
 // renderTable writes a table and its sub-tables in canonical form. o is the
 // table as it was, or nil; the leading comments of a top-level table are
-// written by the caller.
-func (d *Doc) renderTable(t *Table, o *tableOrig, parent, indent string) ([]string, error) {
+// written by the caller. parent is the parent's name for the layout, and
+// parentText its header as written.
+func (d *Doc) renderTable(t *Table, o *tableOrig, parent, parentText, indent string) ([]string, error) {
 	path := t.Name
 	if parent != "" {
 		path = parent + "." + t.Name
@@ -417,15 +423,18 @@ func (d *Doc) renderTable(t *Table, o *tableOrig, parent, indent string) ([]stri
 			lines = append(lines, indent+c)
 		}
 	}
-	var hdr []string
-	for _, part := range strings.Split(path, ".") {
-		hdr = append(hdr, formatKey(part))
+	text := formatDotted(t.Name)
+	if o != nil && o.name == t.Name && o.text != "" {
+		text = o.text
+	}
+	if parentText != "" {
+		text = parentText + "." + text
 	}
 	open, close := "[", "]"
 	if t.Array {
 		open, close = "[[", "]]"
 	}
-	header := indent + open + strings.Join(hdr, ".") + close
+	header := indent + open + text + close
 	if o != nil {
 		header += o.header
 	}
@@ -435,7 +444,7 @@ func (d *Doc) renderTable(t *Table, o *tableOrig, parent, indent string) ([]stri
 	sort.SliceStable(keys, func(i, j int) bool { return rank(tl.Order, keys[i].Name) < rank(tl.Order, keys[j].Name) })
 	width := 0
 	for _, k := range keys {
-		if n := len(formatKey(k.Name)); !has(tl.Unaligned, k.Name) && n > width {
+		if n := len(k.written()); !has(tl.Unaligned, k.Name) && n > width {
 			width = n
 		}
 	}
@@ -465,7 +474,7 @@ func (d *Doc) renderTable(t *Table, o *tableOrig, parent, indent string) ([]stri
 	}
 	sort.SliceStable(subs, func(i, j int) bool { return rank(tl.Subs, subs[i].t.Name) < rank(tl.Subs, subs[j].t.Name) })
 	for _, s := range subs {
-		sl, err := d.renderTable(s.t, s.o, path, indent+"  ")
+		sl, err := d.renderTable(s.t, s.o, path, text, indent+"  ")
 		if err != nil {
 			return nil, err
 		}
