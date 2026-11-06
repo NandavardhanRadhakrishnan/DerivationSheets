@@ -111,8 +111,12 @@ func clean(p string) (string, error) {
 // the root and the file holding a .git entry, such as a submodule).
 func (s *Local) writable(c string) error {
 	parts := strings.Split(c, "/")
-	if parts[0] == ".git" || parts[0] == ".dsheets" {
-		return fmt.Errorf("%s: %w", c, ErrReadOnly)
+	for i, part := range parts {
+		// Windows ignores case and trailing dots and spaces: ".GIT." is ".git".
+		name := strings.ToLower(strings.TrimRight(part, ". "))
+		if name == ".git" || i == 0 && name == ".dsheets" {
+			return fmt.Errorf("%s: %w", c, ErrReadOnly)
+		}
 	}
 	dir := s.root
 	for _, part := range parts[:len(parts)-1] {

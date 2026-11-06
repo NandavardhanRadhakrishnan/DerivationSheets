@@ -155,6 +155,12 @@ func TestPathsConfined(t *testing.T) {
 	if _, err := s.Save(Write{Path: ".git/config", Data: []byte("x")}); !errors.Is(err, ErrReadOnly) {
 		t.Errorf("Save into .git: err = %v", err)
 	}
+	// Windows ignores case and trailing dots and spaces in names.
+	for _, p := range []string{".GIT/config", ".git./hooks/pre-commit", ".git /config", "a/.Git/config", ".DSheets/sources/s/sheet.toml"} {
+		if _, err := s.Save(Write{Path: p, Data: []byte("x")}); !errors.Is(err, ErrReadOnly) {
+			t.Errorf("Save(%q): err = %v", p, err)
+		}
+	}
 	team := filepath.Join(dir, "team")
 	write(t, filepath.Join(team, "sheet.toml"), "sheet = \"t\"\n")
 	run(t, team, "init", "-q")
