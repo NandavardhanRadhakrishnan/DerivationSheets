@@ -220,43 +220,20 @@ func cmdCases(args []string, out, errw io.Writer) error {
 	if err != nil {
 		return err
 	}
-	res := cases.Generate(e, ref)
 	path := *outFlag
 	if path == "" {
 		path = cases.Path(dir)
 	}
-	if old, err := cases.Read(path); err == nil {
-		if n := cases.Preserve(res.Cases, old); n > 0 {
-			fmt.Fprintf(out, "kept %d hand-written expected values\n", n)
-		}
+	old, err := cases.Read(path)
+	if err != nil {
+		old = nil
 	}
-	var inputs []*sheet.Row
-	for _, r := range e.Graph.Order {
-		if r.IsInput() {
-			inputs = append(inputs, r)
-		}
-	}
-	if err := cases.Write(path, e.Sheet, inputs, ref, res.Cases); err != nil {
+	content, sum := cases.Regenerate(e, old, ref)
+	if err := os.WriteFile(path, content, 0o644); err != nil {
 		return err
 	}
-	fmt.Fprintf(out, "wrote %s: %d cases covering %d of %d targets (%d inputs evaluated)\n",
-		path, len(res.Cases), len(res.Targets)-len(res.Uncovered), len(res.Targets), res.Evaluated)
-	for _, t := range res.Uncovered {
-		fmt.Fprintf(out, "  not covered: %s (%s)\n", t.Key, t.Kind)
-	}
-	for _, c := range res.Cases {
-		for _, f := range c.Expected {
-			if f.Value == cases.Unknown {
-				fmt.Fprintf(out, "  case %q: fill in expected %s by hand (depends on a text rule)\n", c.ID, f.Name)
-			}
-		}
-		for _, call := range c.Calls {
-			for _, f := range call.Fields {
-				if f.Value == cases.Unknown {
-					fmt.Fprintf(out, "  case %q: fill in expected %s in the call to %s by hand (depends on a text rule)\n", c.ID, f.Name, call.Target)
-				}
-			}
-		}
+	for _, l := range sum.Lines(path) {
+		fmt.Fprintln(out, l)
 	}
 	return nil
 }
