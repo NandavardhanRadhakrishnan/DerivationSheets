@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "revision": 2,
+  "updated_at": "2026-11-06T15:06:39.4020839Z",
+  "updated_by": {
+    "session": "20261106T145500Z-e1f7ac",
+    "agent": "claude-code"
+  },
+  "project_status": "active",
+  "mode": "between_features",
+  "bottom_line": "Phase 1, flows and cross-repository references are built, tested and pushed. Next is the visual editor, in four milestones; build session one writes the editor's implementation plan and then the comment-preserving TOML writer (T-1).",
+  "recommended_next": {
+    "task_id": "T-1",
+    "reason": "The editor design is agreed (D-3) and only needs its implementation plan; the comment-preserving writer is the riskiest part of the editor, testable without any UI, and it also backs the formatter (T-7). Start the session by writing the editor plan from docs/superpowers/specs/2026-11-03-visual-editor-design.md."
+  },
+  "alternatives": [
+    {
+      "task_id": "T-5",
+      "reason": "PR diffs are smaller and useful in reviews straight away, but would design the committed-vs-edited comparison before the editor and T-6 need it."
+    },
+    {
+      "task_id": "T-8",
+      "reason": "Lists are the only open format question; settling them first avoids reworking the editor's forms, but nobody is blocked today and T-1 does not depend on the format."
+    }
+  ]
+}

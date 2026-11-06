@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "items": [
+    {
+      "id": "D-1",
+      "title": "Stack, naming and format foundations",
+      "status": "decided",
+      "context": "Settled with the developer on 2026-11-02 while building Phase 1.",
+      "decision": "CLI is `dsheets` (name kept in internal/brand). Go; any web UI is served on localhost by the Go binary (`dsheets serve`) as plain HTML, CSS and JavaScript with no build step or framework. All sheet numbers are CEL doubles. Range keys such as `[18..35]` live in lookup data. Evidence is shown by default. Wording is domain- and org-neutral: 'target', never 'partner'; generic examples such as specs/order-checkout.",
+      "rationale": "Developer's choices from the original handoff's open questions; the tool should read as usable within a team or across organisations. Don't re-ask these.",
+      "created_at": "2026-11-06T15:06:20.0973044Z",
+      "decided_at": "2026-11-06T15:06:20.0973044Z",
+      "source_session": "20261106T145500Z-e1f7ac",
+      "recorded_by": "claude-code"
+    },
+    {
+      "id": "D-2",
+      "title": "Cross-team model: one repository per team, a registry, follow main",
+      "status": "decided",
+      "context": "Agreed and built 2026-11-03 (PR #1). Spec: docs/superpowers/specs/2026-11-03-cross-repo-references-design.md; docs/repositories.md, docs/flows.md.",
+      "decision": "Each team keeps its sheets and interfaces in its own repository; cross-team references (`alias:path`) are read-only and follow the default branch. A registry repository of git submodules lists the teams. `dsheets impact` tells a producing team, in its own pull request, which other teams' flows its change breaks. Only each team's sheets folder is fetched, shallow and sparse. Whether a failing check blocks a merge is the organisation's CI policy, not dsheets'.",
+      "rationale": "Teams change signatures without meetings, assuming nobody consumes them; producers must learn what they break before merging.",
+      "created_at": "2026-11-06T15:06:20.0973044Z",
+      "decided_at": "2026-11-06T15:06:20.0973044Z",
+      "source_session": "20261106T145500Z-e1f7ac",
+      "recorded_by": "claude-code"
+    },
+    {
+      "id": "D-3",
+      "title": "Visual editor design",
+      "status": "decided",
+      "context": "Agreed in conversation 2026-11-03; spec docs/superpowers/specs/2026-11-03-visual-editor-design.md (mockups in the git-ignored .superpowers/brainstorm). Refines the 2026-11-02 call that slicing is done in flow.toml rather than by drag-and-drop: the flow panel now pins rows with form actions ('compute here'), still not drag-and-drop.",
+      "decision": "One editor for everyone, turned on with `dsheets serve --edit`; edits happen on the existing sheet and flow pages through a side panel with live preview. Saves write only the changed TOML spans, keep comments and formatting byte-for-byte elsewhere, and are refused only for errors the edit introduces. Files reached through alias: are read-only. Out of scope for now: creating sheets or flows from scratch, CSV and case editing, renaming after first save, git operations, re-slicing flows on save.",
+      "rationale": "Product managers should not edit TOML, and developers must find the editor faster than the TOML, not a simplified tool.",
+      "created_at": "2026-11-06T15:06:20.0973044Z",
+      "decided_at": "2026-11-06T15:06:20.0973044Z",
+      "source_session": "20261106T145500Z-e1f7ac",
+      "recorded_by": "claude-code"
+    },
+    {
+      "id": "D-4",
+      "title": "Build the visual editor next, starting with the TOML writer",
+      "status": "decided",
+      "context": "Concierge session 2026-11-06. Alternatives weighed: PR diffs first (T-5: smaller, useful in reviews straight away; BACKLOG.md's suggested order put it first, but that was written an hour before the editor design was agreed); lists design first (T-8: the only open format question; T-1 is format-agnostic, so it can wait).",
+      "decision": "Build the visual editor in four milestones (T-1 to T-4), starting with the comment-preserving TOML writer and file store (T-1), preceded by the editor's implementation plan. PR diffs (T-5) and the change-to-work project (T-6) follow the editor.",
+      "rationale": "The design is agreed and only needs a plan; the editor is the point of Phase 2 (product managers authoring without TOML); the writer is the riskiest part and testable on its own; it can also back the formatter (T-7); and the spec sequences T-6 and PR diffs after the editor because they share one comparison.",
+      "created_at": "2026-11-06T15:06:20.0973044Z",
+      "decided_at": "2026-11-06T15:06:20.0973044Z",
+      "source_session": "20261106T145500Z-e1f7ac",
+      "recorded_by": "claude-code"
+    },
+    {
+      "id": "D-5",
+      "title": "Where the backlog lives",
+      "status": "decided",
+      "context": "Hopback was added 2026-11-06 while the backlog lived in BACKLOG.md, which README links to in a public repository.",
+      "decision": "Hopback holds the working backlog (status, ranks, decisions). BACKLOG.md stays as the public roadmap and is refreshed at milestones, not on every change.",
+      "rationale": "One place for agents to track work across sessions, without breaking the public roadmap README points to.",
+      "created_at": "2026-11-06T15:06:20.0973044Z",
+      "decided_at": "2026-11-06T15:06:20.0973044Z",
+      "source_session": "20261106T145500Z-e1f7ac",
+      "recorded_by": "claude-code"
+    }
+  ]
+}

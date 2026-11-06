@@ -7,3 +7,6 @@ bin/
 
 # Clones of other teams' repositories, fetched by flows.
 .dsheets/
+
+# Brainstorming mockups.
+.superpowers/
