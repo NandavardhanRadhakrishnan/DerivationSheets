@@ -289,3 +289,17 @@ func TestSaveSheetNoChange(t *testing.T) {
 		t.Error("file written")
 	}
 }
+
+func TestSheetRefs(t *testing.T) {
+	_, ed := workspace(t, false)
+	refs, err := ed.SheetRefs(formulaDraft(t, ed, "subtotal * discount_rate + coupon_rate"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(refs.Uses["discount"], []string{"subtotal", "discount_rate"}) || !slices.Equal(refs.Unknown["discount"], []string{"coupon_rate"}) {
+		t.Errorf("uses %v, unknown %v", refs.Uses, refs.Unknown)
+	}
+	if c := refs.Cycle["discount"]; c[0] != "discount" || !slices.Contains(c, "total") || slices.Contains(c, "subtotal") {
+		t.Errorf("cycle for discount = %v", c)
+	}
+}

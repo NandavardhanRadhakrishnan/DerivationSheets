@@ -59,7 +59,7 @@ var commands = []struct {
 	{"render", "<workflow|flow> --out page.html", "write the calculation sheet, or a flow's horizontal view, as one self-contained HTML file", cmdRender},
 	{"verify", "<workflow> --actual results.json", "compare actual output payloads with cases.toml and record evidence", cmdVerify},
 	{"eval", "<workflow> (--case ID | --input in.json | --request req.json)", "evaluate one input and print the payload and full trace", cmdEval},
-	{"serve", "<workflow> [--addr localhost:8080]", "serve the rendered sheet on localhost, re-rendered on each request", cmdServe},
+	{"serve", "<workflow> [--addr localhost:8080] [--edit]", "serve the rendered sheet on localhost, re-rendered on each request; --edit lets you change it", cmdServe},
 	{"slice", "<flow> [--out flow.html]", "place each row in a team's step and report what every boundary must carry", cmdSlice},
 	{"interface", "import <schema> --out <file.toml>", "import an interface from OpenAPI, Avro or JSON Schema", cmdInterface},
 	{"fetch", "<flow>", "fetch or update the git sources a flow refers to", cmdFetch},
@@ -531,8 +531,9 @@ func printTrace(w io.Writer, e *eval.Engine, res *eval.Result) {
 }
 
 func cmdServe(args []string, out, errw io.Writer) error {
-	fs := newFlags("serve", "<workflow> [--addr localhost:8080]", errw)
+	fs := newFlags("serve", "<workflow> [--addr localhost:8080] [--edit]", errw)
 	addr := fs.String("addr", "localhost:8080", "listen address; keep it on localhost")
+	edit := fs.Bool("edit", false, "edit the sheet in the page: change rows and save them to sheet.toml")
 	evDir := fs.String("evidence-dir", "", "evidence folder (default: .evidence at the repository root)")
 	evMode := fs.String("evidence", "", "initial state of the evidence switch: shown or hidden (default: the sheet's display.evidence)")
 	noEv := fs.Bool("no-evidence", false, "leave evidence out of the page entirely")
@@ -545,6 +546,15 @@ func cmdServe(args []string, out, errw io.Writer) error {
 	}
 	if len(pos) <= 1 {
 		if _, err := oneWorkflow(fs, pos, errw); err != nil {
+			return err
+		}
+	}
+	var es *editServer
+	if *edit {
+		if err := checkEditArgs(pos, *addr); err != nil {
+			return err
+		}
+		if es, err = newEditServer(pos[0]); err != nil {
 			return err
 		}
 	}
@@ -561,12 +571,16 @@ func cmdServe(args []string, out, errw io.Writer) error {
 	if err != nil {
 		return err
 	}
-	h := serveHandler(pos, serveOptions{Title: *title, Check: *check, EvidenceDir: *evDir, Mode: mode}, fe, errw)
+	h := serveHandler(pos, serveOptions{Title: *title, Check: *check, EvidenceDir: *evDir, Mode: mode, Edit: es}, fe, errw)
 	ln, err := net.Listen("tcp", *addr)
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(out, "serving %s at http://%s/ (re-rendered on every request; Ctrl+C to stop)\n", dir, ln.Addr())
+	how := "re-rendered on every request"
+	if es != nil {
+		how = "editing " + es.file
+	}
+	fmt.Fprintf(out, "serving %s at http://%s/ (%s; Ctrl+C to stop)\n", dir, ln.Addr(), how)
 	return http.Serve(ln, h)
 }
 
@@ -574,6 +588,7 @@ func cmdServe(args []string, out, errw io.Writer) error {
 type serveOptions struct {
 	Title, EvidenceDir, Mode string
 	Check                    bool
+	Edit                     *editServer // nil: the page is read-only
 }
 
 // serveHandler re-renders the page on every request. Arguments given as
@@ -586,6 +601,9 @@ func serveHandler(pos []string, o serveOptions, fe *sources.Fetcher, errw io.Wri
 		fmt.Fprintf(w, "%s%v\n", msgs.String(), err)
 	}
 	mux := http.NewServeMux()
+	if o.Edit != nil {
+		o.Edit.register(mux)
+	}
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
 			http.NotFound(w, r)
