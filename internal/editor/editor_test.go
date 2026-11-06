@@ -317,3 +317,24 @@ func TestSheetRefsIncludeConditions(t *testing.T) {
 		t.Errorf("uses = %v; want the formula's rows, then the send condition's", got)
 	}
 }
+
+func TestSaveSheetInputReject(t *testing.T) {
+	dir, ed := workspace(t, true)
+	f := load(t, ed, sheetPath)
+	r := rowOf(t, f.Data, "subtotal")
+	r.Rejects = append(r.Rejects, RejectData{When: "subtotal > 1000 && !is_member", Code: "NON_MEMBER_LIMIT", Message: "Orders over 1000 need a membership"})
+	res, err := ed.SaveSheet(SheetDraft{File: sheetPath, Token: f.Token, Rows: map[string]RowData{"subtotal": r}})
+	if err != nil || !res.Saved {
+		t.Fatalf("%+v, %v", res, err)
+	}
+	// The subtotal row gains the reject and no uses.
+	sheet := onDisk(t, dir, sheetPath)
+	_, row, _ := strings.Cut(sheet, `id     = "subtotal"`)
+	row, _, _ = strings.Cut(row, "[[row]]")
+	if !strings.Contains(row, `"subtotal > 1000 && !is_member"`) || !strings.Contains(row, `"NON_MEMBER_LIMIT"`) || strings.Contains(row, "uses") {
+		t.Errorf("subtotal row:\n%s", row)
+	}
+	if cases := onDisk(t, dir, casesPath); !strings.Contains(cases, "subtotal:reject:NON_MEMBER_LIMIT") {
+		t.Errorf("cases.toml does not cover the input's reject:\n%s", cases)
+	}
+}

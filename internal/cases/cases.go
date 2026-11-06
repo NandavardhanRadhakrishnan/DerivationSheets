@@ -657,8 +657,29 @@ func valuePool(s *sheet.Sheet, r *sheet.Row, consts []float64) []any {
 			pool = []any{"example"}
 		}
 	}
+	// The input's own rejects test its value: their literals, and for
+	// numbers a value on each side, make them reachable. They come last, as
+	// the least typical values.
+	for _, rj := range r.Rejects {
+		switch r.Type {
+		case "number":
+			for _, m := range numberToken.FindAllString(rj.When, -1) {
+				if f, err := strconv.ParseFloat(m, 64); err == nil {
+					pool = appendUniq(appendUniq(appendUniq(pool, f), f-1), f+1)
+				}
+			}
+		case "string":
+			for _, m := range stringToken.FindAllString(rj.When, -1) {
+				if s, err := strconv.Unquote(m); err == nil {
+					pool = appendUniq(pool, s)
+				}
+			}
+		}
+	}
 	return pool
 }
+
+var stringToken = regexp.MustCompile(`"(?:[^"\\]|\\.)*"`)
 
 func appendUniq(xs []any, v any) []any {
 	for _, x := range xs {

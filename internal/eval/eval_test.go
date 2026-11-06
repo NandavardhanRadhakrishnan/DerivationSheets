@@ -1,7 +1,10 @@
 package eval
 
 import (
+	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sheet"
@@ -94,5 +97,96 @@ func TestMissingInput(t *testing.T) {
 	res := fixture(t).Evaluate(in)
 	if res.Reject == nil || res.Reject.Code != MissingInputCode || res.Reject.Row != "country" {
 		t.Fatalf("reject = %+v", res.Reject)
+	}
+}
+
+// withInputRejects is the fixture with a reject on the weight input that
+// checks only its own value, and one on the subtotal input that also names
+// another input.
+func withInputRejects(t *testing.T, edits ...string) *Engine {
+	t.Helper()
+	dir := filepath.Join("..", "..", "specs", "order-checkout")
+	b, err := os.ReadFile(filepath.Join(dir, sheet.FileName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := strings.ReplaceAll(string(b), "\r\n", "\n")
+	edits = append([]string{
+		"source = \"request.order.weightKg\"\ntype   = \"number\"\n",
+		"source = \"request.order.weightKg\"\ntype   = \"number\"\n\n  [[row.reject]]\n  when = \"weight_kg > 30\"\n  code = \"OVERWEIGHT\"\n",
+		"source = \"request.order.subtotal\"\ntype   = \"number\"\n",
+		"source = \"request.order.subtotal\"\ntype   = \"number\"\n\n  [[row.reject]]\n  when = \"subtotal > 1000 && !is_member\"\n  code = \"NON_MEMBER_LIMIT\"\n",
+	}, edits...)
+	for i := 0; i < len(edits); i += 2 {
+		if !strings.Contains(text, edits[i]) {
+			t.Fatalf("fixture does not contain %q", edits[i])
+		}
+		text = strings.Replace(text, edits[i], edits[i+1], 1)
+	}
+	s, err := sheet.Parse(dir, filepath.Join(dir, sheet.FileName), text)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, err := New(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return e
+}
+
+func TestInputReject(t *testing.T) {
+	e := withInputRejects(t)
+	if res := e.Evaluate(baseInput()); res.Err != nil || res.Reject != nil {
+		t.Fatalf("base input: err=%v reject=%+v", res.Err, res.Reject)
+	}
+
+	in := baseInput()
+	in["weight_kg"] = int64(31)
+	res := e.Evaluate(in)
+	if res.Err != nil || res.Reject == nil || res.Reject.Code != "OVERWEIGHT" || res.Reject.Row != "weight_kg" || res.Reject.Index != 0 {
+		t.Fatalf("err=%v reject=%+v", res.Err, res.Reject)
+	}
+	if !res.ByRow["weight_kg"].Rejected {
+		t.Error("weight_kg step is not marked rejected")
+	}
+	// The request stops at the input: the shipping fee, which has no rate
+	// over 30 kg, is never looked up.
+	if _, ok := res.ByRow["shipping_fee"]; ok {
+		t.Error("rows after the rejected input were evaluated")
+	}
+}
+
+func TestInputRejectNamingAnotherInput(t *testing.T) {
+	e := withInputRejects(t)
+	// subtotal is checked after is_member, which its reject names.
+	if !slices.Contains(e.Graph.Deps["subtotal"], "is_member") {
+		t.Errorf("subtotal deps = %v, want is_member", e.Graph.Deps["subtotal"])
+	}
+	for _, member := range []bool{true, false} {
+		in := baseInput()
+		in["subtotal"], in["is_member"] = int64(2000), member
+		res := e.Evaluate(in)
+		if res.Err != nil {
+			t.Fatalf("member=%v: %v", member, res.Err)
+		}
+		if got := res.Reject != nil && res.Reject.Code == "NON_MEMBER_LIMIT"; got == member {
+			t.Errorf("member=%v: reject=%+v", member, res.Reject)
+		}
+	}
+}
+
+func TestInputRejectSkippedWhenNotRequired(t *testing.T) {
+	e := withInputRejects(t,
+		"source = \"request.order.subtotal\"\ntype   = \"number\"\n",
+		"source = \"request.order.subtotal\"\ntype   = \"number\"\nusage  = \"S\"\nwhen   = \"is_member\"\n")
+	in := baseInput()
+	in["is_member"] = false
+	delete(in, "subtotal")
+	res := e.Evaluate(in)
+	if st := res.ByRow["subtotal"]; st == nil || st.Status != StatusNotRequired || st.Rejected {
+		t.Fatalf("subtotal step = %+v", st)
+	}
+	if res.Err != nil && res.Err.Row == "subtotal" {
+		t.Errorf("the missing input's reject was evaluated: %v", res.Err)
 	}
 }

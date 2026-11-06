@@ -156,3 +156,67 @@ func TestTargetSchema(t *testing.T) {
 }
 
 func quote(s string) string { return `"` + s + `"` }
+
+// inputRejects adds a reject on the weight input that checks only its own
+// value, and one on the subtotal input that also names another input.
+func inputRejects(text string) string {
+	text = strings.Replace(text, `source = "request.order.weightKg"
+type   = "number"
+`, `source = "request.order.weightKg"
+type   = "number"
+
+  [[row.reject]]
+  when    = "weight_kg > 30"
+  code    = "OVERWEIGHT"
+  message = "Parcels over 30 kg are not shipped"
+`, 1)
+	return strings.Replace(text, `source = "request.order.subtotal"
+type   = "number"
+`, `source = "request.order.subtotal"
+type   = "number"
+
+  [[row.reject]]
+  when    = "subtotal > 1000 && !is_member"
+  code    = "NON_MEMBER_LIMIT"
+  message = "Orders over 1000 need a membership"
+`, 1)
+}
+
+func TestInputRejects(t *testing.T) {
+	base := fixtureText(t)
+	text := inputRejects(base)
+	if text == base || strings.Count(text, "[[row.reject]]") != strings.Count(base, "[[row.reject]]")+2 {
+		t.Fatal("fixture inputs changed; update inputRejects")
+	}
+	rep := run(t, text)
+	for _, d := range rep.Diagnostics {
+		t.Errorf("unexpected diagnostic: %v", d)
+	}
+
+	t.Run("undefined name", func(t *testing.T) {
+		rep := run(t, strings.Replace(text, `!is_member"`, `!is_membr"`, 1))
+		var found bool
+		for _, d := range rep.Diagnostics {
+			t.Log(d)
+			if d.Code == "ref-undefined" && strings.Contains(d.Message, "reject.0.when") && strings.Contains(d.Message, "is_membr") {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("no ref-undefined diagnostic for the input's reject")
+		}
+	})
+	t.Run("cycle", func(t *testing.T) {
+		// net_amount is derived from subtotal, so the subtotal check cannot
+		// wait for it.
+		rep := run(t, strings.Replace(text, `"subtotal > 1000 && !is_member"`, `"subtotal > 1000 && net_amount > 900"`, 1))
+		var found bool
+		for _, d := range rep.Diagnostics {
+			t.Log(d)
+			found = found || d.Code == "cycle"
+		}
+		if !found {
+			t.Error("no cycle diagnostic")
+		}
+	})
+}

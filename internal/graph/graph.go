@@ -4,6 +4,7 @@ package graph
 import (
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/expr"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sheet"
@@ -63,6 +64,12 @@ func Expressions(r *sheet.Row) []LabeledExpr {
 	return out
 }
 
+// IsRejectWhen reports whether an expression label from Expressions is a
+// reject condition.
+func IsRejectWhen(key string) bool {
+	return strings.HasPrefix(key, "reject.") && strings.HasSuffix(key, ".when")
+}
+
 // LabeledExpr is an expression and where it sits on its row.
 type LabeledExpr struct {
 	Key  string
@@ -85,7 +92,8 @@ func Build(s *sheet.Sheet, eng expr.Engine) *Graph {
 			add(u)
 		}
 		for _, le := range Expressions(r) {
-			if r.IsInput() && le.Key == "when" {
+			// An input has no uses: its when and rejects name rows directly.
+			if r.IsInput() && (le.Key == "when" || IsRejectWhen(le.Key)) {
 				ids, _ := eng.Identifiers(le.Expr)
 				for _, id := range ids {
 					add(id)
