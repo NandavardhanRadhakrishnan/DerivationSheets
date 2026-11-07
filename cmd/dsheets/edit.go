@@ -14,7 +14,9 @@ import (
 	"strings"
 
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/editor"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/eval"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/expr"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/render"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sheet"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sources"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/store"
@@ -29,6 +31,10 @@ const maxDraft = 1 << 20
 type editServer struct {
 	ed   *editor.Editor
 	file string // the sheet, relative to the store root
+	dir  string // the sheet's folder
+	// evDir and mode render a draft as the served page is rendered; serve
+	// sets them when it registers the endpoints.
+	evDir, mode string
 }
 
 // newEditServer sets up editing for a sheet folder. The store root is the
@@ -53,7 +59,7 @@ func newEditServer(dir string) (*editServer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &editServer{ed: &editor.Editor{Store: st, Root: root}, file: file}, nil
+	return &editServer{ed: &editor.Editor{Store: st, Root: root}, file: file, dir: abs}, nil
 }
 
 // gitPrefix returns the repository holding dir and dir's path inside it,
@@ -239,14 +245,64 @@ func (es *editServer) check(w http.ResponseWriter, r *http.Request) {
 	out := struct {
 		*editor.SheetResult
 		*editor.Refs
+		Preview *preview `json:"preview,omitempty"`
 	}{SheetResult: res}
 	if len(res.Conflict) == 0 {
 		if out.Refs, err = es.ed.SheetRefs(d); err != nil {
 			draftError(w, err)
 			return
 		}
+		if out.Preview, err = es.preview(d); err != nil {
+			draftError(w, err)
+			return
+		}
 	}
 	writeJSONStatus(w, http.StatusOK, out)
+}
+
+// preview is the sheet page as the draft would render it, so the page can
+// show an edit before it is saved.
+type preview struct {
+	Page  string `json:"page,omitempty"`  // the whole page, from which the browser takes the sheet
+	Stale string `json:"stale,omitempty"` // why the draft cannot be shown; the page keeps what it shows
+}
+
+// preview renders the draft. Rows the draft deletes are kept, so the page
+// can still show them, marked, until the deletion is saved.
+func (es *editServer) preview(d editor.SheetDraft) (*preview, error) {
+	d.Deleted = nil
+	e, reason, err := es.ed.DraftEngine(d)
+	if err != nil {
+		return nil, err
+	}
+	if e == nil {
+		return &preview{Stale: reason}, nil
+	}
+	page, err := es.renderDraft(e)
+	if err != nil {
+		return &preview{Stale: err.Error()}, nil
+	}
+	return &preview{Page: page}, nil
+}
+
+// renderDraft renders an engine built from a draft, which may have
+// validation errors the renderer was never written for: a panic becomes
+// an error, and the page keeps showing what it showed.
+func (es *editServer) renderDraft(e *eval.Engine) (page string, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("the draft cannot be drawn yet: %v", r)
+		}
+	}()
+	p, err := enginePage(e, es.dir, es.evDir, es.mode, "")
+	if err != nil {
+		return "", err
+	}
+	var buf strings.Builder
+	if err := render.Write(&buf, p); err != nil {
+		return "", err
+	}
+	return buf.String(), nil
 }
 
 func (es *editServer) save(w http.ResponseWriter, r *http.Request) {

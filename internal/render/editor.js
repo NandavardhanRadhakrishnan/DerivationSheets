@@ -145,10 +145,11 @@
   var countEl = h("span", { "class": "ed-count" });
   var msgEl = h("span", { "class": "ed-msg", role: "status", "aria-live": "polite" });
   var newRowsEl = h("span", { "class": "ed-new-rows" });
+  var staleEl = h("span", { "class": "ed-stale", hidden: true });
   var discardBtn = button("Discard", discard);
   var saveBtn = button("Save", save, "ed-primary");
   var bar = h("div", { "class": "ed-bar" }, [
-    h("div", { "class": "ed-bar-left" }, [countEl, newRowsEl, msgEl]),
+    h("div", { "class": "ed-bar-left" }, [countEl, newRowsEl, msgEl, staleEl]),
     h("div", { "class": "ed-bar-right" }, [discardBtn, saveBtn])
   ]);
   var detailsEl = h("div", { "class": "ed-details", hidden: true });
@@ -247,9 +248,10 @@
 
   function check() {
     var seq = ++checking;
-    post("/edit/check", draft()).then(function (res) {
+    return post("/edit/check", draft()).then(function (res) {
       if (seq !== checking) return;
       if (res.conflict && res.conflict.length) return conflict(res.conflict);
+      showDraft(res.preview);
       problems = res.problems || [];
       refs = { uses: res.uses || {}, unknown: res.unknown || {}, cycle: res.cycle || {} };
       var again = false;
@@ -268,6 +270,51 @@
     }).catch(function (err) {
       if (seq === checking) say("Checking failed: " + err.message, "danger");
     });
+  }
+
+  // ---------- The sheet, drawn from the draft ----------
+
+  // showDraft puts the sheet as the draft would render it in place of the
+  // one on the page, so an edit shows in the grid, rule and send columns
+  // before it is saved. The server draws it with the same renderer; nothing
+  // is written. When the draft cannot be drawn (it does not parse, or makes
+  // a cycle), the page keeps the last sheet it drew and says so.
+  var drawn = false; // the page shows a draft, not the file
+  function showDraft(pv) {
+    if (!pv) return;
+    staleEl.textContent = pv.stale ? "The sheet shows your last edit that could be drawn: " + pv.stale + "." : "";
+    staleEl.hidden = !pv.stale;
+    if (!pv.page || (!drawn && changeCount() === 0)) return fitBar();
+    var doc = new DOMParser().parseFromString(pv.page, "text/html");
+    var oldT = document.querySelector("table.sheet"), newT = doc.querySelector("table.sheet");
+    if (!oldT || !newT) return;
+    var ae = document.activeElement, fr = ae && ae.closest ? ae.closest("table.sheet tr.row") : null;
+    var focusId = fr ? fr.getAttribute("data-id") : null;
+    var top = oldT.scrollTop, left = oldT.scrollLeft;
+    newT = document.adoptNode(newT);
+    oldT.replaceWith(newT);
+    newT.scrollTop = top;
+    newT.scrollLeft = left;
+    var oldN = document.querySelector("section.notes"), newN = doc.querySelector("section.notes");
+    if (newN) newN = document.adoptNode(newN);
+    if (oldN && newN) oldN.replaceWith(newN);
+    else if (oldN) oldN.remove();
+    else if (newN) newT.insertAdjacentElement("afterend", newN);
+    var h1 = document.querySelector("header.head h1"), newH1 = doc.querySelector("header.head h1");
+    if (h1 && newH1) h1.textContent = newH1.textContent;
+    drawn = changeCount() > 0;
+    decorate();
+    markRows();
+    if (focusId) { var f = sheetRow(focusId); if (f) f.focus(); }
+    if (headEl && selected && selected !== "#title" && !added[selected]) {
+      var num = sheetRow(selected);
+      headEl.textContent = "Row " + (num ? num.querySelector("td.num").textContent : "");
+    }
+    fitBar();
+  }
+
+  function sheetRow(id) {
+    return document.querySelector('table.sheet tr.row[data-id="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]');
   }
 
   function save() {
@@ -376,29 +423,38 @@
     markRows();
   }
 
-  document.querySelectorAll("tr.row").forEach(function (tr) {
-    var id = tr.getAttribute("data-id");
-    if (!rows[id]) return;
-    tr.classList.add("ed-selectable");
-    tr.setAttribute("tabindex", "0");
-    tr.addEventListener("click", function () { open(id); });
-    tr.addEventListener("keydown", function (e) { if (e.key === "Enter") open(id); });
-  });
+  // Rows are found through the document, as the sheet is redrawn from the
+  // draft (see showDraft); decorate marks the ones the panel can open.
+  function decorate() {
+    document.querySelectorAll("table.sheet tr.row").forEach(function (tr) {
+      if (!rows[tr.getAttribute("data-id")]) return;
+      tr.classList.add("ed-selectable");
+      tr.setAttribute("tabindex", "0");
+    });
+  }
+  function rowFrom(e) {
+    var tr = e.target.closest ? e.target.closest("table.sheet tr.ed-selectable") : null;
+    return tr && rows[tr.getAttribute("data-id")] ? tr.getAttribute("data-id") : null;
+  }
+  document.addEventListener("click", function (e) { var id = rowFrom(e); if (id) open(id); });
+  document.addEventListener("keydown", function (e) { var id = e.key === "Enter" && rowFrom(e); if (id) open(id); });
+  decorate();
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape" && !panel.hidden && !document.querySelector(".ed-suggest:not([hidden])")) close();
   });
 
-  var statusEl = null, usesEl = null;
+  var statusEl = null, usesEl = null, headEl = null;
 
   function render() {
     panel.textContent = "";
-    statusEl = usesEl = null;
+    statusEl = usesEl = headEl = null;
     if (selected === "#title") return renderTitle();
     var id = selected, r = rows[id];
     if (!r) return close();
     var num = document.querySelector('tr.row[data-id="' + id + '"] td.num');
+    headEl = h("h2", { text: (added[id] ? "New row" : "Row " + (num ? num.textContent : "")) });
     panel.appendChild(h("div", { "class": "ed-panel-head" }, [
-      h("h2", { text: (added[id] ? "New row" : "Row " + (num ? num.textContent : "")) }),
+      headEl,
       button("Close", close, "ed-quiet", { "aria-label": "Close the panel" })
     ]));
     if (deleted[id]) {

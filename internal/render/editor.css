@@ -52,6 +52,8 @@ tr.ed-deleted > td:not(.num) { opacity: 0.4; text-decoration: line-through; }
 .ed-msg.danger { color: var(--danger); }
 .ed-msg.success { color: var(--success); font-weight: 600; }
 .ed-msg.muted { color: var(--muted); }
+.ed-stale { color: var(--warn); }
+.ed-stale[hidden] { display: none; }
 .ed-details {
   flex-basis: 100%; color: var(--muted); font-size: 11.5px; max-height: 6.5em; overflow: auto;
   font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace; white-space: pre-wrap;

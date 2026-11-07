@@ -255,3 +255,47 @@ func TestEditPageCarriesState(t *testing.T) {
 		}
 	}
 }
+
+func TestEditCheckPreview(t *testing.T) {
+	h := editHandler(t, editRepo(t))
+	st := getState(t, h)
+	type checkRes struct {
+		editor.SheetResult
+		Preview struct {
+			Page  string `json:"page"`
+			Stale string `json:"stale"`
+		} `json:"preview"`
+	}
+	check := func(d editor.SheetDraft) checkRes {
+		t.Helper()
+		rec := request(h, "POST", "/edit/check", d, nil)
+		if rec.Code != 200 {
+			t.Fatalf("%d %s", rec.Code, rec.Body)
+		}
+		var res checkRes
+		json.Unmarshal(rec.Body.Bytes(), &res)
+		return res
+	}
+	// A new row that nothing uses yet is an error, and is still drawn.
+	res := check(editor.SheetDraft{File: st.File, Token: st.Token, Deleted: []string{"customs_value"}, Rows: map[string]editor.RowData{
+		"gift_note": {Name: "Gift note", Source: "request.order.giftNote", Type: "string"},
+	}})
+	if !strings.Contains(res.Preview.Page, `data-id="gift_note"`) || res.Preview.Stale != "" {
+		t.Errorf("new row not drawn; stale %q", res.Preview.Stale)
+	}
+	if !strings.Contains(res.Preview.Page, `data-id="customs_value"`) {
+		t.Error("a deleted row should stay on the page until the deletion is saved")
+	}
+	// A cycle cannot be drawn: the page keeps what it shows.
+	var discount editor.RowData
+	for _, r := range st.Rows {
+		if r.ID == "discount" {
+			discount = r
+		}
+	}
+	discount.Formula, discount.Uses = "total * 0.1", []string{"total"}
+	res = check(editor.SheetDraft{File: st.File, Token: st.Token, Rows: map[string]editor.RowData{"discount": discount}})
+	if res.Preview.Page != "" || !strings.Contains(res.Preview.Stale, "circular") {
+		t.Errorf("cycle: stale %q, page %d bytes", res.Preview.Stale, len(res.Preview.Page))
+	}
+}
