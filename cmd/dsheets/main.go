@@ -333,6 +333,12 @@ func buildPage(dir, evDir, mode, snap string, errw io.Writer) (*render.Page, err
 	if err != nil {
 		return nil, err
 	}
+	return enginePage(e, dir, evDir, mode, snap)
+}
+
+// enginePage renders a sheet's engine as buildPage does, reading evidence
+// for the sheet in dir.
+func enginePage(e *eval.Engine, dir, evDir, mode, snap string) (*render.Page, error) {
 	opt := render.Options{Now: time.Now(), Evidence: mode}
 	if snap != "" {
 		t, err := time.Parse("2006-01-02", snap)
@@ -602,6 +608,7 @@ func serveHandler(pos []string, o serveOptions, fe *sources.Fetcher, errw io.Wri
 	}
 	mux := http.NewServeMux()
 	if o.Edit != nil {
+		o.Edit.evDir, o.Edit.mode = o.EvidenceDir, o.Mode
 		o.Edit.register(mux)
 	}
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
