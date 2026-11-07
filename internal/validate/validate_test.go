@@ -206,10 +206,44 @@ func TestInputRejects(t *testing.T) {
 			t.Error("no ref-undefined diagnostic for the input's reject")
 		}
 	})
+	t.Run("derived row", func(t *testing.T) {
+		// zone is derived, so the check belongs on a derived row's reject.
+		rep := run(t, strings.Replace(text, `"weight_kg > 30"`, `"weight_kg > 30 && zone != 'DOMESTIC'"`, 1))
+		var found bool
+		for _, d := range rep.Diagnostics {
+			t.Log(d)
+			if d.Code == "input-reject-derived" && d.Severity == Error && d.Row == "weight_kg" &&
+				strings.Contains(d.Message, `"zone"`) && strings.Contains(d.Message, "reject on a derived row") {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("no input-reject-derived diagnostic for the weight reject naming zone")
+		}
+	})
+	t.Run("when may name a derived row", func(t *testing.T) {
+		// An input's when keeps allowing any row; only its rejects are limited.
+		rep := run(t, strings.Replace(text, `source = "request.order.weightKg"
+type   = "number"
+`, `source = "request.order.weightKg"
+type   = "number"
+usage  = "S"
+when   = "zone != 'DOMESTIC'"
+`, 1))
+		for _, d := range rep.Diagnostics {
+			t.Errorf("unexpected diagnostic: %v", d)
+		}
+	})
 	t.Run("cycle", func(t *testing.T) {
-		// net_amount is derived from subtotal, so the subtotal check cannot
+		// net_amount is derived from subtotal, so subtotal's when cannot
 		// wait for it.
-		rep := run(t, strings.Replace(text, `"subtotal > 1000 && !is_member"`, `"subtotal > 1000 && net_amount > 900"`, 1))
+		rep := run(t, strings.Replace(text, `source = "request.order.subtotal"
+type   = "number"
+`, `source = "request.order.subtotal"
+type   = "number"
+usage  = "S"
+when   = "net_amount > 900"
+`, 1))
 		var found bool
 		for _, d := range rep.Diagnostics {
 			t.Log(d)

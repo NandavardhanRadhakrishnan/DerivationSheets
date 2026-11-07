@@ -316,8 +316,15 @@ func (c *checker) checkExpr(r *sheet.Row, le graph.LabeledExpr) {
 	selfOK := le.Key != "formula" && le.Key != "when"
 	for _, id := range ids {
 		if r.IsInput() && (le.Key == "when" || graph.IsRejectWhen(le.Key)) {
-			if c.s.ByID[id] == nil {
+			switch ref := c.s.ByID[id]; {
+			case ref == nil:
 				c.add(Error, "ref-undefined", r, line, "%s refers to %q, which is not a row%s", le.Key, id, suggest(id, c.s))
+			case graph.IsRejectWhen(le.Key) && !ref.IsInput():
+				// An input's reject checks the request itself; a check that
+				// needs a derived value goes on that derived row, whose
+				// reject can name anything in its uses. The input's when may
+				// still name any row: it decides whether the input is needed.
+				c.add(Error, "input-reject-derived", r, line, "%s names derived row %q; an input's reject may name only the input and other inputs, so move this check to a reject on a derived row", le.Key, id)
 			}
 			continue
 		}
