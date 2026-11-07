@@ -416,6 +416,34 @@
     if (first) first.focus();
   }
 
+  // show opens a row the panel points to (a Uses ID) and brings it into
+  // view on the sheet.
+  function show(id) {
+    open(id);
+    var tr = sheetRow(id);
+    if (tr) reveal(tr);
+  }
+
+  // reveal centres a row in the part of the screen nothing covers: below the
+  // sticky column header, above the bar, and above the panel where the panel
+  // is a bottom sheet (narrow screens). Below 900px the table scrolls in its
+  // own box, so that box moves first and the page takes what is left.
+  function reveal(tr) {
+    var table = tr.closest("table");
+    var head = table.querySelector("thead th"); // the cells are what stick
+    var top = Math.max(0, head ? head.getBoundingClientRect().bottom : 0);
+    var bottom = window.innerHeight - bar.offsetHeight;
+    var p = panel.getBoundingClientRect();
+    if (!panel.hidden && p.left <= 0 && p.top > 0) bottom = Math.min(bottom, p.top);
+    var delta = function () {
+      var r = tr.getBoundingClientRect();
+      if (r.height >= bottom - top) return r.top - top;
+      return (r.top + r.bottom) / 2 - (top + bottom) / 2;
+    };
+    if (table.scrollHeight > table.clientHeight) table.scrollTop += delta();
+    window.scrollBy(0, delta());
+  }
+
   function close() {
     selected = null;
     panel.hidden = true;
@@ -654,7 +682,11 @@
       var uses = rows[id].uses || [];
       usesEl.appendChild(h("span", { "class": "ed-label", text: "Uses" }));
       if (!uses.length) usesEl.appendChild(h("span", { "class": "ed-hint", text: "Filled from the formula as you type." }));
-      uses.forEach(function (u) { usesEl.appendChild(h("span", { "class": "ed-use", title: rowName(u) }, [h("code", { text: u })])); });
+      uses.forEach(function (u) {
+        usesEl.appendChild(rows[u]
+          ? h("button", { type: "button", "class": "ed-use", title: "Open " + rowName(u), onclick: function () { show(u); } }, [h("code", { text: u })])
+          : h("span", { "class": "ed-use-plain" }, [h("code", { text: u })]));
+      });
       (refs.unknown[id] || []).forEach(function (name) {
         usesEl.appendChild(h("div", { "class": "ed-unknown" }, [
           h("code", { text: name }), " is not a row. ",

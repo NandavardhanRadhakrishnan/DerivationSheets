@@ -18,7 +18,7 @@ body.editing { padding-bottom: calc(var(--ed-bar) + 24px); }
 }
 .ed-btn:hover:not(:disabled) { border-color: var(--fg); }
 .ed-btn:disabled { color: var(--muted); cursor: default; opacity: 0.6; }
-.ed-btn:focus-visible, .ed-panel input:focus-visible, .ed-panel textarea:focus-visible,
+.ed-btn:focus-visible, .ed-use:focus-visible, .ed-panel input:focus-visible, .ed-panel textarea:focus-visible,
 .ed-panel select:focus-visible, tr.ed-selectable:focus-visible, .ed-seg input:focus-visible + label {
   outline: 2px solid var(--accent); outline-offset: 1px;
 }
@@ -112,7 +112,9 @@ tr.ed-deleted > td:not(.num) { opacity: 0.4; text-decoration: line-through; }
 .ed-suggest li.blocked:hover { background: none; }
 .ed-uses { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; margin: -4px 0 12px; }
 .ed-uses .ed-label { margin: 0 4px 0 0; }
+.ed-use { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
 .ed-use code { color: var(--accent); border-bottom: 1px dotted var(--accent); }
+.ed-use:hover code { border-bottom-style: solid; }
 .ed-unknown { flex-basis: 100%; color: var(--danger); font-size: 12.5px; margin-top: 4px; }
 .ed-unknown .ed-btn { margin-left: 4px; }
 
@@ -134,6 +136,8 @@ tr.ed-deleted > td:not(.num) { opacity: 0.4; text-decoration: line-through; }
   .ed-panel {
     top: auto; left: 0; width: auto; height: 62vh; border-left: 0; border-top: 1.5px solid var(--line-strong);
   }
+  /* Room to scroll the last rows above the panel. */
+  body.panel-open { padding-bottom: calc(62vh + var(--ed-bar) + 24px); }
 }
 
 @media print {
