@@ -60,7 +60,7 @@ or `text`.
 | `lookup` | derived | `{ from = "db.x" or "config.x", key = [ids] }` |
 | `values` / `values_file` | lookups | Design-time values: inline (one key only) or a CSV in `data/` |
 | `text` | derived | Plain-language rule. Not computable, so it is reported as an open item. |
-| `[[row.reject]]` | any | `when`, `code`, `message`. Rejects the whole request. Checked once the row has a value: a situational input that is missing while not required is not checked. |
+| `[[row.reject]]` | any | `when`, `code`, `message`. Rejects the whole request. Checked once the row has a value: a situational input that is missing while not required is not checked. On an input row, `when` may name only the row itself and other inputs. |
 | `[row.send]` | any | `field`, `usage`, `when`, `otherwise`, `map`, and `target` for a call. Use `[[row.send]]` for several sends. |
 | `open_questions` | any | Unresolved questions. `validate` reports them as warnings. |
 
@@ -174,7 +174,11 @@ the data covers (a warning). Integer bounds that differ by one, as in
 [CEL](https://cel.dev). Identifiers are row IDs, and every identifier must
 appear in the row's `uses`. Rejects and `send.when` may also refer to the row
 itself. Input rows have no `uses`: an input row's `when` and rejects refer to
-other rows directly, and the input is read after the rows they name.
+other rows directly, and the input is read after the rows they name. An input's
+`when` may name any row, since it decides whether the input is required. An
+input's rejects check the request itself, so they may name only the row and
+other inputs; a check that needs a derived value is a reject on that derived
+row, which can name anything in its `uses`.
 
 Sheets have a single number type, so every number is a CEL double: integer
 literals are read as doubles (`x * 2` means `x * 2.0`). `date` and `datetime`
