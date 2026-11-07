@@ -2,6 +2,10 @@
    colour tokens, so it follows light, dark and print like the page. */
 :root { --ed-panel: 400px; --ed-bar: 48px; }
 body.editing { padding-bottom: calc(var(--ed-bar) + 24px); }
+@media screen and (max-width: 900px) {
+  /* Keep the bottom of the table's own scroll box clear of the fixed bar. */
+  body.editing .sheet { max-height: calc(100vh - var(--ed-bar)); max-height: calc(100dvh - var(--ed-bar)); }
+}
 @media (min-width: 1100px) {
   body.panel-open { padding-right: calc(var(--ed-panel) + 16px); }
 }
