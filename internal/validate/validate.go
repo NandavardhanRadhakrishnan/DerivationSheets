@@ -39,6 +39,8 @@ type Diagnostic struct {
 	Line     int      `json:"line,omitempty"`
 	Row      string   `json:"row,omitempty"`
 	Message  string   `json:"message"`
+	// Rules are the decision-table rules the diagnostic is about, from 1.
+	Rules []int `json:"rules,omitempty"`
 }
 
 func (d Diagnostic) String() string {
@@ -135,6 +137,15 @@ func (c *checker) add(sev Severity, code string, r *sheet.Row, line int, format 
 		}
 	}
 	c.rep.Diagnostics = append(c.rep.Diagnostics, d)
+}
+
+// about records the decision-table rules, counted from 0, that the last
+// diagnostic is about.
+func (c *checker) about(rules ...int) {
+	d := &c.rep.Diagnostics[len(c.rep.Diagnostics)-1]
+	for _, j := range rules {
+		d.Rules = append(d.Rules, j+1)
+	}
 }
 
 func (c *checker) line(r *sheet.Row, keys ...string) int {
@@ -397,12 +408,14 @@ func (c *checker) checkTable(r *sheet.Row) {
 		line := c.s.Pos.TableRuleLine(idx, j)
 		if len(rule.Raw) != len(t.Columns)+1 {
 			c.add(Error, "table-rule-width", r, line, "rule %d has %d cells; expected %d inputs and a result", j+1, len(rule.Raw), len(t.Columns))
+			c.about(j)
 			broken = true
 			continue
 		}
 		for k, cell := range rule.Raw[:len(rule.Raw)-1] {
 			if _, err := sheet.ParseCell(cell, false, false); err != nil {
 				c.add(Error, "table-cell", r, line, "rule %d, column %q: %v", j+1, t.Columns[k], err)
+				c.about(j)
 				broken = true
 			}
 		}
@@ -435,6 +448,7 @@ func (c *checker) checkTable(r *sheet.Row) {
 		c.add(Error, "table-overlap", r, c.s.Pos.TableRuleLine(idx, o.B),
 			"rules %d and %d both match %s; with hit_policy \"unique\" exactly one rule may match (use \"first\" if order should decide)",
 			o.A+1, o.B+1, analysis.Describe(t.Columns, o.Example))
+		c.about(o.A, o.B)
 	}
 }
 
