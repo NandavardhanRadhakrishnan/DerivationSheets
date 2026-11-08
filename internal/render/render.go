@@ -91,6 +91,10 @@ type EditView struct {
 	JS    template.JS
 }
 
+// EditorCSS is the sheet editor's style: its bar, panel and controls,
+// which the flow editor shares.
+func EditorCSS() string { return editorCSS }
+
 // NewEditView wraps the editor's starting state, which must be JSON with
 // "<" escaped, as encoding/json writes it.
 func NewEditView(state []byte) *EditView {

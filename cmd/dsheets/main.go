@@ -539,7 +539,7 @@ func printTrace(w io.Writer, e *eval.Engine, res *eval.Result) {
 func cmdServe(args []string, out, errw io.Writer) error {
 	fs := newFlags("serve", "<workflow> [--addr localhost:8080] [--edit]", errw)
 	addr := fs.String("addr", "localhost:8080", "listen address; keep it on localhost")
-	edit := fs.Bool("edit", false, "edit the sheet in the page: change rows and save them to sheet.toml")
+	edit := fs.Bool("edit", false, "edit in the page: a sheet's rows, or a flow's placements, interface fields and stages")
 	evDir := fs.String("evidence-dir", "", "evidence folder (default: .evidence at the repository root)")
 	evMode := fs.String("evidence", "", "initial state of the evidence switch: shown or hidden (default: the sheet's display.evidence)")
 	noEv := fs.Bool("no-evidence", false, "leave evidence out of the page entirely")
@@ -609,6 +609,7 @@ func serveHandler(pos []string, o serveOptions, fe *sources.Fetcher, errw io.Wri
 	mux := http.NewServeMux()
 	if o.Edit != nil {
 		o.Edit.evDir, o.Edit.mode = o.EvidenceDir, o.Mode
+		o.Edit.ed.Fetcher = fe
 		o.Edit.register(mux)
 	}
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -622,6 +623,12 @@ func serveHandler(pos []string, o serveOptions, fe *sources.Fetcher, errw io.Wri
 			fail(w, &msgs, err)
 			return
 		}
+		if o.Edit != nil && o.Edit.flowFile != "" {
+			if err := o.Edit.flowPage(w); err != nil {
+				fail(w, &msgs, err)
+			}
+			return
+		}
 		if isFlow(dirs[0]) {
 			var buf bytes.Buffer
 			if err := flowPage(dirs, o.Title, o.Check, fe, &buf, &msgs); err != nil {
@@ -632,25 +639,43 @@ func serveHandler(pos []string, o serveOptions, fe *sources.Fetcher, errw io.Wri
 			w.Write(buf.Bytes())
 			return
 		}
-		page, err := buildPage(dirs[0], o.EvidenceDir, o.Mode, "", &msgs)
+		writeSheetPage(w, dirs[0], o, &msgs, errw)
+	})
+	if o.Edit != nil && o.Edit.flowFile != "" && o.Edit.file != "" {
+		// A flow served with --edit also serves its end-to-end sheet.
+		mux.HandleFunc("/sheet", func(w http.ResponseWriter, r *http.Request) {
+			var msgs bytes.Buffer
+			writeSheetPage(w, o.Edit.dir, o, &msgs, errw)
+		})
+	}
+	return mux
+}
+
+// writeSheetPage renders a sheet folder, with the editor when o.Edit
+// edits a sheet.
+func writeSheetPage(w http.ResponseWriter, dir string, o serveOptions, msgs *bytes.Buffer, errw io.Writer) {
+	fail := func(err error) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		fmt.Fprintf(w, "%s%v\n", msgs.String(), err)
+	}
+	page, err := buildPage(dir, o.EvidenceDir, o.Mode, "", msgs)
+	if err != nil {
+		fail(err)
+		return
+	}
+	if o.Edit != nil && o.Edit.file != "" {
+		st, err := o.Edit.stateJSON()
 		if err != nil {
-			fail(w, &msgs, err)
+			fail(err)
 			return
 		}
-		if o.Edit != nil {
-			st, err := o.Edit.stateJSON()
-			if err != nil {
-				fail(w, &msgs, err)
-				return
-			}
-			page.Edit = render.NewEditView(st)
-		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if err := render.Write(w, page); err != nil {
-			fmt.Fprintln(errw, err)
-		}
-	})
-	return mux
+		page.Edit = render.NewEditView(st)
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := render.Write(w, page); err != nil {
+		fmt.Fprintln(errw, err)
+	}
 }
 
 func cmdSchema(args []string, out, errw io.Writer) error {

@@ -52,6 +52,29 @@ type Page struct {
 	Check bool
 	// Flows lists the flows of a combined grid; empty for a single flow.
 	Flows []string
+	// Edit is set when the page is served with --edit.
+	Edit *EditView
+}
+
+// EditView adds the flow editor to a page: its starting state as JSON, and
+// the editor's style and script. A view with no script only marks the page
+// up for the editor, as a check's preview needs.
+type EditView struct {
+	State template.JS
+	CSS   template.CSS
+	JS    template.JS
+}
+
+//go:embed flowedit.css
+var editCSS string
+
+//go:embed flowedit.js
+var editJS string
+
+// NewEditView wraps the editor's starting state, which must be JSON with
+// "<" escaped, as encoding/json writes it.
+func NewEditView(state []byte) *EditView {
+	return &EditView{State: template.JS(state), CSS: template.CSS(render.EditorCSS() + editCSS), JS: template.JS(editJS)}
 }
 
 // Column is a boundary or a step. Both have the same three header lines:
@@ -59,6 +82,8 @@ type Page struct {
 // team), and Meta (kind and owner, or the team's role).
 type Column struct {
 	Boundary bool
+	// Index is the boundary's or the step's position in the analysis.
+	Index    int
 	Eyebrow  string
 	Name     string
 	Meta     string
@@ -142,9 +167,9 @@ func Build(a *flow.Analysis, now time.Time, check bool) *Page {
 	for i, b := range a.Boundaries {
 		if i > 0 {
 			st := a.Steps[i-1]
-			p.Columns = append(p.Columns, Column{Eyebrow: st.Label(), Name: st.Team(), Meta: st.RoleLabel()})
+			p.Columns = append(p.Columns, Column{Index: st.Index, Eyebrow: st.Label(), Name: st.Team(), Meta: st.RoleLabel()})
 		}
-		col := Column{Boundary: true, Eyebrow: b.RoleLabel()}
+		col := Column{Boundary: true, Index: i, Eyebrow: b.RoleLabel()}
 		if b.Iface != nil {
 			col.Name, col.Status = b.Iface.Name, b.Iface.Status
 			col.Meta = iface.KindLabel(b.Iface.Kind)

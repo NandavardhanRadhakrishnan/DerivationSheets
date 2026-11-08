@@ -16,6 +16,7 @@ import (
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/editor"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/eval"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/expr"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/flow"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/render"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sheet"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sources"
@@ -26,15 +27,22 @@ import (
 // maxDraft is the largest request body the edit endpoints read.
 const maxDraft = 1 << 20
 
-// editServer answers the edit endpoints for the one sheet serve --edit
-// serves.
+// editServer answers the edit endpoints for what serve --edit serves: one
+// sheet, or one flow and, when it is in this repository, the flow's
+// end-to-end sheet.
 type editServer struct {
 	ed   *editor.Editor
-	file string // the sheet, relative to the store root
+	file string // the sheet, relative to the store root; "" when no sheet is editable
 	dir  string // the sheet's folder
 	// evDir and mode render a draft as the served page is rendered; serve
 	// sets them when it registers the endpoints.
 	evDir, mode string
+
+	// flowFile is the flow.toml served, relative to the store root; "" when
+	// serving a sheet.
+	flowFile string
+	// sheetNote says why a flow's end-to-end sheet cannot be edited.
+	sheetNote string
 }
 
 // newEditServer sets up editing for a sheet folder. The store root is the
@@ -42,7 +50,7 @@ type editServer struct {
 // commit; a folder outside git is its own root.
 func newEditServer(dir string) (*editServer, error) {
 	if isFlow(dir) {
-		return nil, fmt.Errorf("--edit works on sheets for now; %s is a flow", dir)
+		return newFlowEditServer(dir)
 	}
 	abs, err := filepath.Abs(dir)
 	if err != nil {
@@ -60,6 +68,58 @@ func newEditServer(dir string) (*editServer, error) {
 		return nil, err
 	}
 	return &editServer{ed: &editor.Editor{Store: st, Root: root}, file: file, dir: abs}, nil
+}
+
+// newFlowEditServer sets up editing for a flow folder, and for its
+// end-to-end sheet when that sheet is in the same repository and not
+// reached through a source alias.
+func newFlowEditServer(dir string) (*editServer, error) {
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return nil, err
+	}
+	f, err := flow.Load(abs)
+	if err != nil {
+		return nil, err
+	}
+	root := f.Dir
+	if top, _, ok := gitPrefix(f.Dir); ok {
+		root = top
+	}
+	st, err := store.NewLocal(root)
+	if err != nil {
+		return nil, err
+	}
+	es := &editServer{ed: &editor.Editor{Store: st, Root: root}}
+	if es.flowFile, err = storeRel(root, f.File); err != nil {
+		return nil, err
+	}
+	if alias, _ := sources.Split(f.SheetRef); alias != "" {
+		es.sheetNote = fmt.Sprintf("the end-to-end sheet %s belongs to %s, so it is read-only", f.SheetRef, alias)
+		return es, nil
+	}
+	sheetDir := filepath.Clean(filepath.Join(f.Dir, filepath.FromSlash(f.SheetRef)))
+	rel, err := storeRel(root, filepath.Join(sheetDir, sheet.FileName))
+	if err != nil {
+		es.sheetNote = "the end-to-end sheet is outside this repository, so it is read-only"
+		return es, nil
+	}
+	if _, err := os.Stat(filepath.Join(sheetDir, sheet.FileName)); err != nil {
+		es.sheetNote = fmt.Sprintf("the end-to-end sheet %s cannot be read: %v", f.SheetRef, err)
+		return es, nil
+	}
+	es.file, es.dir = rel, sheetDir
+	return es, nil
+}
+
+// storeRel is path relative to root, slash-separated; an error when path
+// is outside root.
+func storeRel(root, path string) (string, error) {
+	rel, err := filepath.Rel(root, path)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+		return "", fmt.Errorf("%s is outside %s", path, root)
+	}
+	return filepath.ToSlash(rel), nil
 }
 
 // gitPrefix returns the repository holding dir and dir's path inside it,
@@ -102,11 +162,19 @@ func loopback(host string) bool {
 	return host == "localhost" || host == "127.0.0.1" || host == "::1"
 }
 
-// register adds the edit endpoints to mux.
+// register adds the edit endpoints to mux: the sheet's, when a sheet is
+// editable, and the flow's, when serving a flow.
 func (es *editServer) register(mux *http.ServeMux) {
-	mux.HandleFunc("/edit/state", es.guard(false, es.state))
-	mux.HandleFunc("/edit/check", es.guard(true, es.check))
-	mux.HandleFunc("/edit/save", es.guard(true, es.save))
+	if es.file != "" {
+		mux.HandleFunc("/edit/state", es.guard(false, es.state))
+		mux.HandleFunc("/edit/check", es.guard(true, es.check))
+		mux.HandleFunc("/edit/save", es.guard(true, es.save))
+	}
+	if es.flowFile != "" {
+		mux.HandleFunc("/edit/flow/state", es.guard(false, es.flowStateEndpoint))
+		mux.HandleFunc("/edit/flow/check", es.guard(true, es.flowCheck))
+		mux.HandleFunc("/edit/flow/save", es.guard(true, es.flowSave))
+	}
 }
 
 // guard lets through only requests from the page itself. Every endpoint
@@ -216,6 +284,9 @@ func (es *editServer) stateJSON() ([]byte, error) {
 		fns = append(fns, map[string]string{"name": name, "signature": d.Signature, "description": d.Description})
 	}
 	st["functions"] = fns
+	if es.flowFile != "" {
+		st["back"] = "/" // served with its flow: the page links back to it
+	}
 	return json.Marshal(st)
 }
 

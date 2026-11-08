@@ -144,6 +144,7 @@
     button("Add row", function () { addRow({}); }),
     button("Edit title", function () { open("#title"); })
   ]);
+  if (S.back) actions.insertBefore(h("a", { "class": "ed-btn", href: S.back, text: "Back to the flow" }), actions.firstChild);
   if (head) head.appendChild(actions);
 
   var countEl = h("span", { "class": "ed-count" });

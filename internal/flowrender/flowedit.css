@@ -1,0 +1,44 @@
+/* dsheets flow editor: the flow page's panel. It shares the sheet editor's
+   bar, panel and controls (editor.css) and adds what a flow needs. */
+:root { --up: rgba(31, 95, 191, 0.10); --focus: rgba(31, 95, 191, 0.20); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --up: rgba(121, 168, 255, 0.14); --focus: rgba(121, 168, 255, 0.26); }
+}
+:root[data-theme="dark"] { --up: rgba(121, 168, 255, 0.14); --focus: rgba(121, 168, 255, 0.26); }
+
+.head .ed-actions { margin-top: 6px; flex-wrap: wrap; align-items: center; }
+.head .ed-actions .ed-note { font-size: 12px; }
+
+
+/* Rows and column headers open the panel. */
+.flow tr.ed-selectable > td.value { cursor: pointer; }
+.flow tr.ed-selected > td, .flow tr.ed-selected > td.b, .flow tr.ed-selected > td.value { background-color: var(--focus) !important; }
+.flow th.ed-selectable { cursor: pointer; }
+.flow th.ed-selectable:hover { box-shadow: inset 0 -2px 0 var(--accent); }
+.flow th.ed-selected { box-shadow: inset 0 -3px 0 var(--accent); }
+.fe-add-stage { margin-top: 4px; }
+
+/* The panel's sections. */
+.fe-section { margin: 14px 0 0; padding-top: 10px; border-top: 1px solid var(--line); }
+.fe-section > h3 { margin-bottom: 6px; }
+.fe-steps { list-style: none; margin: 0 0 8px; padding: 0; }
+.fe-steps li {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 4px 0; border-bottom: 1px solid var(--line);
+}
+.fe-steps li.here { font-weight: 600; }
+.fe-steps .fe-here { font-size: 11.5px; color: var(--accent); white-space: nowrap; }
+.fe-mark { border: 1px solid var(--line); border-left-width: 3px; border-radius: 3px; padding: 8px 10px; margin: 0 0 10px; }
+.fe-mark.missing { border-left-color: var(--danger); }
+.fe-mark.warning { border-left-color: var(--warn); }
+.fe-mark .fe-mark-head { font-weight: 600; margin-bottom: 2px; }
+.fe-mark.missing .fe-sym { color: var(--danger); }
+.fe-mark.warning .fe-sym { color: var(--warn); }
+.fe-mark .ed-note { margin-bottom: 8px; }
+.fe-mark .ed-row { align-items: flex-end; }
+.fe-mark .ed-row .ed-field { margin-bottom: 6px; }
+.fe-mark .ed-check { margin: 0 0 8px; }
+.fe-mark .ed-hint.warn { color: var(--warn); }
+.fe-sub { font-size: 12px; color: var(--muted); margin: 8px 0 4px; }
+.fe-done { color: var(--success); font-size: 12px; }
+.fe-list { margin: 0; padding-left: 18px; }
