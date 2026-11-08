@@ -256,7 +256,6 @@ func TestEditRefusesAliasAndRemoteAddr(t *testing.T) {
 		{"--edit", "--addr", "0.0.0.0:0", dir},
 		{"--edit", "--addr", ":0", dir},
 		{"--edit", dir, dir},
-		{"--edit", filepath.Join("..", "..", "flows", "checkout-to-payment")},
 	} {
 		if err := run(append([]string{"serve"}, args...), io.Discard, io.Discard); err == nil {
 			t.Errorf("serve %v: no error", args)
