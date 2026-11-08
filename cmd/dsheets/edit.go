@@ -267,8 +267,9 @@ type preview struct {
 	Stale string `json:"stale,omitempty"` // why the draft cannot be shown; the page keeps what it shows
 	// Cases are what saving would write to cases.toml, with every row's
 	// result in each; CasesStale says why there are none.
-	Cases      []editor.CaseView `json:"cases,omitempty"`
-	CasesStale string            `json:"cases_stale,omitempty"`
+	Cases      []editor.CaseView  `json:"cases,omitempty"`
+	Unreached  []editor.Unreached `json:"unreached,omitempty"`
+	CasesStale string             `json:"cases_stale,omitempty"`
 }
 
 // preview renders the draft. Rows the draft deletes are kept on the page,
@@ -288,11 +289,15 @@ func (es *editServer) preview(d editor.SheetDraft) (*preview, error) {
 	if err != nil {
 		return &preview{Stale: err.Error()}, nil
 	}
-	cs, reason, err := es.ed.DraftCases(d)
+	set, reason, err := es.ed.DraftCases(d)
 	if err != nil {
 		return nil, err
 	}
-	return &preview{Page: page, Cases: cs, CasesStale: reason}, nil
+	pv := &preview{Page: page, CasesStale: reason}
+	if set != nil {
+		pv.Cases, pv.Unreached = set.Cases, set.Unreached
+	}
+	return pv, nil
 }
 
 // renderDraft renders an engine built from a draft, which may have

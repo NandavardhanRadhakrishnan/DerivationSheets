@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"path"
 	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/cases"
@@ -46,8 +48,25 @@ func (ed *Editor) DraftEngine(d SheetDraft) (e *eval.Engine, reason string, err 
 // CaseView is one case the draft would generate, with what every row
 // computes in it.
 type CaseView struct {
-	ID   string             `json:"id"`
+	ID string `json:"id"`
+	// Key identifies the case by its input. Case IDs are named after
+	// results, so an edit can rename a case; its key stays.
+	Key  string             `json:"key"`
 	Rows map[string]CaseRow `json:"rows"`
+}
+
+// Unreached is a coverage target no generated case reaches, such as a
+// table rule whose result a later row cannot use.
+type Unreached struct {
+	Row    string `json:"row"`
+	Target string `json:"target"` // the target's key without the row, such as "[true,>= 2]"
+	Kind   string `json:"kind"`   // as cases.Target.Kind
+}
+
+// DraftCaseSet is what saving would write to cases.toml.
+type DraftCaseSet struct {
+	Cases     []CaseView  `json:"cases"`
+	Unreached []Unreached `json:"unreached,omitempty"`
 }
 
 // CaseRow is one row's result in one case.
@@ -63,22 +82,27 @@ type CaseRow struct {
 // every row in each. When the draft cannot be evaluated, reason says why,
 // as for DraftEngine. A draft may have validation errors the case
 // generator was never written for: a panic becomes a reason.
-func (ed *Editor) DraftCases(d SheetDraft) (cs []CaseView, reason string, err error) {
+func (ed *Editor) DraftCases(d SheetDraft) (set *DraftCaseSet, reason string, err error) {
 	e, reason, err := ed.DraftEngine(d)
 	if e == nil {
 		return nil, reason, err
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			cs, reason, err = nil, fmt.Sprintf("the cases cannot be worked out yet: %v", r), nil
+			set, reason, err = nil, fmt.Sprintf("the cases cannot be worked out yet: %v", r), nil
 		}
 	}()
 	gen := cases.Generate(e, ed.refTime(path.Join(path.Dir(d.File), cases.FileName)))
-	cs = make([]CaseView, 0, len(gen.Cases))
+	set = &DraftCaseSet{Cases: make([]CaseView, 0, len(gen.Cases))}
 	for _, c := range gen.Cases {
-		cs = append(cs, CaseView{ID: c.ID, Rows: caseRows(e, e.Evaluate(eval.Input(c.Input)))})
+		set.Cases = append(set.Cases, CaseView{ID: c.ID, Key: inputKey(c.Input), Rows: caseRows(e, e.Evaluate(eval.Input(c.Input)))})
 	}
-	return cs, "", nil
+	for _, t := range gen.Uncovered {
+		if t.Kind != "isolation" {
+			set.Unreached = append(set.Unreached, Unreached{Row: t.Row, Target: strings.TrimPrefix(t.Key, t.Row+":"), Kind: t.Kind})
+		}
+	}
+	return set, "", nil
 }
 
 // refTime is the reference time saving would regenerate cases with: the
@@ -94,6 +118,19 @@ func (ed *Editor) refTime(file string) time.Time {
 		t, _ = cases.RefTime(nil)
 	}
 	return t
+}
+
+// inputKey writes an input as sorted name=value pairs.
+func inputKey(in map[string]any) string {
+	names := make([]string, 0, len(in))
+	for k := range in {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+	for i, k := range names {
+		names[i] = k + "=" + sheet.FormatValue(in[k])
+	}
+	return strings.Join(names, ";")
 }
 
 // caseRows reads every row's result out of one evaluation.

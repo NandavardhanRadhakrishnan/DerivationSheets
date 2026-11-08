@@ -28,6 +28,8 @@
   });
   var title = S.title;
   var problems = [], refs = { uses: {}, unknown: {}, cycle: {} };
+  // Rows whose uses the server fills from their rule.
+  var FILLED_USES = { formula: true, table: true, lookup: true };
   var selected = null; // a row ID, "#title", or null
   var leaving = false, newCount = 0;
 
@@ -49,6 +51,7 @@
       if (v === "" || v === null || v === undefined || v === false) return;
       if (Array.isArray(v) && v.length === 0) return;
       if (k === "sends" || k === "rejects") v = v.map(norm);
+      if (k === "table") v = { columns: v.columns, hit_policy: v.hit_policy || undefined, rows: v.rows };
       out[k] = v;
     });
     return out;
@@ -200,6 +203,19 @@
       tr.classList.toggle("ed-deleted", !!deleted[id]);
       tr.classList.toggle("ed-problem", ps.some(function (p) { return p.severity === "error" && !p.new; }));
       tr.classList.toggle("ed-new-problem", ps.some(function (p) { return p.new; }));
+      tr.querySelectorAll("table.dt tr[data-rule]").forEach(function (rt) {
+        var n = Number(rt.getAttribute("data-rule"));
+        rt.classList.toggle("ed-rule-new", ruleProblems(ps, n, true));
+        rt.classList.toggle("ed-rule-bad", ruleProblems(ps, n, false));
+      });
+    });
+  }
+
+  // ruleProblems says whether an error names decision-table rule n: one the
+  // edit introduces (fresh) or one already there.
+  function ruleProblems(ps, n, fresh) {
+    return ps.some(function (p) {
+      return p.severity === "error" && !!p.new === fresh && (p.rules || []).indexOf(n) >= 0;
     });
   }
 
@@ -247,17 +263,18 @@
   }
 
   function check() {
-    var seq = ++checking;
+    var seq = ++checking, clean = changeCount() === 0;
     return post("/edit/check", draft()).then(function (res) {
       if (seq !== checking) return;
       if (res.conflict && res.conflict.length) return conflict(res.conflict);
       showDraft(res.preview);
+      takeCases(res.preview, clean);
       problems = res.problems || [];
       refs = { uses: res.uses || {}, unknown: res.unknown || {}, cycle: res.cycle || {} };
       var again = false;
       Object.keys(refs.uses).forEach(function (id) {
         var r = rows[id];
-        if (!r || kinds[id] !== "formula") return;
+        if (!r || !FILLED_USES[kinds[id]]) return;
         if (JSON.stringify(r.uses || []) !== JSON.stringify(refs.uses[id])) {
           r.uses = refs.uses[id].slice();
           again = true;
@@ -270,6 +287,24 @@
     }).catch(function (err) {
       if (seq === checking) say("Checking failed: " + err.message, "danger");
     });
+  }
+
+  // cases are what saving would write to cases.toml, with every row's
+  // result in each. baseCases are the same for the file as loaded, by
+  // input (an edit can rename a case), so the panel can say what an edit
+  // changes. When the draft's cases cannot be
+  // worked out, the last ones stay and casesNote says why.
+  var cases = null, unreached = [], casesNote = "", baseCases = null;
+  function takeCases(pv, clean) {
+    if (!pv) return;
+    casesNote = pv.stale || pv.cases_stale || "";
+    if (casesNote) return;
+    cases = pv.cases || [];
+    unreached = pv.unreached || [];
+    if (clean) {
+      baseCases = {};
+      cases.forEach(function (c) { baseCases[c.key] = c; });
+    }
   }
 
   // ---------- The sheet, drawn from the draft ----------
@@ -390,15 +425,33 @@
     selected = newId;
   }
 
+  var KIND_NAMES = { input: "input", formula: "formula", table: "decision table", lookup: "lookup", text: "text rule" };
+  function aKind(kind) { return (/^[aeiou]/.test(KIND_NAMES[kind]) ? "an " : "a ") + KIND_NAMES[kind]; }
+
+  // hasRule says whether switching away from kind would lose something
+  // the person wrote.
+  function hasRule(r, kind) {
+    switch (kind) {
+      case "input": return !!(r.source && r.source !== "request.") || !!r.type || !!r.usage || !!r.when || !!r.has_default;
+      case "formula": return !!(r.formula && r.formula.trim());
+      case "text": return !!(r.text && r.text.trim());
+      case "lookup": return !!r.lookup;
+      case "table": return !!r.table && (r.table.columns.length > 1 || r.table.rows.some(function (row) {
+        return row.some(function (c) { return c !== "-" && c !== ""; });
+      }));
+    }
+    return false;
+  }
+
   function setKind(id, kind) {
     var r = rows[id], had = kinds[id];
     if (had === kind) return;
-    var loses = had === "input" ? r.source && r.source !== "request." : had === "formula" ? r.formula : had === "text" ? r.text : false;
-    if (loses && !window.confirm("Switching the rule kind discards the current " + had + ". Continue?")) { render(); return; }
-    ["source", "type", "usage", "when", "has_default", "default", "formula", "text"].forEach(function (k) { delete r[k]; });
+    if (hasRule(r, had) && !window.confirm("Replace the " + KIND_NAMES[had] + " with " + aKind(kind) + "? The current rule will be removed.")) { render(); return; }
+    ["source", "type", "usage", "when", "has_default", "default", "formula", "text", "table", "lookup"].forEach(function (k) { delete r[k]; });
     if (kind === "input") { r.source = "request."; delete r.uses; }
     if (kind === "formula") r.formula = "";
     if (kind === "text") r.text = "";
+    if (kind === "table") r.table = { columns: ["=>"], rows: [[""]] };
     kinds[id] = kind;
     render();
     changed();
@@ -447,7 +500,7 @@
   function close() {
     selected = null;
     panel.hidden = true;
-    document.body.classList.remove("panel-open");
+    document.body.classList.remove("panel-open", "panel-wide");
     markRows();
   }
 
@@ -471,11 +524,14 @@
     if (e.key === "Escape" && !panel.hidden && !document.querySelector(".ed-suggest:not([hidden])")) close();
   });
 
-  var statusEl = null, usesEl = null, headEl = null;
+  var statusEl = null, usesEl = null, headEl = null, casesEl = null, gridEl = null;
 
   function render() {
     panel.textContent = "";
-    statusEl = usesEl = headEl = null;
+    statusEl = usesEl = headEl = casesEl = gridEl = null;
+    var wide = selected !== "#title" && kinds[selected] === "table" && !deleted[selected];
+    panel.classList.toggle("ed-wide", wide);
+    document.body.classList.toggle("panel-wide", wide);
     if (selected === "#title") return renderTitle();
     var id = selected, r = rows[id];
     if (!r) return close();
@@ -491,14 +547,16 @@
       return;
     }
     var kind = kinds[id];
-    if (kind === "table" || kind === "lookup") {
-      panel.appendChild(h("p", { "class": "ed-note", text: "Editing decision tables and lookups comes later. This row is shown read-only." }));
+    if (kind === "lookup") {
+      panel.appendChild(h("p", { "class": "ed-note", text: "Editing lookups comes later. This row is shown read-only." }));
       panel.appendChild(h("dl", { "class": "ed-readonly" }, [
         h("dt", { text: "Name" }), h("dd", { text: r.name || "" }),
         h("dt", { text: "ID" }), h("dd", {}, [h("code", { text: id })])
       ]));
       statusEl = h("div", { "class": "ed-status" });
       panel.appendChild(statusEl);
+      casesEl = h("section", { "class": "ed-list ed-cases" });
+      panel.appendChild(casesEl);
       refreshPanelStatus();
       return;
     }
@@ -520,7 +578,7 @@
     panel.appendChild(field("Description", textarea(r.description, s("description"))));
 
     var group = h("div", { "class": "ed-seg", role: "radiogroup", "aria-label": "Rule" });
-    [["input", "Input"], ["formula", "Formula"], ["text", "Text"]].forEach(function (k) {
+    [["input", "Input"], ["formula", "Formula"], ["table", "Table"], ["text", "Text"]].forEach(function (k) {
       var rid = "ed-kind-" + k[0];
       group.appendChild(h("input", { type: "radio", name: "ed-kind", id: rid, value: k[0], checked: kind === k[0], onchange: function () { setKind(id, k[0]); } }));
       group.appendChild(h("label", { "for": rid, text: k[1] }));
@@ -529,7 +587,10 @@
 
     if (kind === "input") renderInput(id, r);
     if (kind === "formula") renderFormula(id, r);
+    if (kind === "table") renderTable(id, r);
     if (kind === "text") panel.appendChild(field("Rule in words", textarea(r.text, s("text"), { rows: 3 }), "Shown as an open item until someone writes the rule."));
+    casesEl = h("section", { "class": "ed-list ed-cases" });
+    panel.appendChild(casesEl);
 
     renderSends(id, r);
     renderRejects(id, r);
@@ -598,42 +659,55 @@
 
   // ---------- Formula with suggestions ----------
 
-  function renderFormula(id, r) {
-    var ta = textarea(r.formula, function (v, el) { r.formula = v; changed(); suggest(el); }, { "class": "mono", rows: 3, spellcheck: "false", autocomplete: "off", "aria-autocomplete": "list" });
-    var list = h("ul", { "class": "ed-suggest", role: "listbox", hidden: true });
-    ta.setAttribute("aria-controls", "ed-suggest");
-    list.id = "ed-suggest";
+  // rowCands are the rows an expression on row id may name: every row
+  // left on the sheet, with the ones that would make a cycle blocked. An
+  // input's reject may name only the input and other inputs (D-9).
+  function rowCands(id, inputReject) {
+    var cycle = {};
+    (refs.cycle[id] || [id]).forEach(function (c) { cycle[c] = true; });
+    return order.filter(function (x) {
+      return !deleted[x] && (!inputReject || x === id || kinds[x] === "input");
+    }).map(function (x) {
+      return { name: x, label: x, note: rowName(x), blocked: !inputReject && !!cycle[x] };
+    });
+  }
+
+  // suggester offers row IDs and functions while typing an expression in
+  // el, and returns the list to place after it. cands gives the rows to
+  // offer; onpick takes the text after a suggestion is picked.
+  var suggestN = 0;
+  function suggester(el, owner, cands, onpick) {
+    var n = ++suggestN;
+    var list = h("ul", { "class": "ed-suggest", role: "listbox", hidden: true, id: "ed-suggest-" + n });
+    el.setAttribute("aria-controls", list.id);
+    el.setAttribute("aria-autocomplete", "list");
+    el.setAttribute("autocomplete", "off");
     var active = -1, items = [];
 
-    function prefixAt(el) {
+    function prefixAt() {
       var m = /[A-Za-z_][A-Za-z0-9_]*$/.exec(el.value.slice(0, el.selectionStart));
       return m ? m[0] : "";
     }
-    function suggest(el) {
-      var p = prefixAt(el).toLowerCase();
+    function suggest() {
+      var p = prefixAt().toLowerCase();
       list.textContent = "";
       items = [];
       active = -1;
       if (!p) { list.hidden = true; return; }
-      var cycle = {};
-      (refs.cycle[id] || [id]).forEach(function (c) { cycle[c] = true; });
-      var cands = order.filter(function (x) { return !deleted[x]; }).map(function (x) {
-        return { name: x, label: x, note: rowName(x), blocked: !!cycle[x] };
-      }).concat((S.functions || []).map(function (f) {
+      var all = cands().concat((S.functions || []).map(function (f) {
         return { name: f.name, label: f.signature, note: f.description, fn: true };
       }));
-      var starts = cands.filter(function (c) { return c.name.toLowerCase().indexOf(p) === 0; });
-      var has = cands.filter(function (c) { return c.name.toLowerCase().indexOf(p) > 0; });
+      var starts = all.filter(function (c) { return c.name.toLowerCase().indexOf(p) === 0; });
+      var has = all.filter(function (c) { return c.name.toLowerCase().indexOf(p) > 0; });
       items = starts.concat(has).slice(0, 8);
       if (!items.length || (items.length === 1 && items[0].name.toLowerCase() === p)) { list.hidden = true; return; }
       items.forEach(function (c, i) {
-        var li = h("li", {
-          role: "option", id: "ed-sg-" + i, "aria-disabled": c.blocked ? "true" : null,
+        list.appendChild(h("li", {
+          role: "option", id: "ed-sg-" + n + "-" + i, "aria-disabled": c.blocked ? "true" : null,
           "class": c.blocked ? "blocked" : null,
-          title: c.blocked ? "Using this row would make a cycle: it depends on " + rowName(id) + "." : null,
+          title: c.blocked ? "Using this row would make a cycle: it depends on " + rowName(owner) + "." : null,
           onmousedown: function (e) { e.preventDefault(); pick(i); }
-        }, [h("code", { text: c.label }), h("span", { text: c.note || "" })]);
-        list.appendChild(li);
+        }, [h("code", { text: c.label }), h("span", { text: c.note || "" })]));
       });
       list.hidden = false;
     }
@@ -643,33 +717,161 @@
       do { i = (i + d + items.length) % items.length; } while (items[i].blocked && i !== active && items.some(function (c) { return !c.blocked; }));
       active = i;
       Array.prototype.forEach.call(list.children, function (li, j) { li.classList.toggle("active", j === active); li.setAttribute("aria-selected", j === active); });
-      ta.setAttribute("aria-activedescendant", "ed-sg-" + active);
+      el.setAttribute("aria-activedescendant", "ed-sg-" + n + "-" + active);
     }
     function pick(i) {
       var c = items[i];
       if (!c || c.blocked) return;
-      var before = ta.value.slice(0, ta.selectionStart), after = ta.value.slice(ta.selectionStart);
-      var p = prefixAt(ta);
+      var before = el.value.slice(0, el.selectionStart), after = el.value.slice(el.selectionStart);
+      var p = prefixAt();
       var ins = c.fn ? c.name + "(" : c.name;
-      ta.value = before.slice(0, before.length - p.length) + ins + after;
+      el.value = before.slice(0, before.length - p.length) + ins + after;
       var at = before.length - p.length + ins.length;
-      ta.setSelectionRange(at, at);
-      r.formula = ta.value;
+      el.setSelectionRange(at, at);
       list.hidden = true;
-      changed();
+      onpick(el.value);
     }
-    ta.addEventListener("keydown", function (e) {
+    el.addEventListener("input", suggest);
+    el.addEventListener("keydown", function (e) {
       if (list.hidden) return;
       if (e.key === "ArrowDown") { e.preventDefault(); move(1); }
       else if (e.key === "ArrowUp") { e.preventDefault(); move(-1); }
       else if ((e.key === "Enter" || e.key === "Tab") && active >= 0) { e.preventDefault(); pick(active); }
       else if (e.key === "Escape") { e.preventDefault(); list.hidden = true; }
     });
-    ta.addEventListener("blur", function () { list.hidden = true; });
+    el.addEventListener("blur", function () { list.hidden = true; });
+    return list;
+  }
+
+  // exprField is a one-line expression input with suggestions.
+  function exprField(label, value, onchange, cands, owner, hint) {
+    var el = input(value, function (v) { onchange(v); }, { "class": "mono", spellcheck: "false" });
+    var list = suggester(el, owner, cands, onchange);
+    var f = field(label, el, hint);
+    f.classList.add("ed-formula");
+    f.insertBefore(list, el.nextSibling);
+    return f;
+  }
+
+  // ---------- Formula ----------
+
+  function renderFormula(id, r) {
+    var set = function (v) { r.formula = v; changed(); };
+    var ta = textarea(r.formula, set, { "class": "mono", rows: 3, spellcheck: "false" });
+    var list = suggester(ta, id, function () { return rowCands(id, false); }, set);
     panel.appendChild(h("div", { "class": "ed-field ed-formula" }, [h("label", { "for": "ed-formula", text: "Formula" }), ta, list]));
     ta.id = "ed-formula";
     usesEl = h("div", { "class": "ed-uses" });
     panel.appendChild(usesEl);
+  }
+
+  // ---------- Decision table ----------
+
+  function cellText(v) { return v === null || v === undefined ? "" : String(v); }
+
+  // cellValue reads a cell as typed: true and false are booleans, numbers
+  // are numbers, and anything else (a condition such as ">= 2", "-" for
+  // any value, a name) is text. A cell whose text is unchanged keeps the
+  // value it had, so 0.10 stays as the file writes it.
+  function cellValue(text, was) {
+    if (was !== undefined && cellText(was) === text) return was;
+    var t = text.trim();
+    if (t === "true" || t === "false") return t === "true";
+    if (/^-?(\d+(\.\d*)?|\.\d+)$/.test(t)) return Number(t);
+    return t;
+  }
+
+  function renderTable(id, r) {
+    var tb = r.table;
+    var n = tb.columns.length - 1; // input columns; the last is "=>"
+    var origPolicy = orig[id] && orig[id].table ? orig[id].table.hit_policy || "" : "";
+    panel.appendChild(field("Hit policy", select([["", "One rule per case (unique)"], ["first", "First matching rule wins"]],
+      tb.hit_policy === "first" ? "first" : "", function (v) {
+        // A file that spells out "unique" keeps it.
+        tb.hit_policy = v === "first" ? "first" : origPolicy === "unique" ? "unique" : "";
+        render();
+        changed();
+      }), tb.hit_policy === "first" ? "Rules are tried top to bottom; order matters." : "Rules must not overlap: each case matches exactly one."));
+
+    var redraw = function () { render(); changed(); };
+    var cycle = {};
+    (refs.cycle[id] || [id]).forEach(function (c) { cycle[c] = true; });
+    var pickable = order.filter(function (x) { return !deleted[x] && x !== id; });
+
+    var head = [h("th", { "class": "ed-dt-n", scope: "col", text: "#" })];
+    tb.columns.slice(0, n).forEach(function (col, j) {
+      var opts = pickable.map(function (x) { return [x, x]; });
+      if (pickable.indexOf(col) < 0) opts.unshift([col, col ? col + " (not a row)" : "—"]);
+      var sel = select(opts, col, function (v) { tb.columns[j] = v; redraw(); }, { "class": "mono", "aria-label": "Column " + (j + 1) + ": input row" });
+      Array.prototype.forEach.call(sel.options, function (o) {
+        if (cycle[o.value] && o.value !== col) { o.disabled = true; o.textContent += " (cycle)"; }
+      });
+      head.push(h("th", { scope: "col" }, [sel, h("div", { "class": "ed-dt-tools" }, [
+        button("←", function () { moveColumn(tb, j, j - 1); redraw(); }, "ed-quiet", { disabled: j === 0, "aria-label": "Move column " + col + " left", title: "Move left" }),
+        button("→", function () { moveColumn(tb, j, j + 1); redraw(); }, "ed-quiet", { disabled: j === n - 1, "aria-label": "Move column " + col + " right", title: "Move right" }),
+        button("×", function () { removeColumn(tb, j); redraw(); }, "ed-quiet ed-danger", { "aria-label": "Remove column " + col, title: "Remove column" })
+      ])]));
+    });
+    head.push(h("th", { "class": "ed-dt-res", scope: "col", text: "Result" }));
+    head.push(h("th", { "class": "ed-dt-act" }, [h("span", { "class": "ed-sr", text: "Rule actions" })]));
+
+    var body = tb.rows.map(function (row, i) {
+      var cells = [h("td", { "class": "ed-dt-n", text: String(i + 1) })];
+      for (var j = 0; j <= n; j++) {
+        (function (j) {
+          var was = row[j];
+          var name = j < n ? tb.columns[j] : "result";
+          cells.push(h("td", { "class": j === n ? "ed-dt-res" : null }, [input(cellText(was), function (v) {
+            while (row.length <= n) row.push(row.length === n ? "" : "-");
+            row[j] = cellValue(v, was);
+            changed();
+          }, { "class": "mono", spellcheck: "false", autocomplete: "off", "aria-label": "Rule " + (i + 1) + ", " + name, placeholder: j < n ? "-" : "" })]));
+        })(j);
+      }
+      cells.push(h("td", { "class": "ed-dt-act" }, [
+        button("↑", function () { tb.rows.splice(i - 1, 0, tb.rows.splice(i, 1)[0]); redraw(); }, "ed-quiet", { disabled: i === 0, "aria-label": "Move rule " + (i + 1) + " up", title: "Move up" }),
+        button("↓", function () { tb.rows.splice(i + 1, 0, tb.rows.splice(i, 1)[0]); redraw(); }, "ed-quiet", { disabled: i === tb.rows.length - 1, "aria-label": "Move rule " + (i + 1) + " down", title: "Move down" }),
+        button("×", function () { tb.rows.splice(i, 1); redraw(); }, "ed-quiet ed-danger", { "aria-label": "Remove rule " + (i + 1), title: "Remove rule" })
+      ]));
+      return h("tr", { "data-rule": String(i + 1) }, cells);
+    });
+
+    gridEl = h("table", { "class": "ed-dt" }, [h("thead", {}, [h("tr", {}, head)]), h("tbody", {}, body)]);
+    var unused = pickable.filter(function (x) { return tb.columns.indexOf(x) < 0 && !cycle[x]; });
+    var addCol = select([["", "Add column…"]].concat(unused.map(function (x) { return [x, x + " · " + rowName(x)]; })), "", function (v) {
+      if (!v) return;
+      tb.columns.splice(n, 0, v);
+      tb.rows.forEach(function (row) { while (row.length < n) row.push("-"); row.splice(n, 0, "-"); });
+      redraw();
+    }, { "aria-label": "Add a column for an input row", "class": "ed-dt-addcol" });
+    panel.appendChild(h("div", { "class": "ed-field" }, [
+      h("div", { "class": "ed-label", text: "Rules" }),
+      h("div", { "class": "ed-dt-wrap" }, [gridEl]),
+      h("div", { "class": "ed-row ed-dt-foot" }, [
+        button("Add rule", function () {
+          var row = [];
+          for (var j = 0; j < n; j++) row.push("-");
+          row.push("");
+          tb.rows.push(row);
+          redraw();
+          var cellsNow = gridEl.querySelectorAll("tbody tr:last-child input");
+          if (cellsNow.length) cellsNow[0].focus();
+        }),
+        addCol
+      ]),
+      h("div", { "class": "ed-hint", text: "A cell is a value (true, 46, Gold), a comparison (< 18, >= 2, != High), or - for any value." })
+    ]));
+    usesEl = h("div", { "class": "ed-uses" });
+    panel.appendChild(usesEl);
+  }
+
+  function moveColumn(tb, from, to) {
+    tb.columns.splice(to, 0, tb.columns.splice(from, 1)[0]);
+    tb.rows.forEach(function (row) { row.splice(to, 0, row.splice(from, 1)[0]); });
+  }
+  function removeColumn(tb, j) {
+    tb.columns.splice(j, 1);
+    tb.rows.forEach(function (row) { row.splice(j, 1); });
   }
 
   // refreshPanelStatus redraws the parts of the panel the server's check
@@ -681,7 +883,7 @@
       usesEl.textContent = "";
       var uses = rows[id].uses || [];
       usesEl.appendChild(h("span", { "class": "ed-label", text: "Uses" }));
-      if (!uses.length) usesEl.appendChild(h("span", { "class": "ed-hint", text: "Filled from the formula as you type." }));
+      if (!uses.length) usesEl.appendChild(h("span", { "class": "ed-hint", text: kinds[id] === "table" ? "Filled from the columns." : "Filled from the formula as you type." }));
       uses.forEach(function (u) {
         usesEl.appendChild(rows[u]
           ? h("button", { type: "button", "class": "ed-use", title: "Open " + rowName(u), onclick: function () { show(u); } }, [h("code", { text: u })])
@@ -694,15 +896,99 @@
         ]));
       });
     }
+    var ps = problemsByRow()[id] || [];
+    if (gridEl) {
+      gridEl.querySelectorAll("tbody tr").forEach(function (tr) {
+        var n = Number(tr.getAttribute("data-rule"));
+        tr.classList.toggle("ed-rule-new", ruleProblems(ps, n, true));
+        tr.classList.toggle("ed-rule-bad", ruleProblems(ps, n, false));
+      });
+    }
+    refreshCases(id);
     if (statusEl) {
       statusEl.textContent = "";
-      (problemsByRow()[id] || []).forEach(function (p) {
+      ps.forEach(function (p) {
         statusEl.appendChild(h("div", { "class": "ed-problem " + (p.new ? "new" : p.severity) }, [
           h("span", { "class": "ed-tag", text: p.new ? "New error" : p.severity === "error" ? "Existing error" : "Warning" }),
           " ", p.message
         ]));
       });
     }
+  }
+
+  // ---------- Cases ----------
+
+  function caseText(cr) {
+    if (!cr) return "—";
+    if (cr.none) return cr.note || "no value";
+    return cr.value + (cr.rule ? " (rule " + cr.rule + ")" : "") + (cr.note ? ", " + cr.note : "");
+  }
+
+  // unreachedText says which part of row id no case reaches. A table rule
+  // is named by its number when the panel's table has it.
+  function unreachedText(id, u) {
+    if (u.kind === "table") {
+      var tb = rows[id].table, n = 0;
+      (tb ? tb.rows : []).forEach(function (row, i) {
+        if (!n && "[" + row.slice(0, -1).map(cellText).join(",") + "]" === u.target) n = i + 1;
+      });
+      return "No case reaches " + (n ? "rule " + n : "the rule " + u.target) +
+        ". Usually a later row cannot use its result, such as a lookup with no entry for it.";
+    }
+    if (u.kind === "reject") return "No case triggers this reject (" + u.target.replace(/^reject:/, "") + ").";
+    return "No case reaches " + u.target + " (" + u.kind + ").";
+  }
+
+  // refreshCases lists every case saving would write, with the values of
+  // the rows this row uses and its result, marking results the edit
+  // changes.
+  function refreshCases(id) {
+    if (!casesEl) return;
+    casesEl.textContent = "";
+    casesEl.appendChild(h("div", { "class": "ed-list-head" }, [h("h3", { text: cases ? "Cases (" + cases.length + ")" : "Cases" })]));
+    if (casesNote) {
+      casesEl.appendChild(h("p", { "class": "ed-hint ed-warn", text: (cases ? "These are from your last edit that could be worked out: " : "The cases cannot be worked out: ") + casesNote }));
+    }
+    if (!cases) {
+      if (!casesNote) casesEl.appendChild(h("p", { "class": "ed-hint", text: "Working out the cases…" }));
+      return;
+    }
+    if (!cases.length) {
+      casesEl.appendChild(h("p", { "class": "ed-hint ed-warn", text: "No case can be worked out: every input the generator tried stops at an error. Fix the errors on the sheet first." }));
+      return;
+    }
+    casesEl.appendChild(h("p", { "class": "ed-hint", text: "The cases saving writes to cases.toml, and this row's result in each." }));
+    var uses = (rows[id].uses || []).filter(function (u) { return !deleted[u]; });
+    var changedN = 0;
+    var items = cases.map(function (c) {
+      var cr = c.rows[id];
+      var was = baseCases && baseCases[c.key] ? baseCases[c.key].rows[id] : undefined;
+      // A result changes when its value does, or why there is none; not
+      // when another rule gives the same value.
+      var diff = !!(cr && was && (!was.none !== !cr.none || (was.none ? was.note : was.value) !== (cr.none ? cr.note : cr.value)));
+      if (diff) changedN++;
+      var ins = uses.map(function (u) {
+        var x = c.rows[u];
+        return h("span", {}, [h("code", { text: u }), " " + (x ? (x.none ? "—" : x.value) : "—")]);
+      });
+      var inEl = h("span", { "class": "ed-case-in" });
+      ins.forEach(function (x, i) { if (i) inEl.appendChild(document.createTextNode(" · ")); inEl.appendChild(x); });
+      return h("li", { "class": "ed-case" + (diff ? " changed" : "") + (cr && cr.none ? " none" : "") }, [
+        h("code", { "class": "ed-case-id", text: c.id }),
+        uses.length ? inEl : null,
+        h("span", { "class": "ed-case-out" }, ["→ ", h("b", { text: caseText(cr) })]),
+        diff ? h("span", { "class": "ed-case-was", text: "was " + caseText(was) }) : null
+      ]);
+    });
+    if (changedN) casesEl.appendChild(h("p", { "class": "ed-hint ed-case-sum", text: changedN === 1 ? "1 result changes with your edits." : changedN + " results change with your edits." }));
+    casesEl.appendChild(h("ul", { "class": "ed-case-list" }, items));
+    var now = {};
+    cases.forEach(function (c) { now[c.key] = true; });
+    unreached.filter(function (u) { return u.row === id; }).forEach(function (u) {
+      casesEl.appendChild(h("p", { "class": "ed-hint ed-warn", text: unreachedText(id, u) }));
+    });
+    var gone = Object.keys(baseCases || {}).filter(function (k) { return !now[k]; }).map(function (k) { return baseCases[k].id; });
+    if (gone.length) casesEl.appendChild(h("p", { "class": "ed-hint ed-warn", text: "No longer generated: " + gone.join(", ") + "." }));
   }
 
   // ---------- Sends, rejects, open questions ----------
@@ -734,7 +1020,7 @@
           field("Usage", select([["R", "R"], ["S", "S"]], sd.usage || "R", function (v) { sd.usage = v; render(); changed(); }))
         ]),
         field("Call to", input(sd.target, s("target"), { "class": "mono", spellcheck: "false", placeholder: "the sheet's own target" }), "Name a call made on the way, or leave empty for the sheet's target."),
-        sd.usage === "S" ? field("Sent when", input(sd.when, s("when"), { "class": "mono", spellcheck: "false" })) : null,
+        sd.usage === "S" ? exprField("Sent when", sd.when, s("when"), function () { return rowCands(id, false); }, id) : null,
         sd.usage === "S" ? field("Otherwise", select([["", "—"]].concat(OTHERWISE), sd.otherwise || "", s("otherwise"))) : null,
         field("Value map", textarea(mapText(sd.map), function (v) { sd.map = parseMap(v, sd.map); changed(); }, { "class": "mono", rows: 2, spellcheck: "false", placeholder: "Gold = GLD" }), "One per line: value = code the target expects."),
         button("Remove send", function () { r.sends.splice(i, 1); render(); changed(); }, "ed-quiet ed-danger")
@@ -747,8 +1033,10 @@
     r.rejects = r.rejects || [];
     var kids = r.rejects.map(function (rj, i) {
       var s = function (k) { return function (v) { rj[k] = v; changed(); }; };
+      var isInput = kinds[id] === "input";
       return h("div", { "class": "ed-item" }, [
-        field("Reject when", input(rj.when, s("when"), { "class": "mono", spellcheck: "false" })),
+        exprField("Reject when", rj.when, s("when"), function () { return rowCands(id, isInput); }, id,
+          isInput ? "May name this input and other inputs. A check that needs a derived value goes on that row." : null),
         h("div", { "class": "ed-row" }, [
           field("Code", input(rj.code, s("code"), { "class": "mono", spellcheck: "false", placeholder: "UPPER_SNAKE_CASE" })),
           field("Message", input(rj.message, s("message")))

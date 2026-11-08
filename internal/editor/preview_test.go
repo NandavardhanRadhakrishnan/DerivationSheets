@@ -60,14 +60,14 @@ func TestDraftEngineRefusesCycle(t *testing.T) {
 }
 
 // caseRow finds one row's result in one case.
-func caseRow(t *testing.T, cs []CaseView, id, row string) CaseRow {
+func caseRow(t *testing.T, set *DraftCaseSet, id, row string) CaseRow {
 	t.Helper()
-	for _, c := range cs {
+	for _, c := range set.Cases {
 		if c.ID == id {
 			return c.Rows[row]
 		}
 	}
-	t.Fatalf("no case %q among %d", id, len(cs))
+	t.Fatalf("no case %q among %d", id, len(set.Cases))
 	return CaseRow{}
 }
 
@@ -89,6 +89,11 @@ func TestDraftCasesFormula(t *testing.T) {
 	if got := caseRow(t, cs, "loyalty-tier-gold", "loyalty_tier"); got.Value != "Gold" || got.Rule != 4 {
 		t.Errorf("loyalty_tier %+v, want Gold by rule 4", got)
 	}
+	for _, c := range cs.Cases {
+		if c.ID == "loyalty-tier-gold" && !strings.Contains(c.Key, "is_member=true;") {
+			t.Errorf("key %q", c.Key)
+		}
+	}
 }
 
 func TestDraftCasesRejected(t *testing.T) {
@@ -109,13 +114,36 @@ func TestDraftCasesLeaveOutDeletedRows(t *testing.T) {
 	_, ed := workspace(t, false)
 	f := load(t, ed, sheetPath)
 	d := SheetDraft{File: sheetPath, Token: f.Token, Rows: map[string]RowData{}, Deleted: []string{"customs_value"}}
-	cs, reason, err := ed.DraftCases(d)
-	if err != nil || reason != "" || len(cs) == 0 {
-		t.Fatalf("%d cases, reason %q, err %v", len(cs), reason, err)
+	set, reason, err := ed.DraftCases(d)
+	if err != nil || reason != "" || len(set.Cases) == 0 {
+		t.Fatalf("%v, reason %q, err %v", set, reason, err)
 	}
-	for _, c := range cs {
+	for _, c := range set.Cases {
 		if _, ok := c.Rows["customs_value"]; ok {
 			t.Fatalf("case %s has the deleted row", c.ID)
 		}
+	}
+}
+
+// A table rule whose result a later row cannot use is reached by no case,
+// and the set says so.
+func TestDraftCasesUnreached(t *testing.T) {
+	_, ed := workspace(t, false)
+	f := load(t, ed, sheetPath)
+	r := rowOf(t, f.Data, "loyalty_tier")
+	r.Table.Rows[3][2] = "Platinum" // discount_rate has no Platinum entry
+	r.Sends[0].Map = append(r.Sends[0].Map, Pair{"Platinum", "PLT"})
+	set, reason, err := ed.DraftCases(SheetDraft{File: sheetPath, Token: f.Token, Rows: map[string]RowData{"loyalty_tier": r}})
+	if err != nil || reason != "" {
+		t.Fatalf("reason %q, err %v", reason, err)
+	}
+	found := false
+	for _, u := range set.Unreached {
+		if u.Row == "loyalty_tier" && u.Target == "[true,>= 2]" && u.Kind == "table" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("rule 4 not reported unreached: %+v", set.Unreached)
 	}
 }

@@ -1,6 +1,6 @@
 /* dsheets-editor: the side panel of serve --edit. It uses the sheet's own
    colour tokens, so it follows light, dark and print like the page. */
-:root { --ed-panel: 400px; --ed-bar: 48px; }
+:root { --ed-panel: 400px; --ed-panel-wide: 560px; --ed-bar: 48px; }
 body.editing { padding-bottom: calc(var(--ed-bar) + 24px); }
 @media screen and (max-width: 900px) {
   /* Keep the bottom of the table's own scroll box clear of the fixed bar. */
@@ -8,6 +8,8 @@ body.editing { padding-bottom: calc(var(--ed-bar) + 24px); }
 }
 @media (min-width: 1100px) {
   body.panel-open { padding-right: calc(var(--ed-panel) + 16px); }
+  body.panel-open.panel-wide { padding-right: calc(var(--ed-panel-wide) + 16px); }
+  .ed-panel.ed-wide { width: var(--ed-panel-wide); }
 }
 
 .ed-actions { display: flex; gap: 6px; }
@@ -36,6 +38,9 @@ tr.ed-changed > td.num { box-shadow: inset 3px 0 0 var(--accent); color: var(--a
 tr.ed-problem > td.num { box-shadow: inset 3px 0 0 var(--warn); }
 tr.ed-new-problem > td.num { box-shadow: inset 3px 0 0 var(--danger); color: var(--danger); font-weight: 700; }
 tr.ed-deleted > td:not(.num) { opacity: 0.4; text-decoration: line-through; }
+/* Decision-table rules an error names, on the sheet and in the panel. */
+table.dt tr.ed-rule-bad, table.ed-dt tr.ed-rule-bad { outline: 1.5px solid var(--warn); outline-offset: -1px; }
+table.dt tr.ed-rule-new, table.ed-dt tr.ed-rule-new { outline: 1.5px solid var(--danger); outline-offset: -1px; }
 
 /* The unsaved-changes bar. */
 .ed-bar {
@@ -117,6 +122,37 @@ tr.ed-deleted > td:not(.num) { opacity: 0.4; text-decoration: line-through; }
 .ed-use:hover code { border-bottom-style: solid; }
 .ed-unknown { flex-basis: 100%; color: var(--danger); font-size: 12.5px; margin-top: 4px; }
 .ed-unknown .ed-btn { margin-left: 4px; }
+
+/* The decision-table grid: scrolls sideways in its own box. */
+.ed-dt-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 3px; }
+table.ed-dt { border-collapse: collapse; font-size: 12.5px; min-width: 100%; }
+table.ed-dt th, table.ed-dt td { padding: 3px; border-bottom: 1px solid var(--line); vertical-align: top; text-align: left; }
+table.ed-dt thead th { background: var(--sec); font-weight: 600; font-size: 11.5px; color: var(--muted); }
+table.ed-dt tbody tr:last-child td { border-bottom: 0; }
+.ed-panel table.ed-dt input[type="text"] { width: 7.5em; min-width: 4.5em; padding: 3px 5px; }
+.ed-panel table.ed-dt select { width: auto; min-width: 7.5em; padding: 3px 4px; font-size: 12px; }
+table.ed-dt .ed-dt-n { color: var(--muted); text-align: right; font-size: 11px; padding-top: 7px; width: 1.5em; }
+table.ed-dt .ed-dt-res { border-left: 1.5px solid var(--line-strong); }
+table.ed-dt td.ed-dt-act { white-space: nowrap; }
+.ed-dt-tools { display: flex; gap: 0; margin-top: 2px; }
+.ed-dt-tools .ed-btn, table.ed-dt td.ed-dt-act .ed-btn { padding: 2px 5px; }
+.ed-dt-foot { margin-top: 6px; align-items: center; }
+.ed-panel .ed-dt-foot select.ed-dt-addcol { width: auto; max-width: 60%; }
+.ed-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Cases: what saving writes to cases.toml, and this row's result in each. */
+.ed-case-list { list-style: none; margin: 0; padding: 0; max-height: 22em; overflow-y: auto; }
+.ed-case { display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: baseline; padding: 4px 0; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+.ed-case:last-child { border-bottom: 0; }
+.ed-case-id { flex-basis: 100%; font-size: 11.5px; color: var(--muted); }
+.ed-case-in { color: var(--muted); }
+.ed-case-in code { color: var(--fg); }
+.ed-case.none .ed-case-out b { font-weight: 400; color: var(--muted); font-style: italic; }
+.ed-case.changed { box-shadow: inset 3px 0 0 var(--accent); padding-left: 8px; }
+.ed-case.changed .ed-case-out b { color: var(--accent); }
+.ed-case-was { color: var(--muted); text-decoration: line-through; font-size: 12px; }
+.ed-case-sum { color: var(--accent); font-weight: 600; }
+.ed-warn { color: var(--warn); }
 
 .ed-list { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 12px; }
 .ed-list-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
