@@ -5,10 +5,7 @@ import (
 	"html"
 	"html/template"
 	"math"
-	"slices"
-	"sort"
 	"strings"
-	"time"
 
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/analysis"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sheet"
@@ -16,9 +13,6 @@ import (
 
 // maxCaseList is the most lookup entries shown inline as a case list.
 const maxCaseList = 8
-
-// maxGridSide is the most partitions per axis in an inline 2D grid.
-const maxGridSide = 6
 
 func (b *builder) rule(r *sheet.Row) template.HTML {
 	if r.IsInput() {
@@ -122,41 +116,21 @@ func cellLabel(c sheet.Cell) string {
 	return c.Raw
 }
 
+// tableHTML draws every decision table the same way, whatever its number
+// of inputs: one row per rule, numbered as validation messages number them,
+// one column per input, then the result, and the hit policy under it. It is
+// the shape the file and the editor use.
 func (b *builder) tableHTML(r *sheet.Row) string {
 	t := r.Table
-	policy := ""
-	if t.HitPolicy == "first" {
-		policy = ` <span class="tag">first match</span>`
-	}
-	switch len(t.Columns) {
-	case 1:
-		var items []string
-		for _, rule := range t.Rules {
-			key := r.ID + ":" + rule.Key()
-			items = append(items, fmt.Sprintf(`<span class="case %s">%s <b>%s</b>%s</span>`,
-				b.branchClass(key), html.EscapeString(cellLabel(rule.Cells[0])), html.EscapeString(displayValue(rule.Result)), b.branchMark(key)))
-		}
-		return `<span class="cases">` + strings.Join(items, ` <span class="sep">·</span> `) + `</span>` + policy
-	case 2:
-		if g := b.grid2D(r); g != "" {
-			return g + policy
-		}
-	}
-	return b.compactTable(r) + policy
-}
-
-// compactTable renders a standard decision table.
-func (b *builder) compactTable(r *sheet.Row) string {
-	t := r.Table
 	var sb strings.Builder
-	sb.WriteString(`<table class="dt"><thead><tr>`)
+	sb.WriteString(`<table class="dt"><thead><tr><th class="rn" title="rule">#</th>`)
 	for _, c := range t.Columns {
 		sb.WriteString("<th>" + b.refText(c) + "</th>")
 	}
 	sb.WriteString(`<th class="res">→</th></tr></thead><tbody>`)
-	for _, rule := range t.Rules {
+	for i, rule := range t.Rules {
 		key := r.ID + ":" + rule.Key()
-		sb.WriteString(`<tr class="` + b.branchClass(key) + `">`)
+		fmt.Fprintf(&sb, `<tr class="%s" data-rule="%d"><td class="rn">%d</td>`, b.branchClass(key), i+1, i+1)
 		for _, c := range rule.Cells {
 			cls := ""
 			if c.Kind == sheet.CellAny {
@@ -167,197 +141,12 @@ func (b *builder) compactTable(r *sheet.Row) string {
 		sb.WriteString(`<td class="res">` + html.EscapeString(displayValue(rule.Result)) + b.branchMark(key) + "</td></tr>")
 	}
 	sb.WriteString("</tbody></table>")
+	if t.HitPolicy == "first" {
+		sb.WriteString(`<span class="tag">first match</span>`)
+	} else {
+		sb.WriteString(`<span class="tag">one rule per case</span>`)
+	}
 	return sb.String()
-}
-
-// segment is one region of an axis in a 2D grid.
-type segment struct {
-	rep   any
-	label string
-	// lo/hi describe numeric or time regions for merging labels.
-	lo, hi       any
-	loInc, hiInc bool
-	ordered      bool
-}
-
-// grid2D renders a two-input table with one input on each axis, or "" when
-// an axis has too many regions.
-func (b *builder) grid2D(r *sheet.Row) string {
-	t := r.Table
-	axes := [2][]segment{}
-	for j := range 2 {
-		var cells []sheet.Cell
-		for _, rule := range t.Rules {
-			cells = append(cells, rule.Cells[j])
-		}
-		axes[j] = segments(cells, b.domains[t.Columns[j]])
-	}
-	fire := func(a, c segment) int {
-		for i, rule := range t.Rules {
-			if analysis.Match(rule.Cells[0], a.rep) && analysis.Match(rule.Cells[1], c.rep) {
-				return i
-			}
-		}
-		return -1
-	}
-	// Merge neighbouring ordered regions that behave the same.
-	axes[0] = merge(axes[0], func(x segment) []int {
-		out := make([]int, len(axes[1]))
-		for i, y := range axes[1] {
-			out[i] = fire(x, y)
-		}
-		return out
-	})
-	axes[1] = merge(axes[1], func(y segment) []int {
-		out := make([]int, len(axes[0]))
-		for i, x := range axes[0] {
-			out[i] = fire(x, y)
-		}
-		return out
-	})
-	if len(axes[0]) > maxGridSide || len(axes[1]) > maxGridSide {
-		return ""
-	}
-	var sb strings.Builder
-	sb.WriteString(`<table class="g2"><thead><tr><th class="corner">` + b.refText(t.Columns[0]) + ` ╲ ` + b.refText(t.Columns[1]) + `</th>`)
-	for _, y := range axes[1] {
-		sb.WriteString("<th>" + html.EscapeString(y.label) + "</th>")
-	}
-	sb.WriteString("</tr></thead><tbody>")
-	for _, x := range axes[0] {
-		sb.WriteString("<tr><th>" + html.EscapeString(x.label) + "</th>")
-		for _, y := range axes[1] {
-			i := fire(x, y)
-			if i < 0 {
-				sb.WriteString(`<td class="gap" title="no rule">—</td>`)
-				continue
-			}
-			key := r.ID + ":" + t.Rules[i].Key()
-			sb.WriteString(fmt.Sprintf(`<td class="%s" title="rule %d">%s%s</td>`, b.branchClass(key), i+1,
-				html.EscapeString(displayValue(t.Rules[i].Result)), b.branchMark(key)))
-		}
-		sb.WriteString("</tr>")
-	}
-	sb.WriteString("</tbody></table>")
-	return sb.String()
-}
-
-// segments splits an axis into regions: each value of a known domain, each
-// literal (plus "other"), or for numbers and times the points and intervals
-// between the bounds the cells name.
-func segments(cells []sheet.Cell, domain []any) []segment {
-	if domain != nil {
-		out := make([]segment, len(domain))
-		for i, v := range domain {
-			out[i] = segment{rep: v, label: displayValue(v)}
-		}
-		return out
-	}
-	var nums []float64
-	var times []time.Time
-	for _, c := range cells {
-		for _, v := range []any{c.Value, c.Lo, c.Hi} {
-			switch x := v.(type) {
-			case float64:
-				nums = append(nums, x)
-			case time.Time:
-				times = append(times, x)
-			}
-		}
-	}
-	switch {
-	case len(nums) > 0:
-		sort.Float64s(nums)
-		nums = slices.Compact(nums)
-		vals := make([]any, len(nums))
-		for i, x := range nums {
-			vals[i] = x
-		}
-		return ordered(vals, func(a, c any) any { return (a.(float64) + c.(float64)) / 2 },
-			func(a any) any { return a.(float64) - 1 }, func(a any) any { return a.(float64) + 1 })
-	case len(times) > 0:
-		sort.Slice(times, func(i, j int) bool { return times[i].Before(times[j]) })
-		times = slices.CompactFunc(times, func(a, c time.Time) bool { return a.Equal(c) })
-		vals := make([]any, len(times))
-		for i, x := range times {
-			vals[i] = x
-		}
-		return ordered(vals, func(a, c any) any { return a.(time.Time).Add(c.(time.Time).Sub(a.(time.Time)) / 2) },
-			func(a any) any { return a.(time.Time).AddDate(0, 0, -1) }, func(a any) any { return a.(time.Time).AddDate(0, 0, 1) })
-	}
-	var out []segment
-	for _, p := range analysis.Points(cells, nil, false) {
-		out = append(out, segment{rep: p, label: displayValue(p)})
-	}
-	return out
-}
-
-func ordered(bounds []any, mid func(a, b any) any, below, above func(any) any) []segment {
-	var out []segment
-	out = append(out, segment{rep: below(bounds[0]), hi: bounds[0], ordered: true})
-	for i, x := range bounds {
-		out = append(out, segment{rep: x, lo: x, hi: x, loInc: true, hiInc: true, ordered: true})
-		if i+1 < len(bounds) {
-			out = append(out, segment{rep: mid(x, bounds[i+1]), lo: x, hi: bounds[i+1], ordered: true})
-		}
-	}
-	out = append(out, segment{rep: above(bounds[len(bounds)-1]), lo: bounds[len(bounds)-1], ordered: true})
-	for i := range out {
-		out[i].label = rangeLabel(out[i])
-	}
-	return out
-}
-
-// merge joins neighbouring ordered segments whose behaviour is identical.
-func merge(segs []segment, behaviour func(segment) []int) []segment {
-	if len(segs) == 0 || !segs[0].ordered {
-		return segs
-	}
-	var out []segment
-	var prev []int
-	for _, s := range segs {
-		cur := behaviour(s)
-		if len(out) > 0 && slices.Equal(prev, cur) {
-			last := &out[len(out)-1]
-			last.hi, last.hiInc = s.hi, s.hiInc
-			last.label = rangeLabel(*last)
-			continue
-		}
-		out = append(out, s)
-		prev = cur
-	}
-	return out
-}
-
-func rangeLabel(s segment) string {
-	f := func(v any) string { return displayValue(v) }
-	switch {
-	case s.lo == nil && s.hi == nil:
-		return "any"
-	case s.lo == nil:
-		if s.hiInc {
-			return "≤ " + f(s.hi)
-		}
-		return "< " + f(s.hi)
-	case s.hi == nil:
-		if s.loInc {
-			return "≥ " + f(s.lo)
-		}
-		return "> " + f(s.lo)
-	case sheet.Equal(s.lo, s.hi):
-		return f(s.lo)
-	}
-	lo, hi := "> ", " and < "
-	if s.loInc {
-		lo = "≥ "
-	}
-	if s.hiInc {
-		hi = " and ≤ "
-	}
-	if s.loInc && s.hiInc {
-		return f(s.lo) + "–" + f(s.hi)
-	}
-	return lo + f(s.lo) + hi + f(s.hi)
 }
 
 func (b *builder) lookupHTML(r *sheet.Row) string {

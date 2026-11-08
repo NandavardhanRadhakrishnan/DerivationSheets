@@ -155,18 +155,15 @@ td.rule { min-width: 260px; }
 .mark.unexercised { color: var(--warn); }
 .mark.contradicted { color: var(--danger); font-weight: 700; }
 
-table.g2, table.dt { border-collapse: collapse; margin: 1px 0 2px; font-size: 12px; }
-table.g2 th, table.g2 td, table.dt th, table.dt td {
+table.dt { border-collapse: collapse; margin: 1px 0 2px; font-size: 12px; }
+table.dt th, table.dt td {
   border: 1px solid var(--line); padding: 1px 6px; text-align: center; vertical-align: middle; white-space: nowrap;
 }
-table.g2 thead th, table.dt thead th { font-weight: 600; color: var(--muted); font-size: 11px; background: none; border-bottom: 1px solid var(--line); }
-table.g2 tbody th { font-weight: 600; color: var(--muted); font-size: 11px; text-align: right; }
-table.g2 th.corner { font-weight: 400; text-align: left; }
-table.g2 td { font-weight: 650; }
-.ev-toggle:checked ~ .sheet table.g2 td.unexercised, .ev-toggle:checked ~ .sheet table.dt tr.unexercised td { color: var(--warn); }
-.ev-toggle:checked ~ .sheet table.g2 td.contradicted, .ev-toggle:checked ~ .sheet table.dt tr.contradicted td { color: var(--danger); }
-table.g2 td.gap { color: var(--danger); }
+table.dt thead th { font-weight: 600; color: var(--muted); font-size: 11px; background: none; border-bottom: 1px solid var(--line); }
+.ev-toggle:checked ~ .sheet table.dt tr.unexercised td { color: var(--warn); }
+.ev-toggle:checked ~ .sheet table.dt tr.contradicted td { color: var(--danger); }
 table.dt td.any { color: var(--muted); }
+table.dt th.rn, table.dt td.rn { color: var(--muted); font-size: 10.5px; font-weight: 400; padding: 1px 4px; }
 table.dt td.res, table.dt th.res { font-weight: 650; border-left: 1.5px solid var(--line-strong); }
 
 td.send .field code { color: var(--success); font-weight: 600; font-size: 12px; }

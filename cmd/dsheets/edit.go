@@ -260,18 +260,25 @@ func (es *editServer) check(w http.ResponseWriter, r *http.Request) {
 	writeJSONStatus(w, http.StatusOK, out)
 }
 
-// preview is the sheet page as the draft would render it, so the page can
-// show an edit before it is saved.
+// preview is the sheet page as the draft would render it, and the cases
+// it would generate, so the page can show an edit before it is saved.
 type preview struct {
 	Page  string `json:"page,omitempty"`  // the whole page, from which the browser takes the sheet
 	Stale string `json:"stale,omitempty"` // why the draft cannot be shown; the page keeps what it shows
+	// Cases are what saving would write to cases.toml, with every row's
+	// result in each; CasesStale says why there are none.
+	Cases      []editor.CaseView  `json:"cases,omitempty"`
+	Unreached  []editor.Unreached `json:"unreached,omitempty"`
+	CasesStale string             `json:"cases_stale,omitempty"`
 }
 
-// preview renders the draft. Rows the draft deletes are kept, so the page
-// can still show them, marked, until the deletion is saved.
+// preview renders the draft. Rows the draft deletes are kept on the page,
+// marked, until the deletion is saved; the cases leave them out, as saving
+// would.
 func (es *editServer) preview(d editor.SheetDraft) (*preview, error) {
-	d.Deleted = nil
-	e, reason, err := es.ed.DraftEngine(d)
+	shown := d
+	shown.Deleted = nil
+	e, reason, err := es.ed.DraftEngine(shown)
 	if err != nil {
 		return nil, err
 	}
@@ -282,7 +289,15 @@ func (es *editServer) preview(d editor.SheetDraft) (*preview, error) {
 	if err != nil {
 		return &preview{Stale: err.Error()}, nil
 	}
-	return &preview{Page: page}, nil
+	set, reason, err := es.ed.DraftCases(d)
+	if err != nil {
+		return nil, err
+	}
+	pv := &preview{Page: page, CasesStale: reason}
+	if set != nil {
+		pv.Cases, pv.Unreached = set.Cases, set.Unreached
+	}
+	return pv, nil
 }
 
 // renderDraft renders an engine built from a draft, which may have

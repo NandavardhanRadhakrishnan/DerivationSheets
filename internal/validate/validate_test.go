@@ -1,6 +1,7 @@
 package validate
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -253,4 +254,34 @@ when   = "net_amount > 900"
 			t.Error("no cycle diagnostic")
 		}
 	})
+}
+
+// A decision-table diagnostic names the rules it is about, so the editor
+// can outline them.
+func TestTableDiagnosticsNameRules(t *testing.T) {
+	for _, tc := range []struct {
+		name, old, new, code string
+		rules                []int
+	}{
+		{"overlap", `[false, ">= 2", "Silver"],`, `[false, "< 3", "Silver"],`, "table-overlap", []int{1, 2}},
+		{"bad cell", `[true,  "< 2",  "Silver"],`, `[true,  "< ",   "Silver"],`, "table-cell", []int{3}},
+		{"width", `[true,  ">= 2", "Gold"],`, `[true, "Gold"],`, "table-rule-width", []int{4}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			text := fixtureText(t)
+			if !strings.Contains(text, tc.old) {
+				t.Fatalf("fixture lacks %q", tc.old)
+			}
+			rep := run(t, strings.Replace(text, tc.old, tc.new, 1))
+			for _, d := range rep.Diagnostics {
+				if d.Code == tc.code {
+					if fmt.Sprint(d.Rules) != fmt.Sprint(tc.rules) {
+						t.Errorf("%s: rules %v, want %v", d.Message, d.Rules, tc.rules)
+					}
+					return
+				}
+			}
+			t.Fatalf("no %s diagnostic: %v", tc.code, rep.Diagnostics)
+		})
+	}
 }

@@ -327,3 +327,36 @@ func TestSendMapKeysWithDots(t *testing.T) {
 		t.Errorf("map read back as %+v\n%s", got, out)
 	}
 }
+
+// A table edit rewrites the table's rows, one rule per line with cells
+// lined up, and nothing else.
+func TestApplyTable(t *testing.T) {
+	data := read(t, orderCheckout)
+	r := rowOf(t, data, "loyalty_tier")
+	// Through JSON, as the browser sends numbers.
+	js, _ := json.Marshal(r)
+	var back RowData
+	json.Unmarshal(js, &back)
+	back.Table.Rows[3][1] = ">= 5"
+	back.Table.Rows = append(back.Table.Rows[:3], []any{true, "< 5", "Silver"}, back.Table.Rows[3])
+	back.Table.HitPolicy = "first"
+	out, err := SheetDraft{Rows: map[string]RowData{"loyalty_tier": back}}.Apply(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	removed, added := changedLines(lf(data), lf(out))
+	t.Logf("removed %q\nadded %q", removed, added)
+	want := []string{
+		`hit_policy = "first"`,
+		`[true,  "< 5",  "Silver"],`,
+		`[true,  ">= 5", "Gold"],`,
+	}
+	for _, w := range want {
+		if !slices.ContainsFunc(added, func(l string) bool { return strings.TrimSpace(l) == w }) {
+			t.Errorf("no added line %q", w)
+		}
+	}
+	if len(removed) != 1 || strings.TrimSpace(removed[0]) != `[true,  ">= 2", "Gold"],` {
+		t.Errorf("removed %q; want only the old rule 4", removed)
+	}
+}

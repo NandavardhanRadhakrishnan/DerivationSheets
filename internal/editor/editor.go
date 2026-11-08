@@ -27,8 +27,7 @@ type Editor struct {
 // Problem is a diagnostic, marked when the edit introduces it.
 type Problem struct {
 	validate.Diagnostic
-	New  bool `json:"new"`            // an error the edit introduces
-	Rule int  `json:"rule,omitempty"` // decision-table rule, from 1
+	New bool `json:"new"` // an error the edit introduces
 }
 
 // SheetResult is the outcome of checking or saving a sheet draft.
