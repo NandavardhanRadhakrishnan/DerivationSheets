@@ -360,3 +360,28 @@ func TestApplyTable(t *testing.T) {
 		t.Errorf("removed %q; want only the old rule 4", removed)
 	}
 }
+
+// An inline lookup value edit rewrites only `values`; a lookup that reads
+// a file keeps its values_file.
+func TestApplyLookupInlineValues(t *testing.T) {
+	data := read(t, orderCheckout)
+	r := rowOf(t, data, "discount_rate")
+	zone := rowOf(t, data, "zone")
+	// Through JSON, as the browser sends it.
+	js, _ := json.Marshal(r)
+	var back RowData
+	json.Unmarshal(js, &back)
+	back.Lookup.Values[2].Value = 0.12
+	zjs, _ := json.Marshal(zone)
+	var zback RowData
+	json.Unmarshal(zjs, &zback)
+	out, err := SheetDraft{Rows: map[string]RowData{"discount_rate": back, "zone": zback}}.Apply(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	removed, added := changedLines(lf(data), lf(out))
+	if !slices.Equal(removed, []string{`values = { Standard = 0, Silver = 0.05, Gold = 0.10 }`}) ||
+		!slices.Equal(added, []string{`values = { Standard = 0, Silver = 0.05, Gold = 0.12 }`}) {
+		t.Errorf("removed %q, added %q", removed, added)
+	}
+}

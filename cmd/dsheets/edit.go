@@ -204,6 +204,12 @@ func (es *editServer) stateJSON() ([]byte, error) {
 	// Every row in the file has been saved, so its ID is fixed; only rows
 	// still in the browser's draft can change theirs.
 	st["rows"], st["ids"], st["saved_ids"] = rows, ids, ids
+	// Lookup data in files is shown, not edited. A sheet that does not load
+	// still opens; its lookups then show no file data.
+	st["lookup_files"] = map[string]editor.LookupFile{}
+	if s, err := sheet.Parse(es.dir, filepath.Join(es.dir, sheet.FileName), string(f.Data)); err == nil {
+		st["lookup_files"] = editor.LookupFiles(s)
+	}
 	var fns []map[string]string
 	for _, d := range append(append([]expr.FunctionDoc{}, expr.CustomFunctions...), celFunctions...) {
 		name, _, _ := strings.Cut(d.Signature, "(")

@@ -52,6 +52,7 @@
       if (Array.isArray(v) && v.length === 0) return;
       if (k === "sends" || k === "rejects") v = v.map(norm);
       if (k === "table") v = { columns: v.columns, hit_policy: v.hit_policy || undefined, rows: v.rows };
+      if (k === "lookup") v = { from: v.from, key: v.key || [], values: v.values && v.values.length ? v.values : undefined, values_file: v.values_file || undefined };
       out[k] = v;
     });
     return out;
@@ -435,7 +436,7 @@
       case "input": return !!(r.source && r.source !== "request.") || !!r.type || !!r.usage || !!r.when || !!r.has_default;
       case "formula": return !!(r.formula && r.formula.trim());
       case "text": return !!(r.text && r.text.trim());
-      case "lookup": return !!r.lookup;
+      case "lookup": return !!r.lookup && (!/^(db|config)\.?$/.test(r.lookup.from || "") || (r.lookup.key || []).length > 0 || (r.lookup.values || []).length > 0);
       case "table": return !!r.table && (r.table.columns.length > 1 || r.table.rows.some(function (row) {
         return row.some(function (c) { return c !== "-" && c !== ""; });
       }));
@@ -452,6 +453,7 @@
     if (kind === "formula") r.formula = "";
     if (kind === "text") r.text = "";
     if (kind === "table") r.table = { columns: ["=>"], rows: [[""]] };
+    if (kind === "lookup") r.lookup = { from: "db.", key: [] };
     kinds[id] = kind;
     render();
     changed();
@@ -547,20 +549,6 @@
       return;
     }
     var kind = kinds[id];
-    if (kind === "lookup") {
-      panel.appendChild(h("p", { "class": "ed-note", text: "Editing lookups comes later. This row is shown read-only." }));
-      panel.appendChild(h("dl", { "class": "ed-readonly" }, [
-        h("dt", { text: "Name" }), h("dd", { text: r.name || "" }),
-        h("dt", { text: "ID" }), h("dd", {}, [h("code", { text: id })])
-      ]));
-      statusEl = h("div", { "class": "ed-status" });
-      panel.appendChild(statusEl);
-      casesEl = h("section", { "class": "ed-list ed-cases" });
-      panel.appendChild(casesEl);
-      refreshPanelStatus();
-      return;
-    }
-
     var s = function (k) { return function (v) { r[k] = v; changed(); }; };
     panel.appendChild(field("Name", input(r.name, s("name"))));
 
@@ -578,7 +566,7 @@
     panel.appendChild(field("Description", textarea(r.description, s("description"))));
 
     var group = h("div", { "class": "ed-seg", role: "radiogroup", "aria-label": "Rule" });
-    [["input", "Input"], ["formula", "Formula"], ["table", "Table"], ["text", "Text"]].forEach(function (k) {
+    [["input", "Input"], ["formula", "Formula"], ["table", "Table"], ["lookup", "Lookup"], ["text", "Text"]].forEach(function (k) {
       var rid = "ed-kind-" + k[0];
       group.appendChild(h("input", { type: "radio", name: "ed-kind", id: rid, value: k[0], checked: kind === k[0], onchange: function () { setKind(id, k[0]); } }));
       group.appendChild(h("label", { "for": rid, text: k[1] }));
@@ -588,6 +576,7 @@
     if (kind === "input") renderInput(id, r);
     if (kind === "formula") renderFormula(id, r);
     if (kind === "table") renderTable(id, r);
+    if (kind === "lookup") renderLookup(id, r);
     if (kind === "text") panel.appendChild(field("Rule in words", textarea(r.text, s("text"), { rows: 3 }), "Shown as an open item until someone writes the rule."));
     casesEl = h("section", { "class": "ed-list ed-cases" });
     panel.appendChild(casesEl);
@@ -865,6 +854,109 @@
     panel.appendChild(usesEl);
   }
 
+  // ---------- Lookup ----------
+
+  var LOOKUP_KINDS = ["db", "config"];
+  var MAX_FILE_ENTRIES = 50;
+
+  function renderLookup(id, r) {
+    var l = r.lookup;
+    l.key = l.key || [];
+    var redraw = function () { render(); changed(); };
+    var from = l.from || "db.", dot = from.indexOf(".");
+    var kind = dot < 0 ? from : from.slice(0, dot), path = dot < 0 ? "" : from.slice(dot + 1);
+    var pathInput = input(path, function (v) { l.from = kindSel.value + "." + v; changed(); }, { "class": "mono", spellcheck: "false", placeholder: kind === "config" ? "pricing.discount" : "shipping_zones" });
+    var kindSel = select(LOOKUP_KINDS.map(function (k) { return [k, k + "."]; }), kind, function (v) { l.from = v + "." + pathInput.value; changed(); }, { "aria-label": "Source kind", "class": "mono" });
+    panel.appendChild(h("div", { "class": "ed-field" }, [
+      h("label", { "for": "ed-from", text: "Look up in" }),
+      h("div", { "class": "ed-row" }, [kindSel, pathInput]),
+      h("div", { "class": "ed-hint", text: "A database table or a config key the running service reads." })
+    ]));
+    pathInput.id = "ed-from";
+
+    // The key: rows whose values are looked up, in order.
+    var cycle = {};
+    (refs.cycle[id] || [id]).forEach(function (c) { cycle[c] = true; });
+    var pickable = order.filter(function (x) { return !deleted[x] && x !== id; });
+    var keyEls = l.key.map(function (k, j) {
+      var opts = pickable.map(function (x) { return [x, x]; });
+      if (pickable.indexOf(k) < 0) opts.unshift([k, k ? k + " (not a row)" : "—"]);
+      var sel = select(opts, k, function (v) { l.key[j] = v; redraw(); }, { "class": "mono", "aria-label": "Key " + (j + 1) });
+      Array.prototype.forEach.call(sel.options, function (o) {
+        if (cycle[o.value] && o.value !== k) { o.disabled = true; o.textContent += " (cycle)"; }
+      });
+      return h("div", { "class": "ed-row ed-key" }, [sel,
+        button("↑", function () { l.key.splice(j - 1, 0, l.key.splice(j, 1)[0]); redraw(); }, "ed-quiet", { disabled: j === 0, "aria-label": "Move key " + k + " up", title: "Move up" }),
+        button("↓", function () { l.key.splice(j + 1, 0, l.key.splice(j, 1)[0]); redraw(); }, "ed-quiet", { disabled: j === l.key.length - 1, "aria-label": "Move key " + k + " down", title: "Move down" }),
+        button("×", function () { l.key.splice(j, 1); redraw(); }, "ed-quiet ed-danger", { "aria-label": "Remove key " + k, title: "Remove key" })
+      ]);
+    });
+    var unused = pickable.filter(function (x) { return l.key.indexOf(x) < 0 && !cycle[x]; });
+    var addKey = select([["", "Add key…"]].concat(unused.map(function (x) { return [x, x + " · " + rowName(x)]; })), "", function (v) {
+      if (!v) return;
+      l.key.push(v);
+      redraw();
+    }, { "aria-label": "Add a key row", "class": "ed-dt-addcol" });
+    panel.appendChild(h("div", { "class": "ed-field" }, [h("div", { "class": "ed-label", text: "Key" })].concat(keyEls, [addKey])));
+    usesEl = h("div", { "class": "ed-uses" });
+    panel.appendChild(usesEl);
+
+    var file = (S.lookup_files || {})[id];
+    if (l.values_file || (file && !(l.values && l.values.length))) return renderLookupFile(l, file);
+    renderInlineValues(l);
+  }
+
+  // renderLookupFile shows values read from a file. Editing data files is
+  // out of the editor's scope; the file's path says where to change them.
+  function renderLookupFile(l, file) {
+    var p = file ? file.path : l.values_file;
+    var kids = [h("div", { "class": "ed-list-head" }, [h("h3", { text: "Values" })]),
+      h("p", { "class": "ed-hint" }, ["From ", h("code", { text: p }), ". Edit the file to change these values."])];
+    if (!file) {
+      kids.push(h("p", { "class": "ed-hint ed-warn", text: "The file could not be read; dsheets validate says why." }));
+      panel.appendChild(h("section", { "class": "ed-list" }, kids));
+      return;
+    }
+    var head = h("tr", {}, file.columns.map(function (c) { return h("th", { scope: "col", text: c }); }).concat([h("th", { "class": "ed-dt-res", scope: "col", text: "value" })]));
+    var body = file.entries.slice(0, MAX_FILE_ENTRIES).map(function (e) {
+      return h("tr", {}, e.cells.map(function (c) { return h("td", { "class": "mono", text: c }); }).concat([h("td", { "class": "ed-dt-res mono", text: e.value })]));
+    });
+    kids.push(h("div", { "class": "ed-dt-wrap" }, [h("table", { "class": "ed-dt ed-lk-file" }, [h("thead", {}, [head]), h("tbody", {}, body)])]));
+    if (file.entries.length > MAX_FILE_ENTRIES) kids.push(h("p", { "class": "ed-hint", text: "and " + (file.entries.length - MAX_FILE_ENTRIES) + " more entries in the file." }));
+    panel.appendChild(h("section", { "class": "ed-list" }, kids));
+  }
+
+  // renderInlineValues edits `values`: what the lookup gives for each value
+  // of its key row.
+  function renderInlineValues(l) {
+    l.values = l.values || [];
+    var redraw = function () { render(); changed(); };
+    var keyName = l.key.length === 1 ? l.key[0] : "the key";
+    var items = l.values.map(function (pair, i) {
+      var was = pair[1];
+      return h("div", { "class": "ed-row ed-lk-value" }, [
+        input(pair[0], function (v) { pair[0] = v.trim(); changed(); }, { "class": "mono", spellcheck: "false", "aria-label": "Value " + (i + 1) + ": " + keyName, placeholder: keyName }),
+        h("span", { "class": "ed-lk-arrow", "aria-hidden": "true", text: "→" }),
+        input(cellText(was), function (v) { pair[1] = cellValue(v, was); changed(); }, { "class": "mono", spellcheck: "false", "aria-label": "Value " + (i + 1) + ": result" }),
+        button("×", function () { l.values.splice(i, 1); redraw(); }, "ed-quiet ed-danger", { "aria-label": "Remove value " + (i + 1), title: "Remove" })
+      ]);
+    });
+    var kids = [h("div", { "class": "ed-list-head" }, [h("h3", { text: "Values" }),
+      button("Add value", function () {
+        l.values.push(["", ""]);
+        redraw();
+        var ins = panel.querySelectorAll(".ed-lk-value input");
+        if (ins.length) ins[ins.length - 2].focus();
+      }, "ed-quiet")])];
+    kids.push(h("p", { "class": "ed-hint", text: l.key.length > 1
+      ? "Values written here take one key. For more keys, put the values in a CSV in data/ and name it in values_file."
+      : "Design-time values: what the lookup gives for each value of " + keyName + "." }));
+    if (!l.values.length && /^config\./.test(l.from || "")) {
+      kids.push(h("p", { "class": "ed-hint", text: "With no values here, a config lookup reads data/config.toml at its key." }));
+    }
+    panel.appendChild(h("section", { "class": "ed-list" }, kids.concat(items)));
+  }
+
   function moveColumn(tb, from, to) {
     tb.columns.splice(to, 0, tb.columns.splice(from, 1)[0]);
     tb.rows.forEach(function (row) { row.splice(to, 0, row.splice(from, 1)[0]); });
@@ -883,7 +975,7 @@
       usesEl.textContent = "";
       var uses = rows[id].uses || [];
       usesEl.appendChild(h("span", { "class": "ed-label", text: "Uses" }));
-      if (!uses.length) usesEl.appendChild(h("span", { "class": "ed-hint", text: kinds[id] === "table" ? "Filled from the columns." : "Filled from the formula as you type." }));
+      if (!uses.length) usesEl.appendChild(h("span", { "class": "ed-hint", text: kinds[id] === "table" ? "Filled from the columns." : kinds[id] === "lookup" ? "Filled from the key." : "Filled from the formula as you type." }));
       uses.forEach(function (u) {
         usesEl.appendChild(rows[u]
           ? h("button", { type: "button", "class": "ed-use", title: "Open " + rowName(u), onclick: function () { show(u); } }, [h("code", { text: u })])
@@ -983,11 +1075,12 @@
     if (changedN) casesEl.appendChild(h("p", { "class": "ed-hint ed-case-sum", text: changedN === 1 ? "1 result changes with your edits." : changedN + " results change with your edits." }));
     casesEl.appendChild(h("ul", { "class": "ed-case-list" }, items));
     var now = {};
-    cases.forEach(function (c) { now[c.key] = true; });
+    // A case is gone when neither its input nor its ID is generated now.
+    cases.forEach(function (c) { now[c.key] = true; now["id:" + c.id] = true; });
     unreached.filter(function (u) { return u.row === id; }).forEach(function (u) {
       casesEl.appendChild(h("p", { "class": "ed-hint ed-warn", text: unreachedText(id, u) }));
     });
-    var gone = Object.keys(baseCases || {}).filter(function (k) { return !now[k]; }).map(function (k) { return baseCases[k].id; });
+    var gone = Object.keys(baseCases || {}).filter(function (k) { return !now[k] && !now["id:" + baseCases[k].id]; }).map(function (k) { return baseCases[k].id; });
     if (gone.length) casesEl.appendChild(h("p", { "class": "ed-hint ed-warn", text: "No longer generated: " + gone.join(", ") + "." }));
   }
 
