@@ -55,6 +55,9 @@ type Field struct {
 	Required    bool
 	Description string
 	Enum        []string
+	// Local marks a field added to an imported interface before its source
+	// schema has it. Re-importing keeps it until the schema catches up.
+	Local bool
 }
 
 // Field returns a field by its dotted name.
@@ -82,6 +85,11 @@ func Load(path string) (*Interface, error) {
 	if err != nil {
 		return nil, err
 	}
+	return Parse(path, data)
+}
+
+// Parse reads an interface from its content; path names it in errors.
+func Parse(path string, data []byte) (*Interface, error) {
 	var raw map[string]any
 	if err := toml.Unmarshal(data, &raw); err != nil {
 		var de *toml.DecodeError
@@ -114,6 +122,7 @@ func Load(path string) (*Interface, error) {
 		fd.Type, _ = m["type"].(string)
 		fd.Required, _ = m["required"].(bool)
 		fd.Description, _ = m["description"].(string)
+		fd.Local, _ = m["local"].(bool)
 		if es, ok := m["enum"].([]any); ok {
 			for _, e := range es {
 				fd.Enum = append(fd.Enum, fmt.Sprint(e))
@@ -166,6 +175,10 @@ func CheckShape(raw map[string]any) []string {
 		for k := range m {
 			switch k {
 			case "name", "type", "required", "description", "enum":
+			case "local":
+				if _, ok := m[k].(bool); !ok {
+					out = append(out, fmt.Sprintf("field %q: local must be true or false", name))
+				}
 			default:
 				out = append(out, fmt.Sprintf("field %q: unknown key %q", name, k))
 			}
@@ -220,11 +233,33 @@ func Write(path string, in *Interface, schemaRel string) error {
 			}
 			fmt.Fprintf(&b, "enum     = [%s]\n", strings.Join(qs, ", "))
 		}
+		if f.Local {
+			b.WriteString("local    = true\n")
+		}
 		if f.Description != "" {
 			fmt.Fprintf(&b, "description = %s\n", strconv.Quote(f.Description))
 		}
 	}
 	return os.WriteFile(path, []byte(b.String()), 0o644)
+}
+
+// Merge refreshes an existing interface from a fresh import. Fields come
+// from fresh, as importing writes them. Fields of existing marked Local
+// that fresh lacks are kept, still marked, after fresh's fields and in
+// their existing order; kept names them. A Local field that fresh has
+// takes fresh's definition and loses the mark: the schema caught up.
+// Other fields of existing are dropped.
+func Merge(fresh, existing *Interface) (merged *Interface, kept []string) {
+	out := *fresh
+	out.byName = nil
+	out.Fields = append([]Field{}, fresh.Fields...)
+	for _, f := range existing.Fields {
+		if f.Local && fresh.Field(f.Name) == nil {
+			out.Fields = append(out.Fields, f)
+			kept = append(kept, f.Name)
+		}
+	}
+	return &out, kept
 }
 
 // KindLabel names a kind for display: "Kafka topic", "API request".

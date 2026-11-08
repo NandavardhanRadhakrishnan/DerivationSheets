@@ -54,7 +54,7 @@ var Flow = &Layout{Tables: map[string]TableLayout{
 // Interface is the layout `dsheets interface import` writes.
 var Interface = &Layout{Tables: map[string]TableLayout{
 	"":      {Order: []string{"interface", "title", "kind", "owner", "status", "version", "imported", "description"}},
-	"field": {Order: []string{"name", "type", "required", "enum", "description"}, Unaligned: []string{"description"}},
+	"field": {Order: []string{"name", "type", "required", "enum", "local", "description"}, Unaligned: []string{"description"}},
 }}
 
 func (l *Layout) table(path string) TableLayout {
