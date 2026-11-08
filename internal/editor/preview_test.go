@@ -58,3 +58,64 @@ func TestDraftEngineRefusesCycle(t *testing.T) {
 		t.Error("no error for a broken draft")
 	}
 }
+
+// caseRow finds one row's result in one case.
+func caseRow(t *testing.T, cs []CaseView, id, row string) CaseRow {
+	t.Helper()
+	for _, c := range cs {
+		if c.ID == id {
+			return c.Rows[row]
+		}
+	}
+	t.Fatalf("no case %q among %d", id, len(cs))
+	return CaseRow{}
+}
+
+func TestDraftCasesFormula(t *testing.T) {
+	_, ed := workspace(t, false)
+	cs, reason, err := ed.DraftCases(formulaDraft(t, ed, "round(subtotal * discount_rate) * 2"))
+	if err != nil || reason != "" {
+		t.Fatalf("reason %q, err %v", reason, err)
+	}
+	if got := caseRow(t, cs, "loyalty-tier-silver", "discount"); got.Value != "10" || got.None {
+		t.Errorf("silver discount %+v, want 10 (twice 5)", got)
+	}
+	if got := caseRow(t, cs, "loyalty-tier-gold", "discount"); got.Value != "20" {
+		t.Errorf("gold discount %+v, want 20", got)
+	}
+	if got := caseRow(t, cs, "loyalty-tier-gold", "is_member"); got.Value != "Yes" {
+		t.Errorf("is_member %+v, want Yes", got)
+	}
+	if got := caseRow(t, cs, "loyalty-tier-gold", "loyalty_tier"); got.Value != "Gold" || got.Rule != 4 {
+		t.Errorf("loyalty_tier %+v, want Gold by rule 4", got)
+	}
+}
+
+func TestDraftCasesRejected(t *testing.T) {
+	_, ed := workspace(t, false)
+	cs, _, err := ed.DraftCases(formulaDraft(t, ed, "round(subtotal * discount_rate)"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := caseRow(t, cs, "reject-destination-not-served", "discount"); !got.None || got.Note != "rejected earlier (DESTINATION_NOT_SERVED)" {
+		t.Errorf("discount %+v", got)
+	}
+	if got := caseRow(t, cs, "reject-destination-not-served", "zone"); got.None || got.Value != "NONE" || got.Note != "rejected here (DESTINATION_NOT_SERVED)" {
+		t.Errorf("zone %+v", got)
+	}
+}
+
+func TestDraftCasesLeaveOutDeletedRows(t *testing.T) {
+	_, ed := workspace(t, false)
+	f := load(t, ed, sheetPath)
+	d := SheetDraft{File: sheetPath, Token: f.Token, Rows: map[string]RowData{}, Deleted: []string{"customs_value"}}
+	cs, reason, err := ed.DraftCases(d)
+	if err != nil || reason != "" || len(cs) == 0 {
+		t.Fatalf("%d cases, reason %q, err %v", len(cs), reason, err)
+	}
+	for _, c := range cs {
+		if _, ok := c.Rows["customs_value"]; ok {
+			t.Fatalf("case %s has the deleted row", c.ID)
+		}
+	}
+}

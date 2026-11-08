@@ -3,8 +3,11 @@ package editor
 import (
 	"errors"
 	"fmt"
+	"path"
 	"path/filepath"
+	"time"
 
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/cases"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/eval"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sheet"
 )
@@ -38,4 +41,103 @@ func (ed *Editor) DraftEngine(d SheetDraft) (e *eval.Engine, reason string, err 
 		return nil, err.Error(), nil
 	}
 	return e, "", nil
+}
+
+// CaseView is one case the draft would generate, with what every row
+// computes in it.
+type CaseView struct {
+	ID   string             `json:"id"`
+	Rows map[string]CaseRow `json:"rows"`
+}
+
+// CaseRow is one row's result in one case.
+type CaseRow struct {
+	Value string `json:"value,omitempty"` // as the page shows it
+	None  bool   `json:"none,omitempty"`  // there is no value; Note says why
+	Rule  int    `json:"rule,omitempty"`  // the decision-table rule that gave the value
+	Note  string `json:"note,omitempty"`  // why there is no value, or how the value came about
+}
+
+// DraftCases generates the cases the draft would write on save, with the
+// reference time of the cases file now beside the sheet, and evaluates
+// every row in each. When the draft cannot be evaluated, reason says why,
+// as for DraftEngine. A draft may have validation errors the case
+// generator was never written for: a panic becomes a reason.
+func (ed *Editor) DraftCases(d SheetDraft) (cs []CaseView, reason string, err error) {
+	e, reason, err := ed.DraftEngine(d)
+	if e == nil {
+		return nil, reason, err
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			cs, reason, err = nil, fmt.Sprintf("the cases cannot be worked out yet: %v", r), nil
+		}
+	}()
+	gen := cases.Generate(e, ed.refTime(path.Join(path.Dir(d.File), cases.FileName)))
+	cs = make([]CaseView, 0, len(gen.Cases))
+	for _, c := range gen.Cases {
+		cs = append(cs, CaseView{ID: c.ID, Rows: caseRows(e, e.Evaluate(eval.Input(c.Input)))})
+	}
+	return cs, "", nil
+}
+
+// refTime is the reference time saving would regenerate cases with: the
+// one in the cases file, or the default when there is none or it cannot be
+// read (saving then reports why it did not regenerate).
+func (ed *Editor) refTime(file string) time.Time {
+	var old *cases.File
+	if f, err := ed.Store.Load(file); err == nil {
+		old, _ = cases.ParseFile(f.Data)
+	}
+	t, err := cases.RefTime(old)
+	if err != nil {
+		t, _ = cases.RefTime(nil)
+	}
+	return t
+}
+
+// caseRows reads every row's result out of one evaluation.
+func caseRows(e *eval.Engine, res *eval.Result) map[string]CaseRow {
+	out := map[string]CaseRow{}
+	for _, r := range e.Sheet.Rows {
+		st := res.ByRow[r.ID]
+		var cr CaseRow
+		switch {
+		case st == nil && res.Reject != nil:
+			cr = CaseRow{None: true, Note: fmt.Sprintf("rejected earlier (%s)", res.Reject.Code)}
+		case st == nil && res.Err != nil:
+			cr = CaseRow{None: true, Note: fmt.Sprintf("not computed: %s failed", res.Err.Row)}
+		case st == nil:
+			cr = CaseRow{None: true, Note: "not computed"}
+		case res.Err != nil && res.Err.Row == r.ID:
+			cr = CaseRow{None: true, Note: res.Err.Message}
+		case st.Status == eval.StatusUnknown:
+			cr = CaseRow{None: true, Note: st.Detail}
+		case st.Status == eval.StatusNotRequired:
+			cr = CaseRow{None: true, Note: "not given; not required"}
+		case st.Rejected && res.Reject != nil && res.Reject.Index < 0:
+			cr = CaseRow{None: true, Note: fmt.Sprintf("rejected here (%s)", res.Reject.Code)}
+		default:
+			cr = CaseRow{Value: display(st.Value), Rule: st.TableRule}
+			switch {
+			case st.Rejected && res.Reject != nil:
+				cr.Note = fmt.Sprintf("rejected here (%s)", res.Reject.Code)
+			case st.Status == eval.StatusDefault:
+				cr.Note = "missing; default used"
+			}
+		}
+		out[r.ID] = cr
+	}
+	return out
+}
+
+// display writes a value as the sheet page does: booleans as Yes and No.
+func display(v any) string {
+	if b, ok := v.(bool); ok {
+		if b {
+			return "Yes"
+		}
+		return "No"
+	}
+	return sheet.FormatValue(v)
 }

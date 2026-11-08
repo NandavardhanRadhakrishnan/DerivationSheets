@@ -190,12 +190,28 @@ func TestEditCheckUsesAndCycle(t *testing.T) {
 	}
 	var res struct {
 		editor.SheetResult
-		Uses  map[string][]string `json:"uses"`
-		Cycle map[string][]string `json:"cycle"`
+		Uses    map[string][]string `json:"uses"`
+		Cycle   map[string][]string `json:"cycle"`
+		Preview struct {
+			Cases []editor.CaseView `json:"cases"`
+		} `json:"preview"`
 	}
 	json.Unmarshal(rec.Body.Bytes(), &res)
 	if !slices.Equal(res.Uses["discount"], []string{"subtotal", "discount_rate"}) || !slices.Contains(res.Cycle["discount"], "total") || res.Saved {
 		t.Errorf("uses %v cycle %v saved %v", res.Uses, res.Cycle["discount"], res.Saved)
+	}
+	// Every case the draft would generate, with the edited row's result.
+	found := false
+	for _, c := range res.Preview.Cases {
+		if c.ID == "loyalty-tier-silver" {
+			found = true
+			if got := c.Rows["discount"].Value; got != "4.95" {
+				t.Errorf("silver discount %q, want 4.95 (99 * 0.05, no longer rounded)", got)
+			}
+		}
+	}
+	if !found {
+		t.Errorf("no loyalty-tier-silver case in the preview: %d cases", len(res.Preview.Cases))
 	}
 }
 
