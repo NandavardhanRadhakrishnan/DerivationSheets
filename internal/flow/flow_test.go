@@ -346,3 +346,94 @@ func TestConnectBranchAndFeed(t *testing.T) {
 		t.Errorf("feed loyaltyTier = %+v", lt)
 	}
 }
+
+func analyzeWith(t *testing.T, dir string, ov Overlay) *Analysis {
+	t.Helper()
+	f, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return AnalyzeWith(f, sources.NewResolver(f.Dir, f.Sources, sources.NewFetcher(t.TempDir())), ov)
+}
+
+// statusOf finds a row's item at the named interface, or "".
+func statusOf(a *Analysis, ifaceName, row string) string {
+	for _, b := range a.Boundaries {
+		if b.Iface == nil || b.Iface.Name != ifaceName {
+			continue
+		}
+		for _, it := range b.Items {
+			if it.Row == row {
+				return it.Status
+			}
+		}
+	}
+	return ""
+}
+
+func TestAnalyzeOverlayInterface(t *testing.T) {
+	dir := filepath.Join("..", "..", "examples", "walkthrough", "3-orders-shipping")
+	if got := statusOf(analyzeWith(t, dir, nil), "order-placed", "shipping_method"); got != Missing {
+		t.Fatalf("without the overlay shipping_method is %q at order-placed, want missing", got)
+	}
+	path, err := filepath.Abs(filepath.Join("..", "..", "interfaces", "orders", "order-placed.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data = append(data, "\n[[field]]\nname     = \"shippingMethod\"\ntype     = \"string\"\nrequired = true\nlocal    = true\n"...)
+	a := analyzeWith(t, dir, Overlay{path: data})
+	if len(a.Errors) > 0 {
+		t.Fatal(a.Errors)
+	}
+	if got := statusOf(a, "order-placed", "shipping_method"); got != Carried {
+		t.Errorf("with the overlay shipping_method is %q at order-placed, want carried", got)
+	}
+}
+
+func TestAnalyzeNilOverlay(t *testing.T) {
+	for _, dir := range []string{
+		filepath.Join("..", "..", "flows", "checkout-to-payment"),
+		filepath.Join("..", "..", "flows", "mobile-orders"),
+		filepath.Join("..", "..", "flows", "loyalty-report"),
+	} {
+		f, err := Load(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		r := sources.NewResolver(f.Dir, f.Sources, sources.NewFetcher(t.TempDir()))
+		a, b := Analyze(f, r), AnalyzeWith(f, r, nil)
+		if len(a.Errors) != len(b.Errors) || !slices.Equal(boundaryItems(a), boundaryItems(b)) {
+			t.Errorf("%s: AnalyzeWith(nil) differs from Analyze", dir)
+		}
+	}
+}
+
+func boundaryItems(a *Analysis) []string {
+	var out []string
+	for _, b := range a.Boundaries {
+		for _, it := range b.Items {
+			out = append(out, b.Ref+" "+it.Status+" "+it.Field+" "+it.Row)
+		}
+	}
+	return out
+}
+
+func TestParseMatchesLoad(t *testing.T) {
+	dir := filepath.Join("..", "..", "flows", "checkout-to-payment")
+	file := filepath.Join(dir, FileName)
+	data, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, err := Parse(dir, file, data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.Slug != "checkout-to-payment" || len(f.Stages) != 2 || f.Stages[1].ID != "shipping-quote" || f.Line("stage", "1") == 0 {
+		t.Errorf("parsed %+v", f)
+	}
+}

@@ -2,6 +2,7 @@ package flow
 
 import (
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"sort"
@@ -61,6 +62,20 @@ type Analysis struct {
 	Warnings []Problem
 	// Revisions of git sources used.
 	Revisions map[string]string
+
+	overlay Overlay
+}
+
+// loadIface reads an interface file, from the overlay when it has it.
+func (a *Analysis) loadIface(path string) (*iface.Interface, error) {
+	if a.overlay != nil {
+		if abs, err := filepath.Abs(path); err == nil {
+			if data, ok := a.overlay[filepath.Clean(abs)]; ok {
+				return iface.Parse(path, data)
+			}
+		}
+	}
+	return iface.Load(path)
 }
 
 // Boundary is one interface the flow crosses, in order.
@@ -114,9 +129,19 @@ type Step struct {
 	pinsAt    string // flow.toml location of the computes list
 }
 
+// Overlay holds the content of interface files not yet saved, by cleaned
+// absolute path. Analysis reads them instead of the files on disk.
+type Overlay map[string][]byte
+
 // Analyze slices a flow. resolve fetches interfaces from declared sources.
 func Analyze(f *Flow, resolve *sources.Resolver) *Analysis {
-	a := &Analysis{Flow: f, Place: map[string]int{}, Transit: map[int]map[string]string{}}
+	return AnalyzeWith(f, resolve, nil)
+}
+
+// AnalyzeWith slices a flow, reading interface files from ov when it has
+// them. The end-to-end sheet is always read from disk.
+func AnalyzeWith(f *Flow, resolve *sources.Resolver, ov Overlay) *Analysis {
+	a := &Analysis{Flow: f, Place: map[string]int{}, Transit: map[int]map[string]string{}, overlay: ov}
 	a.Errors = append(a.Errors, f.Problems...)
 	defer func() {
 		// Revisions are kept on failure too: that is when they matter most.
@@ -183,7 +208,7 @@ func (a *Analysis) build(resolve *sources.Resolver) {
 			a.fail(f.Line(loc...), "%s: %v", spec.Interface, err)
 			return
 		}
-		in, err := iface.Load(path)
+		in, err := a.loadIface(path)
 		if err != nil {
 			a.fail(f.Line(loc...), "%v", err)
 			return
