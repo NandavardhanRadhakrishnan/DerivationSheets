@@ -113,6 +113,9 @@ type Item struct {
 	Auto      bool
 	Consumers []string
 	Note      string
+	// Fix is what would make a warning's field fit, when changing the
+	// field would: "required", or "type:<type>".
+	Fix string
 }
 
 // Step is a stretch of the flow computed by one team.
@@ -614,8 +617,8 @@ func (a *Analysis) report() {
 			default:
 				used[c.Field.Name] = true
 				it := Item{Status: Carried, Field: c.Field.Name, Row: r.ID, Auto: c.Auto, Consumers: consumers}
-				if note := fit(b, c.Field, r, domains); note != "" {
-					it.Status, it.Note = Warn, note
+				if note, fix := fit(b, c.Field, r, domains); note != "" {
+					it.Status, it.Note, it.Fix = Warn, note, fix
 				}
 				b.Items = append(b.Items, it)
 			}
@@ -679,14 +682,15 @@ func (a *Analysis) missingNote(b *Boundary, r *sheet.Row) string {
 	return "not in the interface; add it"
 }
 
-// fit checks a carried field against the row: requiredness and type.
-func fit(b *Boundary, fd *iface.Field, r *sheet.Row, domains map[string][]any) string {
+// fit checks a carried field against the row: requiredness and type. fix
+// says what change to the field would make it fit, when one would.
+func fit(b *Boundary, fd *iface.Field, r *sheet.Row, domains map[string][]any) (note, fix string) {
 	always := !(r.IsInput() && r.Usage == sheet.UsageSituational) && !(r.Send != nil && r.Send.Usage == sheet.UsageSituational && b.Role == RoleOutput)
 	if !fd.Required && always && b.Role != RoleOutput {
-		return fmt.Sprintf("optional, but the flow always needs %s", r.DisplayName())
+		return fmt.Sprintf("optional, but the flow always needs %s", r.DisplayName()), "required"
 	}
 	if t := rowType(r); t != "" && fd.Type != "" && !sameType(t, fd.Type) {
-		return fmt.Sprintf("type is %s, but %s is %s", fd.Type, r.DisplayName(), t)
+		return fmt.Sprintf("type is %s, but %s is %s", fd.Type, r.DisplayName(), t), "type:" + t
 	}
 	if len(fd.Enum) > 0 {
 		var outside []string
@@ -696,10 +700,10 @@ func fit(b *Boundary, fd *iface.Field, r *sheet.Row, domains map[string][]any) s
 			}
 		}
 		if len(outside) > 0 {
-			return fmt.Sprintf("allows %s, but %s can be %s", strings.Join(fd.Enum, ", "), r.DisplayName(), strings.Join(outside, ", "))
+			return fmt.Sprintf("allows %s, but %s can be %s", strings.Join(fd.Enum, ", "), r.DisplayName(), strings.Join(outside, ", ")), ""
 		}
 	}
-	return ""
+	return "", ""
 }
 
 func sameType(a, b string) bool {
@@ -835,3 +839,7 @@ func sortItems(b *Boundary) {
 	rank := map[string]int{Missing: 0, Warn: 1, Carried: 2, Unused: 3}
 	sort.SliceStable(b.Items, func(i, j int) bool { return rank[b.Items[i].Status] < rank[b.Items[j].Status] })
 }
+
+// RowType is the row's type where it is known: an input's declared type,
+// or the one type every result of a table or lookup has.
+func RowType(r *sheet.Row) string { return rowType(r) }
