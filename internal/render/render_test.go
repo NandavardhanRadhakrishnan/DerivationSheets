@@ -72,12 +72,26 @@ func TestLayout(t *testing.T) {
 	}
 	// Row IDs are visible, rule forms match the spec.
 	for _, want := range []string{
-		`<code>loyalty_tier</code>`, `class="g2"`, "first match", "years_between", "reject <code>DESTINATION_NOT_SERVED</code>",
+		`<code>loyalty_tier</code>`, "first match", "years_between", "reject <code>DESTINATION_NOT_SERVED</code>",
 		"customsValue", "required when", "otherwise do not send", "18 entries in data/shipping_rates.csv",
 	} {
 		if !strings.Contains(page, want) {
 			t.Errorf("page lacks %q", want)
 		}
+	}
+	// Every decision table is a rule table: one row per rule, one column
+	// per input, then the result and the hit policy (D-12).
+	if strings.Contains(page, `class="g2"`) {
+		t.Error("a decision table is drawn as a cross-tab")
+	}
+	lt := rowHTML(page, "loyalty_tier")
+	for _, want := range []string{`<table class="dt">`, `title="is_member"`, `title="customer_years"`, "&lt; 2", "≥ 2", ">Gold", `data-rule="4"`, "one rule per case"} {
+		if !strings.Contains(lt, want) {
+			t.Errorf("loyalty_tier's rule table lacks %q", want)
+		}
+	}
+	if _, dt, ok := strings.Cut(lt, `<table class="dt">`); !ok || strings.Count(dt, "data-rule=") != 4 {
+		t.Errorf("loyalty_tier's rule table does not have 4 rules: %s", dt)
 	}
 	if !strings.Contains(page, "◇") {
 		t.Error("no asserted glyph without evidence")
@@ -116,8 +130,8 @@ func TestEvidenceMerged(t *testing.T) {
 	if !strings.Contains(tier, `class="ev evd contradicted"`) || !strings.Contains(tier, "✕") {
 		t.Error("loyalty_tier row not shown as contradicted")
 	}
-	if !regexp.MustCompile(`<td class="contradicted" title="rule 4">Gold <span class="mark evd contradicted"`).MatchString(tier) {
-		t.Error("contradicted cell [true,>= 2] not marked inside the grid")
+	if !regexp.MustCompile(`<tr class="contradicted" data-rule="4">.*?<td class="res">Gold <span class="mark evd contradicted"`).MatchString(tier) {
+		t.Error("contradicted cell [true,>= 2] not marked inside the rule table")
 	}
 	if zone := rowHTML(page, "zone"); !strings.Contains(zone, `class="ev evd partly"`) || !strings.Contains(zone, "◐") || !strings.Contains(zone, "mark evd unexercised") {
 		t.Error("zone row should be partly verified with its reject marked unexercised")
