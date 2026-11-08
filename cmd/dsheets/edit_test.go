@@ -90,14 +90,16 @@ func request(h http.Handler, method, path string, body any, tweak func(*http.Req
 }
 
 type stateJSON struct {
-	File     string            `json:"file"`
-	Token    string            `json:"token"`
-	Version  int               `json:"version"`
-	Title    string            `json:"title"`
-	Rows     []editor.RowData  `json:"rows"`
-	IDs      []string          `json:"ids"`
-	SavedIDs []string          `json:"saved_ids"`
-	Extra    map[string]string `json:"-"`
+	File     string           `json:"file"`
+	Token    string           `json:"token"`
+	Version  int              `json:"version"`
+	Title    string           `json:"title"`
+	Rows     []editor.RowData `json:"rows"`
+	IDs      []string         `json:"ids"`
+	SavedIDs []string         `json:"saved_ids"`
+	// LookupFiles is the read-only data of lookups that read a file.
+	LookupFiles map[string]editor.LookupFile `json:"lookup_files"`
+	Extra       map[string]string            `json:"-"`
 }
 
 func getState(t *testing.T, h http.Handler) stateJSON {
@@ -139,6 +141,12 @@ func TestEditState(t *testing.T) {
 	}
 	if len(st.IDs) != 20 || !slices.Equal(st.IDs, st.SavedIDs) {
 		t.Errorf("ids %v saved %v", st.IDs, st.SavedIDs)
+	}
+	if z := st.LookupFiles["zone"]; z.Path != "data/shipping_zones.csv" || len(z.Entries) != 8 {
+		t.Errorf("zone's values file: %+v", z)
+	}
+	if _, ok := st.LookupFiles["discount_rate"]; ok {
+		t.Error("discount_rate has inline values, not a file")
 	}
 }
 

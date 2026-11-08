@@ -1,8 +1,12 @@
 package editor
 
 import (
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sheet"
 )
 
 func TestDraftEngineShowsEdit(t *testing.T) {
@@ -145,5 +149,26 @@ func TestDraftCasesUnreached(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("rule 4 not reported unreached: %+v", set.Unreached)
+	}
+}
+
+func TestLookupFiles(t *testing.T) {
+	s, err := sheet.Load(filepath.FromSlash(orderCheckout))
+	if err != nil {
+		t.Fatal(err)
+	}
+	files := LookupFiles(s)
+	z, ok := files["zone"]
+	if !ok || z.Path != "data/shipping_zones.csv" || !slices.Equal(z.Columns, []string{"country"}) {
+		t.Fatalf("zone: %+v", z)
+	}
+	if e := z.Entries[0]; !slices.Equal(e.Cells, []string{"US"}) || e.Value != "DOMESTIC" {
+		t.Errorf("first entry %+v", e)
+	}
+	if f := files["shipping_fee"]; len(f.Entries) != 18 || f.Entries[0].Cells[2] != "[0..1]" {
+		t.Errorf("shipping_fee: %d entries, first %+v", len(f.Entries), f.Entries)
+	}
+	if _, ok := files["discount_rate"]; ok {
+		t.Error("discount_rate's inline values listed as a file")
 	}
 }

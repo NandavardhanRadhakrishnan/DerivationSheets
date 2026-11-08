@@ -138,6 +138,13 @@ table.ed-dt td.ed-dt-act { white-space: nowrap; }
 .ed-dt-tools .ed-btn, table.ed-dt td.ed-dt-act .ed-btn { padding: 2px 5px; }
 .ed-dt-foot { margin-top: 6px; align-items: center; }
 .ed-panel .ed-dt-foot select.ed-dt-addcol { width: auto; max-width: 60%; }
+/* Lookups: the key rows, inline values, and values read from a file. */
+.ed-key { margin-bottom: 4px; align-items: center; }
+.ed-panel .ed-key select { flex: 1 1 auto; width: auto; }
+.ed-lk-value { margin-bottom: 4px; align-items: center; }
+.ed-lk-arrow { color: var(--muted); }
+table.ed-lk-file td { padding: 2px 6px; font-size: 12px; }
+.ed-list .ed-dt-wrap { max-height: 18em; overflow: auto; }
 .ed-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* Cases: what saving writes to cases.toml, and this row's result in each. */
