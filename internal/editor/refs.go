@@ -9,21 +9,21 @@ import (
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sheet"
 )
 
-// Refs is what the formula editor needs to know about a draft.
+// Refs is what the panel needs to know about a draft's references.
 type Refs struct {
-	// Uses lists, for each row in the draft with a formula, the rows its
-	// expressions name (the formula, then any reject or send condition), in
-	// the order they name them; the row itself is left out.
+	// Uses lists, for each row in the draft with a formula, a decision
+	// table or a lookup, the rows it names in the order it names them: a
+	// table's columns or a lookup's key, then the formula, then any reject
+	// or send condition. The row itself is left out.
 	Uses map[string][]string `json:"uses"`
-	// Unknown lists, for each row in the draft with a formula, the names
-	// in its expressions that are not rows.
+	// Unknown lists, for the same rows, the names that are not rows.
 	Unknown map[string][]string `json:"unknown"`
 	// Cycle lists, for every row, the rows that would make a cycle if it
 	// used them: itself and every row that depends on it.
 	Cycle map[string][]string `json:"cycle"`
 }
 
-// SheetRefs reads a draft's formulas against the rows the draft leaves.
+// SheetRefs reads a draft's rules against the rows the draft leaves.
 // A draft whose result does not parse has no refs.
 func (ed *Editor) SheetRefs(d SheetDraft) (*Refs, error) {
 	cur, err := ed.Store.Load(d.File)
@@ -50,25 +50,39 @@ func (ed *Editor) SheetRefs(d SheetDraft) (*Refs, error) {
 	}
 	for id := range d.Rows {
 		r := s.ByID[id]
-		if r == nil || r.Formula == "" {
+		var named []string
+		switch {
+		case r == nil:
 			continue
+		case r.Table != nil:
+			named = r.Table.Columns
+		case r.Lookup != nil:
+			named = r.Lookup.Key
+		case r.Formula == "":
+			continue // an input, or a text rule whose uses are written by hand
 		}
 		uses, unknown := []string{}, []string{}
 		seen := map[string]bool{id: true}
+		name := func(n string) {
+			switch {
+			case seen[n]:
+			case s.ByID[n] != nil:
+				uses = append(uses, n)
+			default:
+				unknown = append(unknown, n)
+			}
+			seen[n] = true
+		}
+		for _, n := range named {
+			name(n)
+		}
 		for _, le := range graph.Expressions(r) {
 			names, err := x.Identifiers(le.Expr)
 			if err != nil {
 				continue // does not parse yet; validation says why
 			}
 			for _, n := range names {
-				switch {
-				case seen[n]:
-				case s.ByID[n] != nil:
-					uses = append(uses, n)
-				default:
-					unknown = append(unknown, n)
-				}
-				seen[n] = true
+				name(n)
 			}
 		}
 		refs.Uses[id], refs.Unknown[id] = uses, unknown

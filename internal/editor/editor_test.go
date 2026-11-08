@@ -338,3 +338,27 @@ func TestSaveSheetInputReject(t *testing.T) {
 		t.Errorf("cases.toml does not cover the input's reject:\n%s", cases)
 	}
 }
+
+// A decision table's uses are its columns, and a lookup's its key, then the
+// rows its conditions name.
+func TestSheetRefsTablesAndLookups(t *testing.T) {
+	_, ed := workspace(t, false)
+	f := load(t, ed, sheetPath)
+	tier := rowOf(t, f.Data, "loyalty_tier")
+	tier.Table.Columns = []string{"customer_years", "is_member", "subtotl", "=>"}
+	zone := rowOf(t, f.Data, "zone")
+	zone.Lookup.Key = []string{"country", "is_member"}
+	refs, err := ed.SheetRefs(SheetDraft{File: sheetPath, Token: f.Token, Rows: map[string]RowData{"loyalty_tier": tier, "zone": zone}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := refs.Uses["loyalty_tier"]; !slices.Equal(got, []string{"customer_years", "is_member"}) {
+		t.Errorf("loyalty_tier uses %v", got)
+	}
+	if got := refs.Unknown["loyalty_tier"]; !slices.Equal(got, []string{"subtotl"}) {
+		t.Errorf("loyalty_tier unknown %v", got)
+	}
+	if got := refs.Uses["zone"]; !slices.Equal(got, []string{"country", "is_member"}) {
+		t.Errorf("zone uses %v; want its key, and nothing from its reject, which names only zone", got)
+	}
+}
