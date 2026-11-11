@@ -61,6 +61,26 @@ dsheets interface import payment-request.schema.json --kind api-request --status
 
 The file records where it was imported from; import again to refresh it.
 
+### Fields added before the schema
+
+A flow often needs a field the source schema does not have yet. Add it to
+the imported file marked `local = true` (the editor does this when you add
+a field to an imported interface), and add it to the schema too:
+
+```toml
+[[field]]
+name     = "shippingMethod"
+type     = "string"
+required = true
+local    = true
+```
+
+Importing again rewrites every field from the schema, but keeps fields
+marked `local` that the schema lacks, and lists them (`kept shippingMethod:
+not in order-placed.avsc yet`). Once the schema has the field, the import
+writes the schema's version of it without the mark. Fields not marked
+`local` are replaced or dropped from the schema as before.
+
 ## flow.toml
 
 ```toml

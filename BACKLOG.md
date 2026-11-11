@@ -39,9 +39,9 @@ a recommendation, not a commitment.
 
 ## Phase 2 from the handoff (not started)
 
-6. **Visual editor.** On top of `dsheets serve`, so non-technical people
-   never edit TOML. It must read and write canonical TOML and keep
-   comments and formatting. Needs a design conversation first.
+6. **Visual editor.** Done: `dsheets serve --edit` edits sheets and flows
+   in side panels, writing only the spans that change (design:
+   `docs/superpowers/specs/2026-11-03-visual-editor-design.md`).
 7. **Formatter.** A canonical `taplo fmt` configuration (or a `dsheets
    fmt`) and a pre-commit hook.
 8. **Diffs for pull requests.** Show changes as row-level sheet

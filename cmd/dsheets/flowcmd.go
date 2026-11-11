@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -72,6 +73,14 @@ func cmdInterface(args []string, out, errw io.Writer) error {
 			schemaRel = filepath.ToSlash(rel)
 		}
 	}
+	// Re-importing keeps the fields added here before the schema had them.
+	var kept []string
+	switch existing, err := iface.Load(*outFile); {
+	case err == nil:
+		in, kept = iface.Merge(in, existing)
+	case !errors.Is(err, os.ErrNotExist):
+		return fmt.Errorf("%v; fix it or remove it before importing again", err)
+	}
 	if err := os.MkdirAll(filepath.Dir(*outFile), 0o755); err != nil {
 		return err
 	}
@@ -79,6 +88,9 @@ func cmdInterface(args []string, out, errw io.Writer) error {
 		return err
 	}
 	fmt.Fprintf(out, "wrote %s: %s (%s), %d fields\n", *outFile, in.Name, in.Kind, len(in.Fields))
+	for _, k := range kept {
+		fmt.Fprintf(out, "  kept %s: not in %s yet\n", k, filepath.Base(src))
+	}
 	if in.Owner == "" {
 		fmt.Fprintln(out, "  note: no --owner given; set owner so missing fields are routed to the right team")
 	}

@@ -756,133 +756,66 @@ func TestPreviewSheetHTML(t *testing.T) // SheetHTML contains the new formula as
 
 ## Milestone 4: flows and interface re-import (T-4)
 
+Re-planned on 8 November 2026 against the code after milestones 2 and 3, and D-16. Ships as one pull request.
+
+Changes from the first version of tasks 13 to 16:
+
+- **The flow draft carries whole stages, not operations** (as sheet drafts carry whole rows). Index shifts after inserting a stage cannot go wrong, and a stage left out of the list without being in `Deleted` is refused (Review Focus 3). Pins are the `computes` lists in the stages and the output; maps are their `carries`.
+- **Marks re-run by re-rendering the flow page on the server**, as the sheet editor's preview does: `/edit/flow/check` returns the page and the panel's data per row (placement, steps it can go in, marks with the actions each allows).
+- **The flow page always slices the sheet as saved on disk** (spec), so the overlay holds only `flow.toml` and interface files.
+- **⚠ marks (D-16):** map to another field, plus "make required" (optional when always needed) and "change type" (type mismatch) on interface files in this repository. Enum mismatches stay read-only. Rowless ✕ marks (a required field nothing produces) stay in "To agree" only.
+- **Serving a flow with `--edit`:** `/` is the flow page with the flow panel, `/sheet` the end-to-end sheet with the existing sheet panel when that sheet is in the repository and not reached through an alias. Sheet endpoints stay at `/edit/*`; flow endpoints are `/edit/flow/*`.
+
 ### Task 13: `local` fields and re-import merges
 
-**Files:**
-- Modify: `schema/interface.schema.json` (`field.local: boolean`), `internal/iface/iface.go` (`Field.Local`; `CheckShape` accepts `local`; `Write` writes `local    = true` after `enum`), `internal/tomledit/layout.go` (`Interface` field Order gains `"local"` after `"enum"`), `cmd/dsheets/flowcmd.go` (`interface import` merges when `--out` exists), `docs/flows.md` (a "Fields added before the schema" section), `internal/iface/iface_test.go`, `cmd/dsheets/flowcmd_test.go`
+`iface.Field.Local`; `Load` reads `local`, `CheckShape` accepts it, `Write` writes `local    = true` after `enum`; `tomledit.Interface` orders `local` after `enum`; `schema/interface.schema.json` gains `field.local`; `docs/flows.md` gains "Fields added before the schema". `iface.Merge(fresh, existing) (merged, kept)`: fields from fresh; existing `local` fields fresh lacks are kept, marked, after fresh's fields; a `local` field fresh has loses the mark. `interface import` merges when `--out` exists and prints `kept <field>: not in <source> yet`.
 
-**Interfaces:**
-- Produces:
-  ```go
-  // Merge takes fields from fresh; keeps existing local fields fresh lacks, in their existing order,
-  // after fresh's fields; a local field fresh has loses the mark. kept lists the kept field names.
-  func Merge(fresh, existing *Interface) (merged *Interface, kept []string)
-  ```
-
-- [ ] **Step 1: Write the failing tests**
-
-```go
-func TestMergeKeepsLocal(t *testing.T)            // existing has local "shippingMethod"; fresh lacks it → kept ["shippingMethod"], Local true
-func TestMergeDropsMarkWhenSchemaHasIt(t *testing.T) // fresh has "shippingMethod" → no kept; field from fresh, Local false
-func TestMergeReplacesOthers(t *testing.T)        // non-local field missing from fresh → dropped
-func TestImportPrintsKept(t *testing.T)           // cmd: output contains "kept shippingMethod: not in order-placed.avsc yet"
-```
-
-- [ ] **Step 2: Run** `go test ./internal/iface/ ./cmd/dsheets/ -run 'Merge|ImportPrints' -v` — Expected: FAIL
-- [ ] **Step 3: Implement**
-- [ ] **Step 4: Run** `go test ./... ` — Expected: PASS
-- [ ] **Step 5: Commit** — `git commit -m "Keep local interface fields when re-importing"`
+Tests: `TestMergeKeepsLocal`, `TestMergeDropsMarkWhenSchemaHasIt`, `TestMergeReplacesOthers`, `TestLocalRoundTrip`, `TestImportKeepsLocal` (cmd).
 
 ### Task 14: Flows and interfaces from memory
 
-**Files:**
-- Modify: `internal/flow/flow.go` (`Parse`), `internal/flow/analyze.go` (`AnalyzeWith`), `internal/iface/iface.go` (`Parse`), `internal/flow/flow_test.go`
+`flow.Parse(dir, file string, data []byte)` (`Load` reads and calls it); `iface.Parse(path string, data []byte)`; `flow.Overlay map[string][]byte` by cleaned absolute path; `flow.AnalyzeWith(f, r, ov)` reads interface files from the overlay first (`Analyze(f, r) == AnalyzeWith(f, r, nil)`).
 
-**Interfaces:**
-- Produces:
-  ```go
-  func flow.Parse(file string, data []byte) (*Flow, error)   // Load = os.ReadFile + Parse
-  func iface.Parse(path string, data []byte) (*Interface, error)
-  // Overlay holds draft file contents by cleaned absolute path; analysis reads them instead of the disk.
-  type Overlay map[string][]byte
-  func AnalyzeWith(f *Flow, resolve *sources.Resolver, ov Overlay) *Analysis // Analyze(f, r) == AnalyzeWith(f, r, nil)
-  ```
-  `AnalyzeWith` uses the overlay for interface files and for the end-to-end `sheet.toml` (`sheet.Parse`).
-
-- [ ] **Step 1: Write the failing tests**
-
-```go
-func TestAnalyzeOverlayInterface(t *testing.T) // examples/walkthrough/3-orders-shipping: overlay order-placed with a shippingMethod
-                                               // field → the ✕ for shipping_method at that boundary is gone; without overlay it is there
-func TestAnalyzeNilOverlay(t *testing.T)       // AnalyzeWith(f, r, nil) report equals Analyze(f, r) for every example flow
-```
-
-- [ ] **Step 2–4:** run (FAIL), implement, run `go test ./internal/flow/ ./internal/iface/ -v` (PASS)
-- [ ] **Step 5: Commit** — `git commit -m "Analyze flows against draft files in memory"`
+Tests: `TestAnalyzeOverlayInterface` (overlay order-placed with `shippingMethod` → the ✕ for shipping_method there is gone), `TestAnalyzeNilOverlay`.
 
 ### Task 15: Flow drafts, check and save
 
-**Files:**
-- Create: `internal/editor/flowdraft.go`, `internal/editor/flowdraft_test.go`
-- Modify: `internal/editor/editor.go`
-
-**Interfaces:**
-- Consumes: Tasks 1–4, 13, 14.
-- Produces:
-  ```go
-  // Pin places a row: Key "computes" or "callee_computes" on stage Index, or on "output".
-  // Key "" removes the row from every computes list (automatic placement).
-  type Pin struct{ Row, Table string; Index int; Key string } // json: row, table ("stage"|"output"), index, key
-  type FieldAdd struct{ Interface, Name, Type string; Required bool } // Interface: path relative to the store root
-  type FieldMap struct{ Boundary, Field, Row string } // Boundary: "input", "output", "stage:N", "stage:N:request", "stage:N:response"; writes carries
-  type StageEdit struct {
-      Index  int    `json:"index"`  // position in [[stage]]
-      New    bool   `json:"new"`    // insert a stage at Index
-      Delete bool   `json:"delete"`
-      ID, Kind, Interface, Producer, Caller, Callee string // json: id, kind, interface, producer, caller, callee
-  }
-  type FlowDraft struct {
-      File   string            `json:"file"`
-      Tokens map[string]string `json:"tokens"` // flow.toml and every interface file the page loaded
-      Pins   []Pin             `json:"pins,omitempty"`
-      Fields []FieldAdd        `json:"fields,omitempty"`
-      Maps   []FieldMap        `json:"maps,omitempty"`
-      Stages []StageEdit       `json:"stages,omitempty"`
-  }
-  type FlowResult struct {
-      Saved bool; Tokens map[string]string; Version int; VersionRaised bool
-      Problems []Problem; Conflict []string
-      Warnings []string // e.g. "order-placed is imported from order-placed.avsc: add shippingMethod there too"
-      Marks    any      // the flowrender review marks for the draft, for the page to redraw
-  }
-  func (ed *Editor) CheckFlow(d FlowDraft) (*FlowResult, error)
-  func (ed *Editor) SaveFlow(d FlowDraft) (*FlowResult, error)
-  ```
-  A field added to an interface with `imported` is written with `local = true` and a warning. An interface reached through an `alias:` source, or outside the store root, refuses every edit ("read-only: belongs to <alias>"). A flow's errors are `Analysis` problems; an interface's errors are `iface.CheckShape` problems; introduced-ness compares their text, per file. Version as for sheets.
-
-- [ ] **Step 1: Write the failing tests** (temp git repo copy of `flows/`, `interfaces/`, `specs/`)
+`internal/editor/flowdraft.go`, `internal/editor/flowedit.go`:
 
 ```go
-func TestPinWritesComputes(t *testing.T)      // pin "shipping_cost" to stage 1 computes → only that line in flow.toml changes and
-                                              // it leaves output's computes list
-func TestUnpin(t *testing.T)                  // Key "" for "zone" → removed from stage 1 computes
-func TestAddFieldLocalInterface(t *testing.T) // proposed interface → field appended, no local mark
-func TestAddFieldImported(t *testing.T)       // order-placed (imported) → `local    = true`, one warning naming order-placed.avsc
-func TestAliasInterfaceReadOnly(t *testing.T) // FieldAdd on "shipping:quote-request.toml" → error, nothing written
-func TestMapWritesCarries(t *testing.T)       // stage:1:response field "fee" ↔ row "shipping_fee" → carries = { fee = "shipping_fee" }
-func TestAddStage(t *testing.T)               // new handoff stage at index 1 → inserted [[stage]] between the two, blank-line separated
-func TestFlowConflict(t *testing.T)           // interface file changed on disk → Conflict names it; flow.toml untouched
+type BoundaryData struct{ Interface string; Carries map[string]string }
+type StageData struct {
+    Orig *int // index in the file; nil for a new stage
+    ID, Kind, Interface, Producer, Caller, Callee string
+    Carries map[string]string
+    Computes, CalleeComputes []string
+    Request, Response *BoundaryData
+}
+type OutputData struct{ Producer string; Computes []string; Carries map[string]string }
+type FieldEdit struct {
+    Interface string // relative to the store root
+    Name, Type string; Required bool
+    Add bool // a new field; otherwise change the existing field's type and required
+}
+type FlowDraft struct {
+    File, Token string
+    Input   *BoundaryData // carries only
+    Stages  []StageData   // nil keeps the stages; otherwise every stage, in order
+    Deleted []int         // original indexes
+    Output  *OutputData
+    Fields  []FieldEdit
+    Tokens  map[string]string // interface files the fields change, by path
+}
+func (ed *Editor) CheckFlow(d FlowDraft) (*FlowResult, error)
+func (ed *Editor) SaveFlow(d FlowDraft) (*FlowResult, error)
 ```
 
-- [ ] **Step 2–4:** run (FAIL), implement, run `go test ./internal/editor/ -v` (PASS)
-- [ ] **Step 5: Commit** — `git commit -m "Edit flows: pins, interface fields, carries and stages"`
+A field added to an interface with `imported` is written with `local = true` and a warning naming the source schema; a fix to such an interface warns that re-importing undoes it. An interface reached through an `alias:` source, or outside the store root, refuses every edit. Errors: the flow's `Analysis.Errors` and interfaces' `CheckShape`, compared by message as a multiset, before and after. Version as for sheets. A save writes `flow.toml` and the interface files in one `Store.Save`.
 
-### Task 16: Flow side panel
+Tests (temp git repo copy of `flows/`, `interfaces/`, `specs/`): `TestFlowUnchangedRoundTrip`, `TestPinWritesComputes`, `TestUnpin`, `TestAddFieldProposed`, `TestAddFieldImportedLocal`, `TestFixFieldRequired`, `TestAliasInterfaceReadOnly`, `TestMapWritesCarries`, `TestAddStage`, `TestDeleteStage`, `TestStageSilentDropRefused`, `TestFlowConflict`, `TestFlowIntroducedError`.
 
-**Files:**
-- Create: `internal/flowrender/flowedit.js`, `internal/flowrender/flowedit.css`
-- Modify: `internal/flowrender/flowrender.go` (`Page.Edit`; data attributes for value rows, steps, marks and stage headers), its template, `cmd/dsheets/edit.go` (`GET /edit/flow/state`, `POST /edit/flow/check`, `POST /edit/flow/save`; the end-to-end sheet served editable at `/sheet` when its folder is inside the store root and not reached through an alias, linked from the flow page), `README.md`, `BACKLOG.md` (item 6 done)
+### Task 16: Flow side panel and serving a flow with `--edit`
 
-- Panel behaviour (spec "Flow: the page plus the same panel"): review marks always on; for a value row, "Computed by" with automatic or pinned, **compute here** on every step it can go in, **unpin**; every ✕ or ⚠ for the row with **add field** (name, type, required) or **map to an existing field** for interfaces in this repository, read-only for alias interfaces with the existing "To agree" entry; imported interfaces warn before adding; **+ stage** between columns; selecting a stage header edits kind, interfaces, producer, caller, callee. Marks redraw from `/edit/flow/check` as you edit. The row's name links to `/sheet#row-<id>`.
+`internal/flowrender`: `Page.Edit`; `data-row` on value rows, `data-step`/`data-boundary` on cells and headers, `data-stage` on stage headers; `flowedit.js`, `flowedit.css`. `cmd/dsheets/edit.go`: flow mode, `GET /edit/flow/state`, `POST /edit/flow/check`, `POST /edit/flow/save`, `/sheet`. Panel per spec "Flow: the page plus the same panel" and D-16; "+ stage" on every step that is not a callee's; selecting a stage header edits ID (until saved), kind, interfaces, producer, caller, callee, or deletes the stage.
 
-- [ ] **Step 1: Write the failing tests**
-
-```go
-func TestFlowEditState(t *testing.T)        // serve --edit flows/checkout-to-payment: /edit/flow/state lists both stages and
-                                            // marks quote-request read-only
-func TestFlowEditServesSheet(t *testing.T)  // GET /sheet with --edit returns the order-checkout sheet page with edit-state
-```
-
-- [ ] **Step 2–4:** run (FAIL), implement, run `go test ./...` (PASS)
-- [ ] **Step 5: Check it in a browser**: serve `flows/checkout-to-payment` with `--edit`; pin `shipping_cost` to step 2; add `shippingMethod` to order-placed (warning about the Avro file, `local = true` written); open the sheet from the row link and add a row there; save both.
-- [ ] **Step 6: Commit** — `git commit -m "Edit flows in a side panel"`
+Tests: `TestFlowEditState` (both stages; quote-request read-only), `TestFlowEditServesSheet`, `TestFlowEditRefusesCrossSite`. Then in a browser: pin `shipping_cost`, add `shippingMethod` to order-placed (warning, `local = true`), make weightKg required, add a stage, open the sheet from the row link and add a row, save both.

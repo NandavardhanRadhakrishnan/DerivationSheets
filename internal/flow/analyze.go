@@ -2,6 +2,7 @@ package flow
 
 import (
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"sort"
@@ -61,6 +62,20 @@ type Analysis struct {
 	Warnings []Problem
 	// Revisions of git sources used.
 	Revisions map[string]string
+
+	overlay Overlay
+}
+
+// loadIface reads an interface file, from the overlay when it has it.
+func (a *Analysis) loadIface(path string) (*iface.Interface, error) {
+	if a.overlay != nil {
+		if abs, err := filepath.Abs(path); err == nil {
+			if data, ok := a.overlay[filepath.Clean(abs)]; ok {
+				return iface.Parse(path, data)
+			}
+		}
+	}
+	return iface.Load(path)
 }
 
 // Boundary is one interface the flow crosses, in order.
@@ -98,6 +113,9 @@ type Item struct {
 	Auto      bool
 	Consumers []string
 	Note      string
+	// Fix is what would make a warning's field fit, when changing the
+	// field would: "required", or "type:<type>".
+	Fix string
 }
 
 // Step is a stretch of the flow computed by one team.
@@ -114,9 +132,19 @@ type Step struct {
 	pinsAt    string // flow.toml location of the computes list
 }
 
+// Overlay holds the content of interface files not yet saved, by cleaned
+// absolute path. Analysis reads them instead of the files on disk.
+type Overlay map[string][]byte
+
 // Analyze slices a flow. resolve fetches interfaces from declared sources.
 func Analyze(f *Flow, resolve *sources.Resolver) *Analysis {
-	a := &Analysis{Flow: f, Place: map[string]int{}, Transit: map[int]map[string]string{}}
+	return AnalyzeWith(f, resolve, nil)
+}
+
+// AnalyzeWith slices a flow, reading interface files from ov when it has
+// them. The end-to-end sheet is always read from disk.
+func AnalyzeWith(f *Flow, resolve *sources.Resolver, ov Overlay) *Analysis {
+	a := &Analysis{Flow: f, Place: map[string]int{}, Transit: map[int]map[string]string{}, overlay: ov}
 	a.Errors = append(a.Errors, f.Problems...)
 	defer func() {
 		// Revisions are kept on failure too: that is when they matter most.
@@ -183,7 +211,7 @@ func (a *Analysis) build(resolve *sources.Resolver) {
 			a.fail(f.Line(loc...), "%s: %v", spec.Interface, err)
 			return
 		}
-		in, err := iface.Load(path)
+		in, err := a.loadIface(path)
 		if err != nil {
 			a.fail(f.Line(loc...), "%v", err)
 			return
@@ -589,8 +617,8 @@ func (a *Analysis) report() {
 			default:
 				used[c.Field.Name] = true
 				it := Item{Status: Carried, Field: c.Field.Name, Row: r.ID, Auto: c.Auto, Consumers: consumers}
-				if note := fit(b, c.Field, r, domains); note != "" {
-					it.Status, it.Note = Warn, note
+				if note, fix := fit(b, c.Field, r, domains); note != "" {
+					it.Status, it.Note, it.Fix = Warn, note, fix
 				}
 				b.Items = append(b.Items, it)
 			}
@@ -654,14 +682,15 @@ func (a *Analysis) missingNote(b *Boundary, r *sheet.Row) string {
 	return "not in the interface; add it"
 }
 
-// fit checks a carried field against the row: requiredness and type.
-func fit(b *Boundary, fd *iface.Field, r *sheet.Row, domains map[string][]any) string {
+// fit checks a carried field against the row: requiredness and type. fix
+// says what change to the field would make it fit, when one would.
+func fit(b *Boundary, fd *iface.Field, r *sheet.Row, domains map[string][]any) (note, fix string) {
 	always := !(r.IsInput() && r.Usage == sheet.UsageSituational) && !(r.Send != nil && r.Send.Usage == sheet.UsageSituational && b.Role == RoleOutput)
 	if !fd.Required && always && b.Role != RoleOutput {
-		return fmt.Sprintf("optional, but the flow always needs %s", r.DisplayName())
+		return fmt.Sprintf("optional, but the flow always needs %s", r.DisplayName()), "required"
 	}
 	if t := rowType(r); t != "" && fd.Type != "" && !sameType(t, fd.Type) {
-		return fmt.Sprintf("type is %s, but %s is %s", fd.Type, r.DisplayName(), t)
+		return fmt.Sprintf("type is %s, but %s is %s", fd.Type, r.DisplayName(), t), "type:" + t
 	}
 	if len(fd.Enum) > 0 {
 		var outside []string
@@ -671,10 +700,10 @@ func fit(b *Boundary, fd *iface.Field, r *sheet.Row, domains map[string][]any) s
 			}
 		}
 		if len(outside) > 0 {
-			return fmt.Sprintf("allows %s, but %s can be %s", strings.Join(fd.Enum, ", "), r.DisplayName(), strings.Join(outside, ", "))
+			return fmt.Sprintf("allows %s, but %s can be %s", strings.Join(fd.Enum, ", "), r.DisplayName(), strings.Join(outside, ", ")), ""
 		}
 	}
-	return ""
+	return "", ""
 }
 
 func sameType(a, b string) bool {
@@ -810,3 +839,7 @@ func sortItems(b *Boundary) {
 	rank := map[string]int{Missing: 0, Warn: 1, Carried: 2, Unused: 3}
 	sort.SliceStable(b.Items, func(i, j int) bool { return rank[b.Items[i].Status] < rank[b.Items[j].Status] })
 }
+
+// RowType is the row's type where it is known: an input's declared type,
+// or the one type every result of a table or lookup has.
+func RowType(r *sheet.Row) string { return rowType(r) }

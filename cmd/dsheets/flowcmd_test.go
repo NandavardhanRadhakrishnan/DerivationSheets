@@ -164,3 +164,31 @@ func TestServeRefetchesAliasFlows(t *testing.T) {
 		t.Error("reload still shows the startup commit")
 	}
 }
+
+// TestImportKeepsLocal re-imports over a file with a field marked local:
+// the field is kept, still marked, and the command says so.
+func TestImportKeepsLocal(t *testing.T) {
+	dir := t.TempDir()
+	src, err := filepath.Abs(filepath.Join("..", "..", "interfaces", "orders", "order-placed.avsc"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(dir, "order-placed.toml")
+	runOK(t, "interface", "import", src, "--out", out, "--owner", "Orders team")
+	data, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	added := string(data) + "\n[[field]]\nname     = \"shippingMethod\"\ntype     = \"string\"\nrequired = true\nlocal    = true\n"
+	if err := os.WriteFile(out, []byte(added), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got := runOK(t, "interface", "import", src, "--out", out, "--owner", "Orders team")
+	if !strings.Contains(got, "kept shippingMethod: not in order-placed.avsc yet") {
+		t.Errorf("output does not name the kept field:\n%s", got)
+	}
+	data, _ = os.ReadFile(out)
+	if !strings.Contains(string(data), "name     = \"shippingMethod\"\ntype     = \"string\"\nrequired = true\nlocal    = true\n") {
+		t.Errorf("shippingMethod not kept:\n%s", data)
+	}
+}

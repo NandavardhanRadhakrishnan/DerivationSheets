@@ -33,7 +33,8 @@
           "type": { "enum": ["string", "number", "boolean", "date", "datetime", "object", "array"] },
           "required": { "description": "Whether the field is always present.", "type": "boolean" },
           "description": { "type": "string" },
-          "enum": { "type": "array", "items": { "type": "string" } }
+          "enum": { "type": "array", "items": { "type": "string" } },
+          "local": { "description": "Added here before the source schema has it. Re-importing keeps the field, and drops this mark once the schema has the field.", "type": "boolean" }
         }
       }
     }

@@ -11,6 +11,7 @@ import (
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/cases"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/eval"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sheet"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sources"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/store"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/tomledit"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/validate"
@@ -22,6 +23,9 @@ import (
 type Editor struct {
 	Store store.Store
 	Root  string
+	// Fetcher fetches the git sources a flow names; nil makes one that
+	// caches in the repository holding Root.
+	Fetcher *sources.Fetcher
 }
 
 // Problem is a diagnostic, marked when the edit introduces it.

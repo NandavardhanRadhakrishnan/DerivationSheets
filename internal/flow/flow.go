@@ -120,6 +120,12 @@ func Load(path string) (*Flow, error) {
 	if err != nil {
 		return nil, err
 	}
+	return Parse(dir, file, text)
+}
+
+// Parse reads a flow from its content: dir is the flow's folder, against
+// which its references resolve, and file names it in problems.
+func Parse(dir, file string, text []byte) (*Flow, error) {
 	var raw map[string]any
 	if err := toml.Unmarshal(text, &raw); err != nil {
 		var de *toml.DecodeError
