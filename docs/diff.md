@@ -49,9 +49,13 @@ Only the files that changed between the two revisions are read.
 - The report covers the repository being diffed. What a change means for
   other teams' consumers is not part of it.
 
-By default only changes to behaviour appear. Names, descriptions and
-comments are label and formatting changes, shown with `--all`, much as
-`git diff -w` hides whitespace.
+By default only changes to behaviour appear. Names, titles, descriptions,
+`[display]` settings and comments are label and formatting changes, shown
+with `--all`, much as `git diff -w` hides whitespace.
+
+A flow's own settings are compared too: the sheet it reads, its `sources`
+(including a pinned `ref`), the output's producer, and a renamed `flow` or
+`sheet`. A row id that appears twice is told apart by occurrence (`tax#2`).
 
 Never compared: CSV and other data files, hidden folders, TOML files that
 are not sheets, flows or interfaces (`Cargo.toml` and the like), and
