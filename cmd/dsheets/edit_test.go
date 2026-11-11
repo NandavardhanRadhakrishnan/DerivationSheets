@@ -322,3 +322,84 @@ func TestEditCheckPreview(t *testing.T) {
 		t.Errorf("cycle: stale %q, page %d bytes", res.Preview.Stale, len(res.Preview.Page))
 	}
 }
+
+// breakSheet rewrites the sheet in dir, once, and commits nothing: the
+// sheet then differs from the last commit as a hand edit would.
+func breakSheet(t *testing.T, dir, old, new string) {
+	t.Helper()
+	p := filepath.Join(dir, "sheet.toml")
+	data, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), old) {
+		t.Fatalf("sheet.toml has no %q", old)
+	}
+	if err := os.WriteFile(p, []byte(strings.Replace(string(data), old, new, 1)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestEditOpensSheetWithErrorsAndRepairsIt(t *testing.T) {
+	for _, tc := range []struct{ name, old, new, row string }{
+		{"unknown row", `uses   = ["country"]`, `uses   = ["country", "nosuchrow"]`, "zone"},
+		{"cycle", `uses   = ["loyalty_tier"]
+lookup = { from = "config.pricing.discount"`, `uses   = ["loyalty_tier", "discount"]
+lookup = { from = "config.pricing.discount"`, "discount_rate"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := editRepo(t)
+			breakSheet(t, dir, tc.old, tc.new)
+
+			// Reading alone still refuses the sheet; editing opens it.
+			ro := serveHandler([]string{dir}, serveOptions{}, newFetcher(true), io.Discard)
+			if rec := request(ro, "GET", "/", nil, nil); rec.Code != 422 {
+				t.Fatalf("read-only page of a sheet with errors: %d, want 422", rec.Code)
+			}
+			h := editHandler(t, dir)
+			rec := request(h, "GET", "/", nil, nil)
+			if rec.Code != 200 || !strings.Contains(rec.Body.String(), "edit-state") {
+				t.Fatalf("editor page of a sheet with errors: %d %.200s", rec.Code, rec.Body)
+			}
+
+			// The first check reports the errors as already there, and a save
+			// that fixes one is not refused.
+			st := getState(t, h)
+			var row editor.RowData
+			for _, r := range st.Rows {
+				if r.ID == tc.row {
+					row = r
+				}
+			}
+			chk := request(h, "POST", "/edit/check", editor.SheetDraft{File: st.File, Token: st.Token}, nil)
+			var res editor.SheetResult
+			json.Unmarshal(chk.Body.Bytes(), &res)
+			errs := 0
+			for _, p := range res.Problems {
+				if p.Severity == "error" {
+					errs++
+					if p.New {
+						t.Errorf("error already in the file reported as new: %v", p)
+					}
+				}
+			}
+			if errs == 0 {
+				t.Fatalf("no errors reported: %s", chk.Body)
+			}
+			row.Uses = slices.DeleteFunc(slices.Clone(row.Uses), func(u string) bool { return u == "nosuchrow" || u == "discount" })
+			save := request(h, "POST", "/edit/save", editor.SheetDraft{File: st.File, Token: st.Token, Rows: map[string]editor.RowData{tc.row: row}}, nil)
+			json.Unmarshal(save.Body.Bytes(), &res)
+			if save.Code != 200 || !res.Saved {
+				t.Fatalf("repairing save: %d %s", save.Code, save.Body)
+			}
+			for _, p := range res.Problems {
+				if p.Severity == "error" {
+					t.Errorf("error left after the repair: %v", p)
+				}
+			}
+			if page := request(h, "GET", "/", nil, nil); page.Code != 200 {
+				t.Errorf("page after repair: %d", page.Code)
+			}
+		})
+	}
+}
