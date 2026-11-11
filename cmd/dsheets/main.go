@@ -336,6 +336,38 @@ func buildPage(dir, evDir, mode, snap string, errw io.Writer) (*render.Page, err
 	return enginePage(e, dir, evDir, mode, snap)
 }
 
+// buildRepairPage renders a sheet for the editor to repair. A sheet with
+// validation errors is shown anyway, with its errors listed in msgs; the
+// editor marks them from its first check. A sheet that does not parse is
+// still refused, as the editor cannot open what it cannot read.
+func buildRepairPage(dir, evDir, mode string, msgs *bytes.Buffer) (page *render.Page, err error) {
+	s, err := sheet.Load(dir)
+	if err != nil {
+		var pe *sheet.ParseError
+		if errors.As(err, &pe) {
+			fmt.Fprintf(msgs, "%s:%d: error[toml]: %s\n", pe.File, pe.Line, pe.Message)
+			return nil, errFailed
+		}
+		return nil, err
+	}
+	for _, d := range validate.Validate(s).Diagnostics {
+		if d.Severity == validate.Error {
+			fmt.Fprintln(msgs, d)
+		}
+	}
+	e, err := eval.NewForRepair(s)
+	if err != nil {
+		return nil, err
+	}
+	// A sheet with errors may hold what the page was never written for.
+	defer func() {
+		if r := recover(); r != nil {
+			page, err = nil, fmt.Errorf("the sheet cannot be shown until its errors are fixed by hand: %v", r)
+		}
+	}()
+	return enginePage(e, dir, evDir, mode, "")
+}
+
 // enginePage renders a sheet's engine as buildPage does, reading evidence
 // for the sheet in dir.
 func enginePage(e *eval.Engine, dir, evDir, mode, snap string) (*render.Page, error) {
@@ -659,12 +691,24 @@ func writeSheetPage(w http.ResponseWriter, dir string, o serveOptions, msgs *byt
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		fmt.Fprintf(w, "%s%v\n", msgs.String(), err)
 	}
-	page, err := buildPage(dir, o.EvidenceDir, o.Mode, "", msgs)
+	editing := o.Edit != nil && o.Edit.file != ""
+	var page *render.Page
+	var err error
+	if editing {
+		// Only an editor can repair errors, so it opens a sheet that has them.
+		page, err = buildRepairPage(dir, o.EvidenceDir, o.Mode, msgs)
+		if err == nil && msgs.Len() > 0 {
+			fmt.Fprint(errw, msgs.String())
+			msgs.Reset()
+		}
+	} else {
+		page, err = buildPage(dir, o.EvidenceDir, o.Mode, "", msgs)
+	}
 	if err != nil {
 		fail(err)
 		return
 	}
-	if o.Edit != nil && o.Edit.file != "" {
+	if editing {
 		st, err := o.Edit.stateJSON()
 		if err != nil {
 			fail(err)

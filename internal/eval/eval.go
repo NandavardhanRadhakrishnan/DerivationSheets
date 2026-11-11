@@ -36,6 +36,36 @@ type Engine struct {
 
 // New prepares an engine. The sheet should already pass validation.
 func New(s *sheet.Sheet) (*Engine, error) {
+	e, err := newEngine(s)
+	if err != nil {
+		return nil, err
+	}
+	if e.Graph.Cycle != nil {
+		return nil, fmt.Errorf("circular dependency: %s", strings.Join(e.Graph.Cycle, " -> "))
+	}
+	return e, nil
+}
+
+// NewForRepair prepares an engine to show a sheet that is being repaired.
+// Unlike New it accepts a circular dependency: Graph.Cycle says so and
+// Graph.Order lists the rows as the file does. Such an engine is for
+// drawing the sheet; evaluating it means nothing.
+func NewForRepair(s *sheet.Sheet) (*Engine, error) {
+	e, err := newEngine(s)
+	if err != nil {
+		return nil, err
+	}
+	if e.Graph.Cycle != nil {
+		for _, r := range s.Rows {
+			if s.ByID[r.ID] == r {
+				e.Graph.Order = append(e.Graph.Order, r)
+			}
+		}
+	}
+	return e, nil
+}
+
+func newEngine(s *sheet.Sheet) (*Engine, error) {
 	ids := make([]string, 0, len(s.Rows))
 	for _, r := range s.Rows {
 		ids = append(ids, r.ID)
@@ -45,9 +75,6 @@ func New(s *sheet.Sheet) (*Engine, error) {
 		return nil, err
 	}
 	g := graph.Build(s, x)
-	if g.Cycle != nil {
-		return nil, fmt.Errorf("circular dependency: %s", strings.Join(g.Cycle, " -> "))
-	}
 	return &Engine{Sheet: s, Graph: g, Expr: x, rt: graph.RequestTimeRow(s)}, nil
 }
 
