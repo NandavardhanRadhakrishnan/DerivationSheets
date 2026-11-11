@@ -43,7 +43,7 @@ func DiffSheet(base, head []byte) (SheetChange, error) {
 		f.Label = f.Path == "title"
 		sc.Meta = append(sc.Meta, f)
 	}
-	sc.Rows = diffRows(rowsOf(bm), rowsOf(hm))
+	sc.Rows = diffRows(rowsOf(bm, "row"), rowsOf(hm, "row"))
 	sc.TextOnly = base != nil && head != nil && !bytes.Equal(base, head) && equalValues(bm, hm)
 	return sc, nil
 }
@@ -79,8 +79,8 @@ type rowEntry struct {
 
 // rowsOf returns a sheet's rows in file order. A row without an id is named
 // by its position.
-func rowsOf(m map[string]any) []rowEntry {
-	list, _ := m["row"].([]any)
+func rowsOf(m map[string]any, key string) []rowEntry {
+	list, _ := m[key].([]any)
 	var out []rowEntry
 	for i, r := range list {
 		row, ok := r.(map[string]any)
