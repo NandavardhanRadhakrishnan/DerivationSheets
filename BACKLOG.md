@@ -45,9 +45,10 @@ a recommendation, not a commitment.
 7. ~~**Formatter.**~~ Done: `dsheets fmt [--check]` writes the canonical
    layout (layout only, values keep their text) and `.githooks/pre-commit`
    checks staged files (`docs/editor.md`).
-8. **Diffs for pull requests.** Show changes as row-level sheet
-   differences rather than text diffs; for flows, as boundary and
-   interface differences (fields added or dropped, who computes what).
+8. ~~**Diffs for pull requests.**~~ Done: `dsheets diff [base]..[head]`
+   shows row-level sheet differences and, for flows, boundary and
+   who-computes-what differences, from git alone (`docs/diff.md`). Still
+   to do: the `.gitattributes` diff driver.
 9. **Drafting rows from natural language** with an LLM. Ambiguities must
    become `open_questions`, never guesses.
 10. **DMN XML export**, for viewing in existing DMN tools. Export only,

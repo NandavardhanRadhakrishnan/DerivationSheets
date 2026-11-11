@@ -12,36 +12,36 @@ import (
 // another. Where is "input", "output", or "stage <id> <role>" with role
 // handoff, request or response (the words impact findings use).
 type BoundaryChange struct {
-	Where string
+	Where string `json:"where,omitempty"`
 	// Interface has a Path only when the boundary's interface reference
 	// changed.
-	Interface FieldChange
+	Interface FieldChange `json:"interface,omitzero"`
 	// Added and Dropped are fields the boundary now carries or no longer
 	// carries; Rewired are fields that now carry a different row.
-	Added   []string
-	Dropped []string
-	Rewired []FieldChange
+	Added   []string      `json:"added,omitempty"`
+	Dropped []string      `json:"dropped,omitempty"`
+	Rewired []FieldChange `json:"rewired,omitempty"`
 }
 
 // ComputeChange is a row whose computing team changed. Before and After are
 // the team names as the flow writes them; empty means nobody computed it.
 type ComputeChange struct {
-	Row    string
-	Before string
-	After  string
+	Row    string `json:"row,omitempty"`
+	Before string `json:"before,omitempty"`
+	After  string `json:"after,omitempty"`
 }
 
 // FlowChange is the difference between two versions of one flow.
 type FlowChange struct {
-	Name        string // the flow's own `flow` name
-	Path        string
-	OldPath     string
-	Status      Status
-	Stages      []FieldChange // stages added or removed, or whose kind or team changed
-	Boundaries  []BoundaryChange
-	Computes    []ComputeChange
-	TextOnly    bool
-	Unparseable string // "base" or "head"
+	Name        string           `json:"name,omitempty"` // the flow's own `flow` name
+	Path        string           `json:"path,omitempty"`
+	OldPath     string           `json:"old_path,omitempty"`
+	Status      Status           `json:"status,omitempty"`
+	Stages      []FieldChange    `json:"stages,omitempty"` // stages added or removed, or whose kind or team changed
+	Boundaries  []BoundaryChange `json:"boundaries,omitempty"`
+	Computes    []ComputeChange  `json:"computes,omitempty"`
+	TextOnly    bool             `json:"text_only,omitempty"`
+	Unparseable string           `json:"unparseable,omitempty"` // "base" or "head"
 }
 
 // DiffFlow compares two versions of a flow.toml. A nil side means the flow
@@ -252,14 +252,14 @@ func diffComputes(b, h *flow.Flow) []ComputeChange {
 // InterfaceChange is the difference between two versions of an interface
 // file: the fields that cross a boundary.
 type InterfaceChange struct {
-	Name        string // the interface's own `interface` name
-	Path        string
-	OldPath     string
-	Status      Status
-	Meta        []FieldChange
-	Fields      []FieldChange
-	TextOnly    bool
-	Unparseable string // "base" or "head"
+	Name        string        `json:"name,omitempty"` // the interface's own `interface` name
+	Path        string        `json:"path,omitempty"`
+	OldPath     string        `json:"old_path,omitempty"`
+	Status      Status        `json:"status,omitempty"`
+	Meta        []FieldChange `json:"meta,omitempty"`
+	Fields      []FieldChange `json:"fields,omitempty"`
+	TextOnly    bool          `json:"text_only,omitempty"`
+	Unparseable string        `json:"unparseable,omitempty"` // "base" or "head"
 }
 
 var interfaceLabels = map[string]bool{"title": true, "description": true, "imported": true}

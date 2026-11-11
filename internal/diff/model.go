@@ -18,31 +18,31 @@ const (
 // addition and After is empty for a removal. Label marks fields that only
 // describe (names, descriptions) and do not change behaviour.
 type FieldChange struct {
-	Path   string
-	Before string
-	After  string
-	Label  bool
+	Path   string `json:"path,omitempty"`
+	Before string `json:"before,omitempty"`
+	After  string `json:"after,omitempty"`
+	Label  bool   `json:"label,omitempty"`
 }
 
 // RowChange is one row of a sheet that was added, removed or changed. For an
 // added or removed row, Fields lists everything it had.
 type RowChange struct {
-	ID     string
-	Status Status
-	Fields []FieldChange
+	ID     string        `json:"id,omitempty"`
+	Status Status        `json:"status,omitempty"`
+	Fields []FieldChange `json:"fields,omitempty"`
 }
 
 // SheetChange is the difference between two versions of one sheet.
 type SheetChange struct {
-	Name    string // the sheet's own `sheet` name
-	Path    string // sheet.toml, relative to the repository
-	OldPath string // set only when the folder moved
-	Status  Status
-	Meta    []FieldChange // top-level keys (title, version, ...)
-	Rows    []RowChange
+	Name    string        `json:"name,omitempty"`     // the sheet's own `sheet` name
+	Path    string        `json:"path,omitempty"`     // sheet.toml, relative to the repository
+	OldPath string        `json:"old_path,omitempty"` // set only when the folder moved
+	Status  Status        `json:"status,omitempty"`
+	Meta    []FieldChange `json:"meta,omitempty"` // top-level keys (title, version, ...)
+	Rows    []RowChange   `json:"rows,omitempty"`
 	// TextOnly means the decoded content is the same and only formatting or
 	// comments differ.
-	TextOnly bool
+	TextOnly bool `json:"text_only,omitempty"`
 	// Unparseable is "base" or "head" when that side is not valid TOML.
-	Unparseable string
+	Unparseable string `json:"unparseable,omitempty"`
 }

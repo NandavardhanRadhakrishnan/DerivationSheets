@@ -26,21 +26,22 @@ type Options struct {
 // CasesChange is the difference between two versions of a generated
 // cases.toml, by case id.
 type CasesChange struct {
-	Sheet  string
-	Path   string
-	Status Status
-	Cases  []RowChange
+	Sheet  string      `json:"sheet,omitempty"`
+	Path   string      `json:"path,omitempty"`
+	Status Status      `json:"status,omitempty"`
+	Cases  []RowChange `json:"cases,omitempty"`
 }
 
 // Report is everything that changed between two revisions of the
 // repository: the repository is the team, so there is one group.
 type Report struct {
-	Repo       string // the repository's folder name
-	Base, Head string // the commits compared, abbreviated
-	Sheets     []SheetChange
-	Flows      []FlowChange
-	Interfaces []InterfaceChange
-	Cases      []CasesChange
+	Repo       string            `json:"repo,omitempty"` // the repository's folder name
+	Base       string            `json:"base,omitempty"`
+	Head       string            `json:"head,omitempty"` // the commits compared, abbreviated
+	Sheets     []SheetChange     `json:"sheets,omitempty"`
+	Flows      []FlowChange      `json:"flows,omitempty"`
+	Interfaces []InterfaceChange `json:"interfaces,omitempty"`
+	Cases      []CasesChange     `json:"cases,omitempty"`
 }
 
 // file is one path as it was at the base and at the head; a nil side means
