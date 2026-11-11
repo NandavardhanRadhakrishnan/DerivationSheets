@@ -64,7 +64,7 @@ var commands = []struct {
 	{"interface", "import <schema> --out <file.toml>", "import an interface from OpenAPI, Avro or JSON Schema", cmdInterface},
 	{"fetch", "<flow>", "fetch or update the git sources a flow refers to", cmdFetch},
 	{"impact", "[--as alias] [--base branch]", "report which other teams' flows this repository's changes break", cmdImpact},
-	{"diff", "[base]..[head] [--all] [--cases] [--json]", "show what changed between two git revisions as sheet rows and flow boundaries; with no argument, this branch against the default branch", cmdDiff},
+	{"diff", "[base]..[head] [--all] [--cases] [--json] [--color auto|always|never]", "show what changed between two git revisions as sheet rows and flow boundaries; with no argument, this branch against the default branch", cmdDiff},
 	{"fmt", "[--check] [path...]", "put sheet.toml, flow.toml and interface files in canonical layout (what the editor writes); --check only lists them", cmdFmt},
 	{"schema", "[sheet|flow|interface]", "print a JSON Schema (default: sheet.toml)", cmdSchema},
 }

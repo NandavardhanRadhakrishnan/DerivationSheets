@@ -32,7 +32,7 @@ func diffRepo(t *testing.T) string {
 func TestDiffShowsRowChangeAndExitsZero(t *testing.T) {
 	diffRepo(t)
 	out := runOK(t, "diff")
-	for _, want := range []string{"### Sheet `demo`", "**net** - changed", "before: `a - b`", "after: `a - c`"} {
+	for _, want := range []string{"### Sheet `demo`", "```diff\n", "  net (changed)\n", "- formula: a - b\n", "+ formula: a - c\n"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in:\n%s", want, out)
 		}
@@ -43,11 +43,11 @@ func TestDiffArgumentForms(t *testing.T) {
 	diffRepo(t)
 	for _, args := range [][]string{{"diff", "main..HEAD"}, {"diff", "main"}, {"diff", "main.."}, {"diff", "..HEAD"}} {
 		out := runOK(t, args...)
-		if !strings.Contains(out, "**net** - changed") && !strings.Contains(out, "No sheet or flow differences.") {
+		if !strings.Contains(out, "  net (changed)") && !strings.Contains(out, "No sheet or flow differences.") {
 			t.Errorf("%v:\n%s", args, out)
 		}
 	}
-	if out := runOK(t, "diff", "main..HEAD"); !strings.Contains(out, "**net** - changed") {
+	if out := runOK(t, "diff", "main..HEAD"); !strings.Contains(out, "  net (changed)") {
 		t.Errorf("main..HEAD:\n%s", out)
 	}
 	if out := runOK(t, "diff", "HEAD..HEAD"); !strings.Contains(out, "No sheet or flow differences.") {
@@ -77,5 +77,45 @@ func TestDiffThreeDotsIsAUsageError(t *testing.T) {
 	var out, errw bytes.Buffer
 	if err := run([]string{"diff", "main...HEAD"}, &out, &errw); !errors.Is(err, errUsage) {
 		t.Fatalf("err = %v, want usage error", err)
+	}
+}
+
+func TestDiffColorAlwaysUsesEscapeCodesAndNoFences(t *testing.T) {
+	diffRepo(t)
+	out := runOK(t, "diff", "--color=always")
+	if !strings.Contains(out, "\x1b[31m- formula: a - b\x1b[0m") || !strings.Contains(out, "\x1b[32m+ formula: a - c\x1b[0m") || strings.Contains(out, "```") {
+		t.Errorf("output:\n%q", out)
+	}
+}
+
+func TestDiffColorNeverAndAutoOnAPipeAreFencedMarkdown(t *testing.T) {
+	diffRepo(t)
+	for _, args := range [][]string{{"diff"}, {"diff", "--color=auto"}, {"diff", "--color=never"}} {
+		out := runOK(t, args...)
+		if strings.Contains(out, "\x1b[") || !strings.Contains(out, "```diff") {
+			t.Errorf("%v:\n%q", args, out)
+		}
+	}
+}
+
+func TestDiffColorRejectsOtherValues(t *testing.T) {
+	diffRepo(t)
+	var out, errw bytes.Buffer
+	if err := run([]string{"diff", "--color=rainbow"}, &out, &errw); !errors.Is(err, errUsage) {
+		t.Fatalf("err = %v, want usage error", err)
+	}
+}
+
+func TestIsTerminalIsFalseForABufferAndAFile(t *testing.T) {
+	if isTerminal(&bytes.Buffer{}) {
+		t.Fatal("a buffer is not a terminal")
+	}
+	f, err := os.CreateTemp(t.TempDir(), "out")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	if isTerminal(f) {
+		t.Fatal("a regular file is not a terminal")
 	}
 }

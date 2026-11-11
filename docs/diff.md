@@ -13,10 +13,30 @@ dsheets diff --json           # the same report as JSON
 ```
 
 Flags: `--all` adds label and formatting changes, `--cases` adds
-`cases.toml`, `--json` prints JSON. It exits 0 whenever it produced a
+`cases.toml`, `--json` prints JSON, `--color auto|always|never` controls color. It exits 0 whenever it produced a
 report, including "no differences"; it exits non-zero only for real errors
 (an unknown revision, no git repository, no default branch found). It never
 fails a build because of what changed.
+
+## How it prints
+
+Each change is a line starting with `-` (before) or `+` (after), under the
+row it belongs to, as `git diff` shows them:
+
+```diff
+  customs_value (changed)
+- formula: subtotal - discount
++ formula: subtotal - (discount * 0.9)
+```
+
+- **In a terminal** the lines print as they are, `-` in red and `+` in
+  green. `--color never` or the `NO_COLOR` environment variable turns the
+  color off; `--color always` keeps it when piping, for example into
+  `less -R`.
+- **Anywhere else** (a pipe, a file, a CI step) the output is markdown with
+  each section in a fenced `diff` block. GitHub, GitLab and Azure DevOps
+  draw those blocks with red and green lines, so posting the output as a
+  comment or summary needs no extra step.
 
 ## Which revisions
 

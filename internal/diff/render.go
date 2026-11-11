@@ -14,30 +14,93 @@ func (r *Report) WriteJSON(w io.Writer) error {
 	return enc.Encode(r)
 }
 
-// WriteMarkdown writes the report as markdown that also reads as plain text.
-// Label changes (names, descriptions) and formatting-only changes appear
-// only when all is true, much as `git diff -w` hides whitespace.
+// WriteMarkdown writes the report as markdown for a pull-request comment or
+// a CI summary. Changes sit in fenced `diff` blocks, which GitHub, GitLab and
+// Azure DevOps draw with removed lines red and added lines green. Label
+// changes (names, descriptions) and formatting-only changes appear only when
+// all is true, much as `git diff -w` hides whitespace.
 func (r *Report) WriteMarkdown(w io.Writer, all bool) error {
-	var b strings.Builder
-	fmt.Fprintf(&b, "## dsheets diff: %s %s..%s\n\n", r.Repo, r.Base, r.Head)
+	return r.write(w, all, true, false)
+}
+
+// WriteText writes the same report for a terminal: no fences, and with color
+// the removed lines are red and the added lines green, as `git diff` does.
+func (r *Report) WriteText(w io.Writer, all, color bool) error {
+	return r.write(w, all, false, color)
+}
+
+// A change line starts with "- " (removed), "+ " (added) or two spaces
+// (context, such as the name of the row the lines below belong to).
+type printer struct {
+	b           strings.Builder
+	fence, hues bool
+}
+
+func (r *Report) write(w io.Writer, all, fence, color bool) error {
+	p := &printer{fence: fence, hues: color}
+	fmt.Fprintf(&p.b, "## dsheets diff: %s %s..%s\n\n", r.Repo, r.Base, r.Head)
 	shown := 0
 	for _, s := range r.Sheets {
-		shown += writeSheet(&b, s, all)
+		shown += p.sheet(s, all)
 	}
 	for _, f := range r.Flows {
-		shown += writeFlow(&b, f, all)
+		shown += p.flow(f, all)
 	}
 	for _, i := range r.Interfaces {
-		shown += writeInterface(&b, i, all)
+		shown += p.iface(i, all)
 	}
 	for _, c := range r.Cases {
-		shown += writeCases(&b, c)
+		shown += p.cases(c)
 	}
 	if shown == 0 {
-		b.WriteString("No sheet or flow differences.\n")
+		p.b.WriteString("No sheet or flow differences.\n")
 	}
-	_, err := io.WriteString(w, b.String())
+	_, err := io.WriteString(w, p.b.String())
 	return err
+}
+
+// block writes change lines, fenced for markdown and colored for a terminal.
+func (p *printer) block(lines []string) {
+	if len(lines) == 0 {
+		return
+	}
+	if p.fence {
+		p.b.WriteString("```diff\n")
+	}
+	for _, l := range lines {
+		switch {
+		case p.hues && strings.HasPrefix(l, "- "):
+			l = "\x1b[31m" + l + "\x1b[0m"
+		case p.hues && strings.HasPrefix(l, "+ "):
+			l = "\x1b[32m" + l + "\x1b[0m"
+		}
+		p.b.WriteString(l + "\n")
+	}
+	if p.fence {
+		p.b.WriteString("```\n")
+	}
+	p.b.WriteString("\n")
+}
+
+func (p *printer) heading(kind, name, path string, status Status, oldPath string) {
+	fmt.Fprintf(&p.b, "### %s `%s` - %s", kind, name, path)
+	switch {
+	case oldPath != "":
+		fmt.Fprintf(&p.b, " (moved from %s)", oldPath)
+	case status == Added || status == Removed:
+		fmt.Fprintf(&p.b, " (%s)", status)
+	}
+	p.b.WriteString("\n\n")
+}
+
+// problem writes the line for a file that could not be compared and reports
+// whether there was one.
+func (p *printer) problem(side string) bool {
+	if side == "" {
+		return false
+	}
+	fmt.Fprintf(&p.b, "Not compared: the file is not valid TOML at %s.\n\n", side)
+	return true
 }
 
 // visible drops label changes unless all.
@@ -51,186 +114,145 @@ func visible(fs []FieldChange, all bool) []FieldChange {
 	return out
 }
 
-func heading(b *strings.Builder, kind, name, path string, status Status, oldPath string) {
-	fmt.Fprintf(b, "### %s `%s` - %s", kind, name, path)
-	switch {
-	case oldPath != "":
-		fmt.Fprintf(b, " (moved from %s)", oldPath)
-	case status == Added || status == Removed:
-		fmt.Fprintf(b, " (%s)", status)
-	}
-	b.WriteString("\n\n")
+// oneLine keeps a value on one line, so every change line stays one line.
+func oneLine(s string) string {
+	return strings.NewReplacer("\r", `\r`, "\n", `\n`).Replace(s)
 }
 
-// problem writes the lines for a file that could not be compared and
-// reports whether there was one.
-func problem(b *strings.Builder, side string) bool {
-	if side == "" {
-		return false
+// fieldLines shows a change as removed and added lines: a value that is new
+// has only the added line, one that is gone only the removed line.
+func fieldLines(f FieldChange) []string {
+	var out []string
+	if f.Before != "" {
+		out = append(out, "- "+f.Path+": "+oneLine(f.Before))
 	}
-	fmt.Fprintf(b, "Not compared: the file is not valid TOML at %s.\n\n", side)
-	return true
+	if f.After != "" {
+		out = append(out, "+ "+f.Path+": "+oneLine(f.After))
+	}
+	return out
 }
 
-func writeSheet(b *strings.Builder, s SheetChange, all bool) int {
-	var body strings.Builder
-	if problem(&body, s.Unparseable) {
-		heading(b, "Sheet", s.Name, s.Path, s.Status, s.OldPath)
-		b.WriteString(body.String())
+func fieldsLines(fs []FieldChange) []string {
+	var out []string
+	for _, f := range fs {
+		out = append(out, fieldLines(f)...)
+	}
+	return out
+}
+
+// rowLines shows a row under its id. An added row has only added lines and a
+// removed row only removed lines.
+func rowLines(r RowChange, fs []FieldChange) []string {
+	out := []string{fmt.Sprintf("  %s (%s)", r.ID, r.Status)}
+	for _, f := range fs {
+		switch r.Status {
+		case Added:
+			out = append(out, "+ "+f.Path+": "+oneLine(f.After))
+		case Removed:
+			out = append(out, "- "+f.Path+": "+oneLine(f.Before))
+		default:
+			out = append(out, fieldLines(f)...)
+		}
+	}
+	return out
+}
+
+func (p *printer) sheet(s SheetChange, all bool) int {
+	if s.Unparseable != "" {
+		p.heading("Sheet", s.Name, s.Path, s.Status, s.OldPath)
+		p.problem(s.Unparseable)
 		return 1
 	}
-	meta := visible(s.Meta, all)
-	writeFields(&body, meta)
-	if len(meta) > 0 {
-		body.WriteString("\n")
-	}
-	rows := 0
+	lines := fieldsLines(visible(s.Meta, all))
+	changed := len(lines)
 	for _, r := range s.Rows {
 		fs := visible(r.Fields, all)
 		if len(fs) == 0 && r.Status == Changed {
 			continue
 		}
-		rows++
-		fmt.Fprintf(&body, "**%s** - %s\n", r.ID, r.Status)
-		writeRowFields(&body, fs, r.Status)
-		body.WriteString("\n")
+		changed++
+		lines = append(lines, rowLines(r, fs)...)
 	}
 	textOnly := all && s.TextOnly
-	if textOnly {
-		body.WriteString("Formatting or comments only.\n\n")
-	}
-	if len(meta)+rows == 0 && !textOnly && s.OldPath == "" && s.Status == Changed {
+	if changed == 0 && !textOnly && s.OldPath == "" && s.Status == Changed {
 		return 0
 	}
-	heading(b, "Sheet", s.Name, s.Path, s.Status, s.OldPath)
-	b.WriteString(body.String())
+	p.heading("Sheet", s.Name, s.Path, s.Status, s.OldPath)
+	p.block(lines)
+	if textOnly {
+		p.b.WriteString("Formatting or comments only.\n\n")
+	}
 	return 1
 }
 
-func writeFlow(b *strings.Builder, f FlowChange, all bool) int {
-	var body strings.Builder
-	if problem(&body, f.Unparseable) {
-		heading(b, "Flow", f.Name, f.Path, f.Status, f.OldPath)
-		b.WriteString(body.String())
+func (p *printer) flow(f FlowChange, all bool) int {
+	if f.Unparseable != "" {
+		p.heading("Flow", f.Name, f.Path, f.Status, f.OldPath)
+		p.problem(f.Unparseable)
 		return 1
 	}
-	meta := visible(append(append([]FieldChange{}, f.Meta...), f.Stages...), all)
-	writeFields(&body, meta)
-	if len(meta) > 0 {
-		body.WriteString("\n")
-	}
+	lines := fieldsLines(visible(append(append([]FieldChange{}, f.Meta...), f.Stages...), all))
 	for _, bc := range f.Boundaries {
-		fmt.Fprintf(&body, "**%s**\n", bc.Where)
-		if bc.Interface.Path != "" {
-			fmt.Fprintf(&body, "- interface: `%s` -> `%s`\n", bc.Interface.Before, bc.Interface.After)
+		lines = append(lines, "  "+bc.Where)
+		lines = append(lines, fieldLines(bc.Interface)...)
+		for _, n := range bc.Dropped {
+			lines = append(lines, "- carries: "+n)
 		}
-		if len(bc.Added) > 0 {
-			fmt.Fprintf(&body, "- now carries: %s\n", codeList(bc.Added))
-		}
-		if len(bc.Dropped) > 0 {
-			fmt.Fprintf(&body, "- no longer carries: %s\n", codeList(bc.Dropped))
+		for _, n := range bc.Added {
+			lines = append(lines, "+ carries: "+n)
 		}
 		for _, rw := range bc.Rewired {
-			fmt.Fprintf(&body, "- `%s` now carries `%s` (was `%s`)\n", rw.Path, rw.After, rw.Before)
+			lines = append(lines, "- carries "+rw.Path+": "+rw.Before, "+ carries "+rw.Path+": "+rw.After)
 		}
-		body.WriteString("\n")
 	}
 	if len(f.Computes) > 0 {
-		body.WriteString("Who computes what:\n")
+		lines = append(lines, "  who computes what")
 		for _, c := range f.Computes {
-			fmt.Fprintf(&body, "- `%s`: %s -> %s\n", c.Row, team(c.Before), team(c.After))
+			if c.Before != "" {
+				lines = append(lines, "- "+c.Row+": "+c.Before)
+			}
+			if c.After != "" {
+				lines = append(lines, "+ "+c.Row+": "+c.After)
+			}
 		}
-		body.WriteString("\n")
 	}
 	textOnly := all && f.TextOnly
-	if textOnly {
-		body.WriteString("Formatting or comments only.\n\n")
-	}
-	if body.Len() == 0 && f.OldPath == "" && f.Status == Changed {
+	if len(lines) == 0 && !textOnly && f.OldPath == "" && f.Status == Changed {
 		return 0
 	}
-	heading(b, "Flow", f.Name, f.Path, f.Status, f.OldPath)
-	b.WriteString(body.String())
+	p.heading("Flow", f.Name, f.Path, f.Status, f.OldPath)
+	p.block(lines)
+	if textOnly {
+		p.b.WriteString("Formatting or comments only.\n\n")
+	}
 	return 1
 }
 
-func writeInterface(b *strings.Builder, i InterfaceChange, all bool) int {
-	var body strings.Builder
-	if problem(&body, i.Unparseable) {
-		heading(b, "Interface", i.Name, i.Path, i.Status, i.OldPath)
-		b.WriteString(body.String())
+func (p *printer) iface(i InterfaceChange, all bool) int {
+	if i.Unparseable != "" {
+		p.heading("Interface", i.Name, i.Path, i.Status, i.OldPath)
+		p.problem(i.Unparseable)
 		return 1
 	}
-	fs := visible(append(append([]FieldChange{}, i.Meta...), i.Fields...), all)
-	writeFields(&body, fs)
-	if len(fs) > 0 {
-		body.WriteString("\n")
-	}
+	lines := fieldsLines(visible(append(append([]FieldChange{}, i.Meta...), i.Fields...), all))
 	textOnly := all && i.TextOnly
-	if textOnly {
-		body.WriteString("Formatting or comments only.\n\n")
-	}
-	if len(fs) == 0 && !textOnly && i.OldPath == "" && i.Status == Changed {
+	if len(lines) == 0 && !textOnly && i.OldPath == "" && i.Status == Changed {
 		return 0
 	}
-	heading(b, "Interface", i.Name, i.Path, i.Status, i.OldPath)
-	b.WriteString(body.String())
+	p.heading("Interface", i.Name, i.Path, i.Status, i.OldPath)
+	p.block(lines)
+	if textOnly {
+		p.b.WriteString("Formatting or comments only.\n\n")
+	}
 	return 1
 }
 
-func writeCases(b *strings.Builder, c CasesChange) int {
-	heading(b, "Cases", c.Sheet, c.Path, c.Status, "")
+func (p *printer) cases(c CasesChange) int {
+	p.heading("Cases", c.Sheet, c.Path, c.Status, "")
+	var lines []string
 	for _, r := range c.Cases {
-		fmt.Fprintf(b, "**%s** - %s\n", r.ID, r.Status)
-		writeRowFields(b, r.Fields, r.Status)
-		b.WriteString("\n")
+		lines = append(lines, rowLines(r, r.Fields)...)
 	}
+	p.block(lines)
 	return 1
-}
-
-// writeRowFields writes a row's fields. An added or removed row lists what
-// it has; a changed row shows before and after.
-func writeRowFields(b *strings.Builder, fs []FieldChange, status Status) {
-	for _, f := range fs {
-		switch status {
-		case Added:
-			fmt.Fprintf(b, "- `%s`: `%s`\n", f.Path, f.After)
-		case Removed:
-			fmt.Fprintf(b, "- `%s`: `%s`\n", f.Path, f.Before)
-		default:
-			writeField(b, f)
-		}
-	}
-}
-
-func writeFields(b *strings.Builder, fs []FieldChange) {
-	for _, f := range fs {
-		writeField(b, f)
-	}
-}
-
-func writeField(b *strings.Builder, f FieldChange) {
-	switch {
-	case f.Before == "":
-		fmt.Fprintf(b, "- `%s` added: `%s`\n", f.Path, f.After)
-	case f.After == "":
-		fmt.Fprintf(b, "- `%s` removed (was `%s`)\n", f.Path, f.Before)
-	default:
-		fmt.Fprintf(b, "- `%s`\n  - before: `%s`\n  - after: `%s`\n", f.Path, f.Before, f.After)
-	}
-}
-
-func codeList(names []string) string {
-	parts := make([]string, len(names))
-	for i, n := range names {
-		parts[i] = "`" + n + "`"
-	}
-	return strings.Join(parts, ", ")
-}
-
-func team(name string) string {
-	if name == "" {
-		return "(nobody)"
-	}
-	return name
 }
