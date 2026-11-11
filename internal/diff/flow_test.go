@@ -210,3 +210,41 @@ func TestDiffInterfaceUnknownKeyIsNotUnparseable(t *testing.T) {
 		t.Fatalf("got %+v, %v", ic, err)
 	}
 }
+
+func metaOf(fc FlowChange, path string) (FieldChange, bool) {
+	for _, m := range fc.Meta {
+		if m.Path == path {
+			return m, true
+		}
+	}
+	return FieldChange{}, false
+}
+
+func TestDiffFlowSheetAndSourceChangesAreShown(t *testing.T) {
+	base := replace(t, baseFlow, `sheet = "."`, "sheet = \".\"\ntitle = \"Old\"\n\n[sources]\nship = { git = \"u\", ref = \"main\" }")
+	head := replace(t, base, `sheet = "."`, `sheet = "../moved"`)
+	head = replace(t, head, `ref = "main"`, `ref = "v2"`)
+	head = replace(t, head, `title = "Old"`, `title = "New"`)
+	fc := flowChange(t, base, head)
+	if m, ok := metaOf(fc, "sheet"); !ok || m.Before != "." || m.After != "../moved" || m.Label {
+		t.Errorf("sheet: %+v %v", m, ok)
+	}
+	if m, ok := metaOf(fc, "sources.ship.ref"); !ok || m.Before != "main" || m.After != "v2" || m.Label {
+		t.Errorf("sources.ship.ref: %+v %v", m, ok)
+	}
+	if m, ok := metaOf(fc, "title"); !ok || !m.Label {
+		t.Errorf("title: %+v %v", m, ok)
+	}
+}
+
+func TestDiffFlowOutputProducerAndSlugRename(t *testing.T) {
+	head := replace(t, baseFlow, `producer = "Orders"`, `producer = "Billing"`)
+	head = replace(t, head, `flow = "f"`, `flow = "g"`)
+	fc := flowChange(t, baseFlow, head)
+	if m, ok := metaOf(fc, "output.producer"); !ok || m.Before != "Orders" || m.After != "Billing" {
+		t.Errorf("output.producer: %+v %v", m, ok)
+	}
+	if m, ok := metaOf(fc, "flow"); !ok || m.Before != "f" || m.After != "g" {
+		t.Errorf("flow: %+v %v", m, ok)
+	}
+}

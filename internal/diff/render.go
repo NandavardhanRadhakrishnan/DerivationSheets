@@ -114,10 +114,9 @@ func writeFlow(b *strings.Builder, f FlowChange, all bool) int {
 		b.WriteString(body.String())
 		return 1
 	}
-	for _, s := range f.Stages {
-		writeField(&body, s)
-	}
-	if len(f.Stages) > 0 {
+	meta := visible(append(append([]FieldChange{}, f.Meta...), f.Stages...), all)
+	writeFields(&body, meta)
+	if len(meta) > 0 {
 		body.WriteString("\n")
 	}
 	for _, bc := range f.Boundaries {

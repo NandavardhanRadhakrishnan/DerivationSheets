@@ -135,3 +135,20 @@ func TestWriteJSONRoundTrip(t *testing.T) {
 		t.Fatalf("json keys are not snake_case lower:\n%s", buf.String())
 	}
 }
+
+func TestWriteMarkdownFlowMeta(t *testing.T) {
+	r := &Report{Repo: "app", Base: "a", Head: "b", Flows: []FlowChange{{
+		Name: "f", Path: "flows/f/flow.toml", Status: Changed,
+		Meta: []FieldChange{
+			{Path: "sheet", Before: ".", After: "../moved"},
+			{Path: "title", Before: "Old", After: "New", Label: true},
+		},
+	}}}
+	got := render(t, r, false)
+	if !strings.Contains(got, "- `sheet`\n  - before: `.`\n  - after: `../moved`\n") || strings.Contains(got, "New") {
+		t.Fatalf("without --all:\n%s", got)
+	}
+	if got := render(t, r, true); !strings.Contains(got, "`title`") {
+		t.Fatalf("with --all:\n%s", got)
+	}
+}

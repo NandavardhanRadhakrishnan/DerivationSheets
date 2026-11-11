@@ -40,8 +40,13 @@ func DiffSheet(base, head []byte) (SheetChange, error) {
 	}
 
 	for _, f := range diffMaps("", without(bm, "row", "sheet"), without(hm, "row", "sheet"), sheetListKey) {
-		f.Label = f.Path == "title"
+		f.Label = f.Path == "title" || firstSegment(f.Path) == "display"
 		sc.Meta = append(sc.Meta, f)
+	}
+	if base != nil && head != nil {
+		if b, h := text(bm["sheet"]), text(hm["sheet"]); b != h {
+			sc.Meta = append(sc.Meta, FieldChange{Path: "sheet", Before: b, After: h})
+		}
 	}
 	sc.Rows = diffRows(rowsOf(bm, "row"), rowsOf(hm, "row"))
 	sc.TextOnly = base != nil && head != nil && !bytes.Equal(base, head) && equalValues(bm, hm)
@@ -82,6 +87,7 @@ type rowEntry struct {
 func rowsOf(m map[string]any, key string) []rowEntry {
 	list, _ := m[key].([]any)
 	var out []rowEntry
+	seen := map[string]int{}
 	for i, r := range list {
 		row, ok := r.(map[string]any)
 		if !ok {
@@ -90,6 +96,12 @@ func rowsOf(m map[string]any, key string) []rowEntry {
 		id, _ := row["id"].(string)
 		if id == "" {
 			id = fmt.Sprintf("#%d", i+1)
+		}
+		// A repeated id is told apart by its occurrence, so a duplicate that
+		// is added shows as added and an old duplicate does not look changed.
+		seen[id]++
+		if seen[id] > 1 {
+			id = fmt.Sprintf("%s#%d", id, seen[id])
 		}
 		out = append(out, rowEntry{id, row})
 	}

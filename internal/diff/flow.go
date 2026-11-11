@@ -37,6 +37,7 @@ type FlowChange struct {
 	Path        string           `json:"path,omitempty"`
 	OldPath     string           `json:"old_path,omitempty"`
 	Status      Status           `json:"status,omitempty"`
+	Meta        []FieldChange    `json:"meta,omitempty"`   // sheet, sources, title, output producer
 	Stages      []FieldChange    `json:"stages,omitempty"` // stages added or removed, or whose kind or team changed
 	Boundaries  []BoundaryChange `json:"boundaries,omitempty"`
 	Computes    []ComputeChange  `json:"computes,omitempty"`
@@ -72,6 +73,7 @@ func DiffFlow(base, head []byte) (FlowChange, error) {
 		return fc, nil
 	}
 
+	fc.Meta = flowMeta(base, head, bf, hf)
 	fc.Stages = diffStages(bf, hf)
 	if base != nil && head != nil {
 		fc.Boundaries = diffBoundaries(bf, hf)
@@ -353,6 +355,28 @@ func diffInterfaceFields(before, after []namedField) []FieldChange {
 		if !inAfter[f.name] {
 			out = append(out, FieldChange{Path: "field " + f.name, Before: fieldSummary(f.field)})
 		}
+	}
+	return out
+}
+
+// flowMeta compares what a flow says about itself: the sheet it reads, its
+// sources (other teams' repositories and the revision pinned), its title and
+// version, the output's producer, and its own name when both sides exist.
+func flowMeta(base, head []byte, b, h *flow.Flow) []FieldChange {
+	bm, _ := decodeSide(base)
+	hm, _ := decodeSide(head)
+	var out []FieldChange
+	for _, f := range diffMaps("", without(bm, "stage", "input", "output", "flow"), without(hm, "stage", "input", "output", "flow"), sheetListKey) {
+		f.Label = f.Path == "title"
+		out = append(out, f)
+	}
+	if base != nil && head != nil {
+		if b, h := text(bm["flow"]), text(hm["flow"]); b != h {
+			out = append(out, FieldChange{Path: "flow", Before: b, After: h})
+		}
+	}
+	if b.Output.Producer != h.Output.Producer {
+		out = append(out, FieldChange{Path: "output.producer", Before: b.Output.Producer, After: h.Output.Producer})
 	}
 	return out
 }

@@ -133,7 +133,7 @@ func Run(o Options) (*Report, error) {
 			return nil, err
 		}
 		fc.Path, fc.OldPath = f.path, f.oldPath
-		if fc.Status != Changed || fc.OldPath != "" || len(fc.Stages)+len(fc.Boundaries)+len(fc.Computes) > 0 || fc.TextOnly || fc.Unparseable != "" {
+		if fc.Status != Changed || fc.OldPath != "" || len(fc.Meta)+len(fc.Stages)+len(fc.Boundaries)+len(fc.Computes) > 0 || fc.TextOnly || fc.Unparseable != "" {
 			r.Flows = append(r.Flows, fc)
 		}
 	}

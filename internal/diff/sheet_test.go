@@ -2,6 +2,7 @@ package diff
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -187,5 +188,39 @@ func TestDiffSheetUnparseable(t *testing.T) {
 	sc = change(t, "[[[", baseSheet)
 	if sc.Unparseable != "base" {
 		t.Fatalf("got %+v", sc)
+	}
+}
+
+func TestDiffSheetDuplicateIDAddedIsNotAChangeToTheOriginal(t *testing.T) {
+	head := baseSheet + "\n[[row]]\nid = \"net\"\nformula = \"a * 9\"\n"
+	sc := change(t, baseSheet, head)
+	if len(sc.Rows) != 1 || sc.Rows[0].ID != "net#2" || sc.Rows[0].Status != Added {
+		t.Fatalf("got %+v", sc.Rows)
+	}
+}
+
+func TestDiffSheetExistingDuplicateIDsAreStable(t *testing.T) {
+	dup := baseSheet + "\n[[row]]\nid = \"net\"\nformula = \"a * 9\"\n"
+	sc := change(t, dup, "# comment\n"+dup)
+	if len(sc.Rows) != 0 {
+		t.Fatalf("phantom change: %+v", sc.Rows)
+	}
+}
+
+func TestDiffSheetDisplayIsLabel(t *testing.T) {
+	base := "sheet = \"d\"\n\n[display]\nwidth = 1\n"
+	sc := change(t, base, strings.Replace(base, "width = 1", "width = 2", 1))
+	want := []FieldChange{{Path: "display.width", Before: "1", After: "2", Label: true}}
+	if !reflect.DeepEqual(sc.Meta, want) {
+		t.Fatalf("got %+v", sc.Meta)
+	}
+}
+
+func TestDiffSheetSlugRenameIsShown(t *testing.T) {
+	base := "sheet = \"a\"\nversion = 1\n"
+	sc := change(t, base, strings.Replace(base, `"a"`, `"b"`, 1))
+	want := []FieldChange{{Path: "sheet", Before: "a", After: "b"}}
+	if !reflect.DeepEqual(sc.Meta, want) {
+		t.Fatalf("got %+v", sc.Meta)
 	}
 }
