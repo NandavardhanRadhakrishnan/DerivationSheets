@@ -34,5 +34,5 @@ lookup = { from = "db.shipping_rates", key = ["zone", "shipping_method", "weight
 values_file = "data/shipping_rates.csv"
 
   [[row.send]]
-  field  = "fee"
-  usage  = "R"
+  field = "fee"
+  usage = "R"

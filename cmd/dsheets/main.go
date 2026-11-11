@@ -64,6 +64,7 @@ var commands = []struct {
 	{"interface", "import <schema> --out <file.toml>", "import an interface from OpenAPI, Avro or JSON Schema", cmdInterface},
 	{"fetch", "<flow>", "fetch or update the git sources a flow refers to", cmdFetch},
 	{"impact", "[--as alias] [--base branch]", "report which other teams' flows this repository's changes break", cmdImpact},
+	{"fmt", "[--check] [path...]", "put sheet.toml, flow.toml and interface files in canonical layout (what the editor writes); --check only lists them", cmdFmt},
 	{"schema", "[sheet|flow|interface]", "print a JSON Schema (default: sheet.toml)", cmdSchema},
 }
 

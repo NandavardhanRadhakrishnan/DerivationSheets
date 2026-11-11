@@ -42,8 +42,9 @@ a recommendation, not a commitment.
 6. **Visual editor.** Done: `dsheets serve --edit` edits sheets and flows
    in side panels, writing only the spans that change (design:
    `docs/superpowers/specs/2026-11-03-visual-editor-design.md`).
-7. **Formatter.** A canonical `taplo fmt` configuration (or a `dsheets
-   fmt`) and a pre-commit hook.
+7. ~~**Formatter.**~~ Done: `dsheets fmt [--check]` writes the canonical
+   layout (layout only, values keep their text) and `.githooks/pre-commit`
+   checks staged files (`docs/editor.md`).
 8. **Diffs for pull requests.** Show changes as row-level sheet
    differences rather than text diffs; for flows, as boundary and
    interface differences (fields added or dropped, who computes what).
