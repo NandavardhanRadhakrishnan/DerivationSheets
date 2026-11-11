@@ -1,0 +1,20 @@
+#!/bin/sh
+# Refuses a commit when a staged sheet, flow or interface file is not in
+# canonical layout. Enable once per clone:
+#   git config core.hooksPath .githooks
+# Fix with `dsheets fmt` (or `go run ./cmd/dsheets fmt`), then stage again.
+
+files=$(git diff --cached --name-only --diff-filter=ACM -- '*.toml')
+[ -z "$files" ] && exit 0
+
+if command -v dsheets >/dev/null 2>&1; then
+	run="dsheets"
+else
+	run="go run ./cmd/dsheets"
+fi
+
+# shellcheck disable=SC2086
+if ! $run fmt --check $files; then
+	echo "pre-commit: the files above are not in canonical layout; run 'dsheets fmt' and stage them again." >&2
+	exit 1
+fi

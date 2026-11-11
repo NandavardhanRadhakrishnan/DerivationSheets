@@ -230,7 +230,7 @@ stays stable from run to run.
 ## Canonical layout
 
 Indentation and alignment carry no meaning, but tools that write sheets,
-flows and interfaces (the editor, and a future formatter) write them the
+flows and interfaces (the editor, and `dsheets fmt`) write them the
 way `specs/order-checkout/sheet.toml` is written, so the git diff of a
 change shows only what changed:
 

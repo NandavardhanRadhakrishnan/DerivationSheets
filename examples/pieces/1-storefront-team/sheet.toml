@@ -25,8 +25,8 @@ source = "request.shipping.country"
 type   = "string"
 
   [[row.send]]
-  field  = "country"
-  usage  = "R"
+  field = "country"
+  usage = "R"
 
 [[row]]
 id     = "shipping_method"
@@ -35,8 +35,8 @@ source = "request.shipping.method"
 type   = "string"
 
   [[row.send]]
-  field  = "shippingMethod"
-  usage  = "R"
+  field = "shippingMethod"
+  usage = "R"
 
 [[row]]
 id     = "weight_kg"
@@ -45,8 +45,8 @@ source = "request.order.weightKg"
 type   = "number"
 
   [[row.send]]
-  field  = "weightKg"
-  usage  = "R"
+  field = "weightKg"
+  usage = "R"
 
 [[row]]
 id     = "subtotal"
@@ -55,8 +55,8 @@ source = "request.order.subtotal"
 type   = "number"
 
   [[row.send]]
-  field  = "subtotal"
-  usage  = "R"
+  field = "subtotal"
+  usage = "R"
 
 # ---------- Context and data ----------
 
@@ -89,5 +89,5 @@ uses = ["is_member", "customer_years"]
   ]
 
   [[row.send]]
-  field  = "loyaltyTier"
-  usage  = "R"
+  field = "loyaltyTier"
+  usage = "R"

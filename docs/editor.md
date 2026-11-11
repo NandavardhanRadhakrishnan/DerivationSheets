@@ -24,4 +24,15 @@ malformed IDs and codes. Cross-row checks such as undefined references,
 cycles, table gaps and unused rows need `dsheets validate`. Every editor error
 also appears in `validate`, which embeds the same schema.
 
-`taplo fmt` formatting and a pre-commit hook are planned for Phase 2.
+## Formatting
+
+`dsheets fmt [--check] [path...]` puts every `sheet.toml`, `flow.toml` and
+interface file under the given paths (default: the current folder) in the
+canonical layout the editor writes: key order, alignment and indentation.
+Values keep their text as written, and comments are kept. `cases.toml`,
+data files and hidden folders are skipped. `--check` writes nothing, lists
+the files that would change and exits 1.
+
+A pre-commit hook in `.githooks/pre-commit` runs `dsheets fmt --check` on the
+staged `.toml` files. Turn it on once per clone with
+`git config core.hooksPath .githooks`.

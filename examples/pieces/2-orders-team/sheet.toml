@@ -20,8 +20,8 @@ type   = "string"
 open_questions = ["order-placed has no field for this yet; shippingMethod is the proposed name"]
 
   [[row.send]]
-  field  = "shippingMethod"
-  usage  = "R"
+  field = "shippingMethod"
+  usage = "R"
 
   [[row.send]]
   target = "shipping-quote"
@@ -46,8 +46,8 @@ source = "request.subtotal"
 type   = "number"
 
   [[row.send]]
-  field  = "subtotal"
-  usage  = "R"
+  field = "subtotal"
+  usage = "R"
 
 [[row]]
 id     = "loyalty_tier"
@@ -55,9 +55,9 @@ name   = "Loyalty tier"
 source = "request.loyaltyTier"
 
   [[row.send]]
-  field  = "loyaltyTier"
-  usage  = "R"
-  map    = { Standard = "STD", Silver = "SLV", Gold = "GLD" }
+  field = "loyaltyTier"
+  usage = "R"
+  map   = { Standard = "STD", Silver = "SLV", Gold = "GLD" }
 
 [[row]]
 id     = "shipping_fee"
@@ -106,8 +106,8 @@ uses    = ["subtotal", "discount_rate"]
 formula = "round(subtotal * discount_rate)"
 
   [[row.send]]
-  field  = "discountAmount"
-  usage  = "R"
+  field = "discountAmount"
+  usage = "R"
 
 [[row]]
 id   = "free_shipping"
@@ -124,8 +124,8 @@ uses = ["subtotal", "loyalty_tier"]
   ]
 
   [[row.send]]
-  field  = "freeShipping"
-  usage  = "R"
+  field = "freeShipping"
+  usage = "R"
 
 [[row]]
 id      = "shipping_cost"
@@ -134,8 +134,8 @@ uses    = ["free_shipping", "shipping_fee"]
 formula = "free_shipping ? 0 : shipping_fee"
 
   [[row.send]]
-  field  = "shippingCost"
-  usage  = "R"
+  field = "shippingCost"
+  usage = "R"
 
 [[row]]
 id      = "customs_value"
@@ -144,8 +144,8 @@ uses    = ["subtotal", "discount", "zone"]
 formula = "subtotal - discount"
 
   [[row.send]]
-  field  = "customsValue"
-  usage  = "S"
+  field     = "customsValue"
+  usage     = "S"
   when      = "zone != \"DOMESTIC\""
   otherwise = "do-not-send"
 
@@ -156,8 +156,8 @@ uses    = ["subtotal", "discount", "shipping_cost"]
 formula = "subtotal - discount + shipping_cost"
 
   [[row.send]]
-  field  = "netAmount"
-  usage  = "R"
+  field = "netAmount"
+  usage = "R"
 
 [[row]]
 id      = "sales_tax"
@@ -166,8 +166,8 @@ uses    = ["net_amount", "sales_tax_rate"]
 formula = "round(net_amount * sales_tax_rate)"
 
   [[row.send]]
-  field  = "salesTax"
-  usage  = "R"
+  field = "salesTax"
+  usage = "R"
 
 [[row]]
 id      = "total"
@@ -176,5 +176,5 @@ uses    = ["net_amount", "sales_tax"]
 formula = "net_amount + sales_tax"
 
   [[row.send]]
-  field  = "totalAmount"
-  usage  = "R"
+  field = "totalAmount"
+  usage = "R"
