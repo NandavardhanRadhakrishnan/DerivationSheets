@@ -61,6 +61,7 @@ is that render.
 | `interface import <schema> --out <file>` | Imports an interface from OpenAPI (a request or response body), Avro or JSON Schema. Importing over an existing file keeps fields marked `local = true` that the schema lacks, and lists them. |
 | `fetch <flow>` | Fetches the other teams' repositories a flow refers to, so a later `--offline` run has them. |
 | `impact [--as alias] [--base branch]` | Run in a pull request: finds every flow in other registered repositories that reads this one, checks each against the base branch and the change, and reports only what the change breaks. `--json`, `--out impact.html`. Exits 1 when something new breaks, 3 when some consumers could not be checked. See [docs/repositories.md](docs/repositories.md). |
+| `diff [base]..[head]` | Shows what changed between two git revisions as sheet rows (before and after, down to the exact part) and, for flows, the fields each boundary carries and who computes what. With no argument: this branch against the default branch. Needs only git, so it works in any CI. `--all`, `--cases`, `--json`; exits 0 unless there is an error. See [docs/diff.md](docs/diff.md). |
 | `schema [sheet\|flow\|interface]` | Prints a JSON Schema. |
 
 Exit codes: 0 for success, 1 when a check fails, 2 for a usage error.
