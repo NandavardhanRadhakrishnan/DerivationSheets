@@ -193,6 +193,27 @@ func Run(o Options) (*Report, error) {
 }
 
 // findSelf is the registry alias of the repository being changed.
+// FollowedBranch names the branch the registry follows for the repository at
+// root, the one Run compares against. registered is false when there is no
+// registry; branch is "" when the registry follows the remote's default
+// branch. as is the repository's alias, as in Options.
+func FollowedBranch(root, as string, f *sources.Fetcher) (branch string, registered bool, err error) {
+	root = sources.RepoRoot(root)
+	res := sources.NewResolver(root, nil, f)
+	reg, err := res.Registered()
+	if err != nil {
+		return "", true, err
+	}
+	if reg == nil {
+		return "", false, nil
+	}
+	self, err := findSelf(Options{As: as}, root, reg)
+	if err != nil {
+		return "", true, err
+	}
+	return reg[self].Ref, true, nil
+}
+
 func findSelf(o Options, root string, reg map[string]sources.Source) (string, error) {
 	if o.As != "" {
 		if _, ok := reg[o.As]; !ok {

@@ -230,3 +230,79 @@ func TestRunNoDifferences(t *testing.T) {
 		t.Fatalf("got %+v", r)
 	}
 }
+
+// registryFor writes a registry folder listing repo under the alias "demo",
+// following branch (empty: the default branch), and points repo at it.
+func registryFor(t *testing.T, repo, branch string) {
+	t.Helper()
+	url := "file://" + filepath.ToSlash(repo)
+	git(t, repo, "remote", "add", "origin", url)
+	reg := t.TempDir()
+	mod := "[submodule \"demo\"]\n\tpath = demo\n\turl = " + url + "\n\tdsheets = specs\n"
+	if branch != "" {
+		mod += "\tbranch = " + branch + "\n"
+	}
+	put(t, reg, ".gitmodules", mod)
+	put(t, repo, "dsheets.toml", "registry = { path = \""+filepath.ToSlash(reg)+"\" }\n")
+	git(t, repo, "add", "-A")
+	git(t, repo, "commit", "-m", "registry")
+}
+
+// The default base is the branch the registry follows, not the git default
+// branch, so diff and impact compare with the same thing.
+func TestRunDefaultBaseFollowsRegistry(t *testing.T) {
+	dir := newRepo(t)
+	git(t, dir, "switch", "-c", "release")
+	put(t, dir, "specs/demo/sheet.toml", strings.Replace(demoSheet, "a - b", "a - r", 1))
+	commit(t, dir, "release edit")
+	registryFor(t, dir, "release")
+	git(t, dir, "switch", "-c", "feature")
+	put(t, dir, "specs/demo/sheet.toml", strings.Replace(demoSheet, "a - b", "a - c", 1))
+	commit(t, dir, "feature edit")
+
+	r, err := Run(Options{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Against release the change is a - r -> a - c; against main it would
+	// be a - b -> a - c.
+	if len(r.Sheets) != 1 || r.Sheets[0].Rows[0].Fields[0].Before != "a - r" {
+		t.Fatalf("got %+v", r.Sheets)
+	}
+}
+
+// A registry that follows the remote's default branch leaves the git chain
+// in charge.
+func TestRunDefaultBaseRegistryDefaultBranch(t *testing.T) {
+	dir := newRepo(t)
+	registryFor(t, dir, "")
+	git(t, dir, "switch", "-c", "feature")
+	put(t, dir, "specs/demo/sheet.toml", strings.Replace(demoSheet, "a - b", "a - c", 1))
+	commit(t, dir, "feature edit")
+
+	r, err := Run(Options{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r.Sheets) != 1 || r.Sheets[0].Rows[0].Fields[0].Before != "a - b" {
+		t.Fatalf("got %+v", r.Sheets)
+	}
+}
+
+func TestRunDefaultBaseRegistryBranchMissing(t *testing.T) {
+	dir := newRepo(t)
+	registryFor(t, dir, "release")
+	_, err := Run(Options{Dir: dir})
+	if err == nil || !strings.Contains(err.Error(), "release") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+// An explicit base never consults the registry.
+func TestRunExplicitBaseSkipsRegistry(t *testing.T) {
+	dir := newRepo(t)
+	registryFor(t, dir, "release") // no such branch
+	if _, err := Run(Options{Dir: dir, Base: "main"}); err != nil {
+		t.Fatal(err)
+	}
+}

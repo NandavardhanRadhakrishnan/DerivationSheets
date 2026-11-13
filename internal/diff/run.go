@@ -2,13 +2,16 @@ package diff
 
 import (
 	"errors"
+	"fmt"
 	"path"
 	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/flow"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/impact"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sheet"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sources"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/store"
 )
 
@@ -21,6 +24,11 @@ type Options struct {
 	Base, Head string
 	// Cases also compares cases.toml files, which are generated.
 	Cases bool
+	// As is this repository's alias in the registry, and Fetcher fetches the
+	// registry; both are used only to find the default base, as in
+	// impact.Options. A nil Fetcher uses the repository's cache.
+	As      string
+	Fetcher *sources.Fetcher
 }
 
 // CasesChange is the difference between two versions of a generated
@@ -72,7 +80,7 @@ func Run(o Options) (*Report, error) {
 			return nil, err
 		}
 	} else {
-		def, err := revs.DefaultBranch()
+		def, err := defaultBase(revs, o)
 		if err != nil {
 			return nil, err
 		}
@@ -154,6 +162,28 @@ func Run(o Options) (*Report, error) {
 		}
 	}
 	return r, nil
+}
+
+// defaultBase names the branch a pull request is compared with: the one the
+// registry follows for this repository, as `dsheets impact` uses, found
+// locally as origin/<branch> or <branch>. With no registry, or a registry
+// that follows the remote's default branch, it is the first branch of the git
+// chain that exists. A registry that cannot be read is an error, so diff and
+// impact never use different bases.
+func defaultBase(revs *store.Revs, o Options) (string, error) {
+	branch, registered, err := impact.FollowedBranch(revs.Top(), o.As, o.Fetcher)
+	if err != nil {
+		return "", fmt.Errorf("finding the branch the registry follows: %v; pass an explicit base", err)
+	}
+	if registered && branch != "" {
+		for _, name := range []string{"origin/" + branch, branch} {
+			if _, err := revs.Resolve(name); err == nil {
+				return name, nil
+			}
+		}
+		return "", fmt.Errorf("the registry follows branch %s, which is not in this repository (fetch it, or pass an explicit base)", branch)
+	}
+	return revs.DefaultBranch()
 }
 
 func short(sha string) string {
