@@ -40,13 +40,26 @@ row it belongs to, as `git diff` shows them:
 
 ## Which revisions
 
-With no argument the base is the merge-base of the default branch and
-`HEAD`. The default branch is the first that exists of `origin/HEAD`,
-`origin/main`, `origin/master`, `main` and `master`; `origin/HEAD` is often
-unset (it is when a remote was added after `git init`), so the others
-matter. If none exists, pass a base. With `base..head`, both revisions are
-compared directly, exactly as `git diff base head` does. Uncommitted edits
-are never included.
+With no argument the base is the merge-base of the base branch and `HEAD`.
+
+The base branch is the one the registry follows for this repository, the
+same branch `dsheets impact` compares with, so the two never disagree. It is
+found as `origin/<branch>`, or `<branch>` if there is no such remote branch.
+The repository's alias is found from its `origin` remote; `--as` names it
+when that does not work, and `--offline` uses the registry as already
+fetched. If a registry is configured but cannot be read, or follows a branch
+this repository does not have, diff stops and asks for an explicit base
+instead of guessing.
+
+With no registry, or when the registry follows the remote's default branch,
+the base branch is the first that exists of `origin/HEAD`, `origin/main`,
+`origin/master`, `main` and `master`; `origin/HEAD` is often unset (it is when
+a remote was added after `git init`), so the others matter. If none exists,
+pass a base.
+
+With `base..head`, both revisions are compared directly, exactly as
+`git diff base head` does, and the registry is not consulted. Uncommitted
+edits are never included.
 
 ## What is compared
 

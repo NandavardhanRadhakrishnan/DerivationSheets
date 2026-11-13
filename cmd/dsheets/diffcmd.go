@@ -14,6 +14,8 @@ func cmdDiff(args []string, out, errw io.Writer) error {
 	cases := fs.Bool("cases", false, "also compare the generated cases.toml files")
 	asJSON := fs.Bool("json", false, "print the report as JSON")
 	color := fs.String("color", "auto", "color the output: auto (on a terminal), always or never")
+	as := fs.String("as", "", "this repository's alias in the registry (default: found from the origin remote)")
+	offline := fs.Bool("offline", false, "do not fetch the registry; use what is already fetched")
 	pos, err := parse(fs, args)
 	if err != nil {
 		return err
@@ -42,6 +44,10 @@ func cmdDiff(args []string, out, errw io.Writer) error {
 		return err
 	}
 	opt.Cases = *cases
+	opt.As = *as
+	if len(pos) == 0 || strings.HasPrefix(pos[0], "..") {
+		opt.Fetcher = newFetcher(*offline)
+	}
 	r, err := diff.Run(opt)
 	if err != nil {
 		return err
