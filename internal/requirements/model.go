@@ -40,6 +40,17 @@ type Requirement struct {
 	// File is the interface file, relative to its repository's top folder.
 	// Set on Schema requirements only.
 	File string `json:"file,omitempty"`
+	// Edit is what --apply writes into File. Set on Schema requirements only.
+	Edit *SchemaEdit `json:"edit,omitempty"`
+}
+
+// SchemaEdit is one change to an interface file. Op is "add" (a new field),
+// "require" (make an existing field required) or "type" (change its type).
+type SchemaEdit struct {
+	Op       string `json:"op"`
+	Field    string `json:"field"`
+	Type     string `json:"type,omitempty"`
+	Required bool   `json:"required,omitempty"`
 }
 
 // MakeID derives a stable id from what the requirement is, so reruns and

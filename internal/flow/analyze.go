@@ -57,6 +57,8 @@ type Analysis struct {
 	// Transit maps step index -> row -> "in" or "kept": the value reaches
 	// that step without being computed there.
 	Transit map[int]map[string]string
+	// pinned holds the rows a step's computes list names.
+	pinned map[string]bool
 
 	Errors   []Problem
 	Warnings []Problem
@@ -65,6 +67,10 @@ type Analysis struct {
 
 	overlay Overlay
 }
+
+// Pinned reports whether a step's computes list names the row. A derived row
+// nobody names is placed by analysis, in the latest step able to serve it.
+func (a *Analysis) Pinned(row string) bool { return a.pinned[row] }
 
 // loadIface reads an interface file, from the overlay when it has it.
 func (a *Analysis) loadIface(path string) (*iface.Interface, error) {
@@ -436,6 +442,7 @@ func (a *Analysis) carriesLine(b *Boundary) int {
 // every row that uses it and every boundary that carries it.
 func (a *Analysis) place() {
 	pinned := map[string]bool{}
+	a.pinned = pinned
 	for _, st := range a.Steps {
 		for _, id := range st.pins {
 			loc := a.Flow.Line(strings.Split(st.pinsAt, ".")...)
