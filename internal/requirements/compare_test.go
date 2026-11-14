@@ -260,3 +260,63 @@ func TestCompareInfersNumberForArithmetic(t *testing.T) {
 		t.Fatalf("handling_fee = shipping_fee * 0.1 is a number, got %+v", s)
 	}
 }
+
+func TestComputeCarriesRule(t *testing.T) {
+	base, head := pair(t, func(d string) { addHandling(t, d, true) })
+	rs, err := Compare(base, head, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := find(rs, Compute, "Orders team", "handling_fee")
+	if c == nil || c.Rule != "formula: shipping_fee * 0.1" {
+		t.Fatalf("handling_fee compute = %+v", c)
+	}
+
+	// A row moved between teams keeps its rule, and the old team's stop has none.
+	base, head = pair(t, func(d string) {
+		edit(t, d, "flows/checkout-to-payment/flow.toml", `computes  = ["customer_years", "loyalty_tier"]`, `computes  = ["customer_years", "loyalty_tier", "free_shipping"]`)
+		edit(t, d, "flows/checkout-to-payment/flow.toml", `"discount", "free_shipping"]`, `"discount"]`)
+	})
+	rs, err = Compare(base, head, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	moved := find(rs, Compute, "Storefront team", "free_shipping")
+	if moved == nil || !strings.HasPrefix(moved.Rule, "table, first match:") {
+		t.Fatalf("moved compute = %+v", moved)
+	}
+	stop := find(rs, Compute, "Orders team", "free_shipping (remove)")
+	if stop == nil || stop.Rule != "" {
+		t.Fatalf("stop = %+v", stop)
+	}
+}
+
+func TestStructuredFields(t *testing.T) {
+	base, head := pair(t, func(d string) { addHandling(t, d, true) })
+	rs, err := Compare(base, head, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	send := find(rs, Send, "", "handlingFee")
+	if send == nil || send.Field != "handlingFee" || send.Row != "handling_fee" {
+		t.Errorf("send = %+v", send)
+	}
+	base, head = pair(t, func(d string) {
+		edit(t, d, "flows/checkout-to-payment/flow.toml", `computes  = ["customer_years", "loyalty_tier"]`, `computes  = ["customer_years", "loyalty_tier", "free_shipping"]`)
+		edit(t, d, "flows/checkout-to-payment/flow.toml", `"discount", "free_shipping"]`, `"discount"]`)
+	})
+	rs, err = Compare(base, head, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stop := find(rs, Compute, "Orders team", "free_shipping (remove)")
+	if stop == nil || !stop.Remove || stop.Row != "free_shipping" {
+		t.Errorf("stop = %+v", stop)
+	}
+	// The output has no consumer, so Receive is checked on the moved row's
+	// handoff, where Orders reads freeShipping.
+	recv := find(rs, Receive, "Orders team", "freeShipping")
+	if recv == nil || recv.Field != "freeShipping" || recv.Row != "free_shipping" {
+		t.Errorf("receive = %+v", recv)
+	}
+}

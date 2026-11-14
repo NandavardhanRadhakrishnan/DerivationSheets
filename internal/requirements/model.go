@@ -20,6 +20,13 @@ const (
 	Receive Kind = "Receive" // the consumer of a boundary reads a field
 )
 
+// Statuses of a requirement.
+const (
+	StatusOpen         = "open"
+	StatusDone         = "done"
+	StatusUndocumented = "undocumented" // dsheets cannot tell: no owner repository, or it has no sheets
+)
+
 // rank is the order requirements are listed in.
 var rank = map[Kind]int{Schema: 0, Compute: 1, Carry: 2, Send: 3, Receive: 4}
 
@@ -37,6 +44,17 @@ type Requirement struct {
 	Why     string   `json:"why,omitempty"`
 	Placed  string   `json:"placed,omitempty"` // "default": no stage names the row, so analysis placed it
 	Needs   []string `json:"needs,omitempty"`
+	// Row is the end-to-end sheet row the requirement is about, and Field the
+	// interface field, on Send and Receive. Remove marks a "stop computing".
+	Row    string `json:"row,omitempty"`
+	Field  string `json:"field,omitempty"`
+	Remove bool   `json:"remove,omitempty"`
+	// Rule is the row's rule from the end-to-end sheet, on Compute items.
+	Rule string `json:"rule,omitempty"`
+	// Status is open, done or undocumented, and Note says why; both are set
+	// by Check. An empty Status reads as open.
+	Status string `json:"status,omitempty"`
+	Note   string `json:"note,omitempty"`
 	// File is the interface file, relative to its repository's top folder.
 	// Set on Schema requirements only.
 	File string `json:"file,omitempty"`

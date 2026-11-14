@@ -138,7 +138,7 @@ func (c *comparer) computes() error {
 		if c.base != nil {
 			bt, was = teamOf(c.base, r.ID)
 		}
-		req := Requirement{Kind: Compute, Team: ht, Subject: r.ID, Why: fmt.Sprintf("row `%s` of the end-to-end sheet", r.ID)}
+		req := Requirement{Kind: Compute, Team: ht, Subject: r.ID, Row: r.ID, Rule: RuleText(r), Why: fmt.Sprintf("row `%s` of the end-to-end sheet", r.ID)}
 		if !c.head.Pinned(r.ID) {
 			req.Placed = "default"
 		}
@@ -161,7 +161,7 @@ func (c *comparer) computes() error {
 		added := c.add(req)
 		c.compute[ht+"|"+r.ID] = added.ID
 		if was && bt != ht {
-			c.add(Requirement{Kind: Compute, Team: bt, Subject: r.ID + " (remove)", What: "stop computing `" + r.ID + "` (now " + ht + ")",
+			c.add(Requirement{Kind: Compute, Team: bt, Subject: r.ID + " (remove)", Row: r.ID, Remove: true, What: "stop computing `" + r.ID + "` (now " + ht + ")",
 				Why: fmt.Sprintf("row `%s` moved to %s", r.ID, ht)})
 		}
 	}
@@ -171,7 +171,7 @@ func (c *comparer) computes() error {
 	for _, r := range c.base.Sheet.Rows {
 		bt, was := teamOf(c.base, r.ID)
 		if _, still := c.head.Place[r.ID]; was && !still {
-			c.add(Requirement{Kind: Compute, Team: bt, Subject: r.ID + " (remove)", What: "stop computing `" + r.ID + "`",
+			c.add(Requirement{Kind: Compute, Team: bt, Subject: r.ID + " (remove)", Row: r.ID, Remove: true, What: "stop computing `" + r.ID + "`",
 				Why: fmt.Sprintf("row `%s` is no longer computed in this flow", r.ID)})
 		}
 	}
@@ -306,7 +306,7 @@ func (c *comparer) sendReceive(b *flow.Boundary, it flow.Item) {
 	subject := bkey(b) + ":" + it.Field
 	if j >= 1 {
 		team := c.head.Steps[j-1].Team()
-		r := c.add(Requirement{Kind: Send, Team: team, Subject: subject, What: "send " + label + ", from `" + it.Row + "`", Why: why})
+		r := c.add(Requirement{Kind: Send, Team: team, Subject: subject, Row: it.Row, Field: it.Field, What: "send " + label + ", from `" + it.Row + "`", Why: why})
 		c.send[fmt.Sprint(j)+"|"+it.Row] = r.ID
 		keys := []string{}
 		if p, ok := c.head.Place[it.Row]; ok && p == j-1 {
@@ -321,7 +321,7 @@ func (c *comparer) sendReceive(b *flow.Boundary, it flow.Item) {
 	}
 	if j < len(c.head.Steps) {
 		team := c.head.Steps[j].Team()
-		r := c.add(Requirement{Kind: Receive, Team: team, Subject: subject, What: "read " + label, Why: why})
+		r := c.add(Requirement{Kind: Receive, Team: team, Subject: subject, Row: it.Row, Field: it.Field, What: "read " + label, Why: why})
 		keys := []string{"send:" + fmt.Sprint(j) + "|" + it.Row}
 		if it.Status == flow.Missing {
 			keys = append(keys, "schema:"+fmt.Sprint(j)+"|"+it.Field)
@@ -369,7 +369,7 @@ func (c *comparer) carries() {
 				what, why = "keep `"+row+"` across the call", "the caller already holds the value and uses it after the response"
 				keys = []string{"compute:" + team + "|" + row}
 			}
-			r := c.add(Requirement{Kind: Carry, Team: team, Subject: fmt.Sprintf("step%d:%s", s+1, row), What: what, Why: why})
+			r := c.add(Requirement{Kind: Carry, Team: team, Subject: fmt.Sprintf("step%d:%s", s+1, row), Row: row, What: what, Why: why})
 			c.carry[team+"|"+row] = r.ID
 			c.needs = append(c.needs, need{from: r.ID, keys: keys})
 		}
