@@ -22,15 +22,15 @@ changes, as in `diff`. A flow with no change prints nothing and exits 0.
 
 ```
 Shipping team: checkout-to-payment (base 502c48a)
- R-3a1f  Schema   add `surcharge` (number, required) to quote-response.toml
- R-91c2  Compute  shipping_fee: subtotal * 0.05 -> subtotal * 0.05 + surcharge   needs R-3a1f
- R-77e0  Send     send `surcharge` in quote-response, from `shipping_fee`   needs R-91c2
+ R-3a1f9c  Schema   add `surcharge` (number, required) to quote-response.toml
+ R-91c2e4  Compute  shipping_fee: subtotal * 0.05 -> subtotal * 0.05 + surcharge   needs R-3a1f9c
+ R-77e0b1  Send     send `surcharge` in quote-response, from `shipping_fee`   needs R-91c2e4
 ```
 
 One group per team, in dependency order. Each requirement has a stable id,
 a kind, what to do, why (the row or boundary it comes from) and what it
 needs. The ids come from the kind, team, flow and subject, so a tracker item
-that holds `R-3a1f` stays linked through every rerun.
+that holds `R-3a1f9c` stays linked through every rerun.
 
 | Kind | Team | Means |
 |---|---|---|

@@ -7,8 +7,8 @@ import (
 
 func TestMakeIDStable(t *testing.T) {
 	a := MakeID(Compute, "Shipping team", "checkout", "shipping_fee")
-	if !regexp.MustCompile(`^R-[0-9a-f]{4}$`).MatchString(a) {
-		t.Fatalf("id %q does not look like R-xxxx", a)
+	if !regexp.MustCompile(`^R-[0-9a-f]{6}$`).MatchString(a) {
+		t.Fatalf("id %q does not look like R-xxxxxx", a)
 	}
 	if b := MakeID(Compute, "Shipping team", "checkout", "shipping_fee"); a != b {
 		t.Errorf("same inputs gave %s and %s", a, b)

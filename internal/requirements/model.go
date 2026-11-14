@@ -57,7 +57,7 @@ type SchemaEdit struct {
 // trackers line up.
 func MakeID(kind Kind, team, flow, subject string) string {
 	sum := sha1.Sum([]byte(string(kind) + "|" + team + "|" + flow + "|" + subject))
-	return "R-" + hex.EncodeToString(sum[:])[:4]
+	return "R-" + hex.EncodeToString(sum[:])[:6]
 }
 
 // Sort orders requirements: Schema, Compute, Carry, Send, Receive, then by
