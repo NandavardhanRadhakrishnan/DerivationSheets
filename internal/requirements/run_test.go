@@ -209,3 +209,46 @@ func TestRunSchemaFileOfAFetchedSource(t *testing.T) {
 		t.Errorf("repo = %q, the flow's own repository; the interface belongs to the fetched one", s.Repo)
 	}
 }
+
+func TestRunNoRegistryIsUndocumented(t *testing.T) {
+	dir := fixtureRepo(t, true)
+	git(t, dir, "switch", "-c", "feature")
+	edit(t, dir, "specs/order-checkout/sheet.toml", `"free_shipping ? 0 : shipping_fee"`, `"free_shipping ? 0 : shipping_fee * 2"`)
+	git(t, dir, "commit", "-am", "double it")
+	res, err := Run(runOpts(dir, t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	q := find(res.Requirements, Compute, "", "shipping_cost")
+	if q == nil || q.Status != StatusUndocumented || !strings.Contains(q.Note, "registry") {
+		t.Fatalf("got %+v", q)
+	}
+}
+
+func TestRunNoCheckLeavesOpen(t *testing.T) {
+	dir := fixtureRepo(t, true)
+	git(t, dir, "switch", "-c", "feature")
+	edit(t, dir, "specs/order-checkout/sheet.toml", `"free_shipping ? 0 : shipping_fee"`, `"free_shipping ? 0 : shipping_fee * 2"`)
+	git(t, dir, "commit", "-am", "double it")
+	o := runOpts(dir, t)
+	o.NoCheck = true
+	res, err := Run(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Requirements) == 0 {
+		t.Fatal("no requirements")
+	}
+	for _, q := range res.Requirements {
+		if q.Status != StatusOpen || q.Note != "" {
+			t.Errorf("%s: status %q, note %q", q.ID, q.Status, q.Note)
+		}
+	}
+}
+
+func TestCounts(t *testing.T) {
+	r := &Result{Requirements: []Requirement{{Status: StatusDone}, {Status: StatusOpen}, {}, {Status: StatusDone}}}
+	if done, total := r.Counts(); done != 2 || total != 4 {
+		t.Errorf("Counts = %d of %d", done, total)
+	}
+}

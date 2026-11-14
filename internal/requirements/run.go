@@ -29,6 +29,8 @@ type Options struct {
 	// All includes label and formatting changes.
 	All     bool
 	Fetcher *sources.Fetcher
+	// NoCheck skips reading the owners' sheets: every requirement stays open.
+	NoCheck bool
 }
 
 // Result is the requirements of one flow change.
@@ -37,6 +39,18 @@ type Result struct {
 	Base         string        `json:"base"` // the commits compared, abbreviated
 	Head         string        `json:"head"`
 	Requirements []Requirement `json:"requirements"`
+	// ShowDone lists done requirements too, when printing.
+	ShowDone bool `json:"-"`
+}
+
+// Counts is how many requirements are done, and how many there are.
+func (r *Result) Counts() (done, total int) {
+	for _, q := range r.Requirements {
+		if q.Status == StatusDone {
+			done++
+		}
+	}
+	return done, len(r.Requirements)
 }
 
 // Run compares the flow at the base revision with the flow at head, which is
@@ -102,6 +116,13 @@ func Run(o Options) (*Result, error) {
 		return nil, err
 	}
 	locate(rs, headA, fe, top, headRoot)
+	for i := range rs {
+		rs[i].Status = StatusOpen
+	}
+	if !o.NoCheck {
+		reg, _ := sources.NewResolver(top, nil, fe).Registered() // no registry: nothing to check against
+		Check(rs, reg, fe)
+	}
 	return &Result{Flow: headA.Flow.Slug, Base: short(base), Head: short(head), Requirements: rs}, nil
 }
 
