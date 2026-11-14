@@ -123,3 +123,27 @@ func TestRequirementsUsage(t *testing.T) {
 		t.Errorf("too many arguments: got %v, want errUsage", err)
 	}
 }
+
+func TestRequirementsApplyFlagsNeedApply(t *testing.T) {
+	var out, errw bytes.Buffer
+	for _, args := range [][]string{
+		{"requirements", "f", "--no-push"},
+		{"requirements", "f", "--branch", "a=b"},
+		{"requirements", "f", "--apply", "--branch", "nonsense"},
+		{"requirements", "f", "--apply", "--clone", "=x"},
+	} {
+		if err := run(args, &out, &errw); err != errUsage {
+			t.Errorf("%v: got %v, want errUsage", args, err)
+		}
+	}
+}
+
+func TestRequirementsApplyWithNothingToApply(t *testing.T) {
+	doubleShipping(t, requirementsRepo(t))
+	// A formula change needs no interface edit, so --apply has nothing to do
+	// and touches no other repository.
+	out := runOK(t, "requirements", "flows/checkout-to-payment", "--apply")
+	if strings.Contains(out, "branch ") {
+		t.Errorf("nothing should have been applied:\n%s", out)
+	}
+}
