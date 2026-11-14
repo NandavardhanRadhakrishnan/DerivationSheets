@@ -168,7 +168,10 @@ func locate(rs []Requirement, a *flow.Analysis, fe *sources.Fetcher, top, headRo
 			reg, _ = sources.NewResolver(top, nil, fe).Registered()
 		}
 		root := sources.RepoRoot(filepath.Dir(rs[i].File))
-		if r, err := filepath.Rel(headRoot, rs[i].File); err == nil && !strings.HasPrefix(r, "..") {
+		// A fetched copy under top's own cache belongs to the repository it was
+		// fetched from, even though it sits inside the working tree.
+		if r, err := filepath.Rel(headRoot, rs[i].File); err == nil && !strings.HasPrefix(r, "..") &&
+			!strings.HasPrefix(filepath.ToSlash(r), sources.CacheDir+"/") {
 			root = top
 			rs[i].File = filepath.Join(top, r) // so the rest reads it as a file of top
 		}

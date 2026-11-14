@@ -160,3 +160,52 @@ func TestRunRefusesAFetchedFlow(t *testing.T) {
 		t.Fatalf("want a refusal naming the fetched copy, got %v", err)
 	}
 }
+
+// A flow whose payments interface comes from another repository, fetched into
+// <repo>/.dsheets/sources as in real use. With the head being the working
+// tree, the Schema requirement belongs to the fetched repository and its file
+// path is relative to that clone, not to the flow's own repository.
+func TestRunSchemaFileOfAFetchedSource(t *testing.T) {
+	dir := fixtureRepo(t, true)
+
+	origin := t.TempDir()
+	data, err := os.ReadFile(filepath.Join(dir, "interfaces", "payments", "payment-request.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(origin, "interfaces", "payments"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(origin, "interfaces", "payments", "payment-request.toml"), data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	git(t, origin, "init", "-b", "main")
+	git(t, origin, "add", "-A")
+	git(t, origin, "commit", "-m", "payments interfaces")
+
+	edit(t, dir, "flows/checkout-to-payment/flow.toml", "[sources]\n",
+		"[sources]\npayments = { git = \""+filepath.ToSlash(origin)+"\", dir = \"interfaces/payments\" }\n")
+	edit(t, dir, "flows/checkout-to-payment/flow.toml", `interface = "../../interfaces/payments/payment-request.toml"`, `interface = "payments:payment-request.toml"`)
+	git(t, dir, "commit", "-am", "payments interface comes from its own repository")
+
+	git(t, dir, "switch", "-c", "feature")
+	addHandling(t, dir, true)
+	git(t, dir, "commit", "-am", "add handling")
+
+	o := runOpts(dir, t)
+	o.Fetcher = nil // the real cache: <repo>/.dsheets/sources
+	res, err := Run(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := find(res.Requirements, Schema, "Payments team", "handlingFee")
+	if s == nil {
+		t.Fatalf("no schema requirement for handlingFee in %+v", res.Requirements)
+	}
+	if s.File != "interfaces/payments/payment-request.toml" {
+		t.Errorf("file = %q, want the path inside the fetched repository", s.File)
+	}
+	if s.Repo == filepath.Base(dir) {
+		t.Errorf("repo = %q, the flow's own repository; the interface belongs to the fetched one", s.Repo)
+	}
+}
