@@ -78,3 +78,18 @@ func TestParseGitmodulesErrors(t *testing.T) {
 		t.Errorf("missing url error = %v", err)
 	}
 }
+
+func TestParseGitmodulesTeam(t *testing.T) {
+	got, err := ParseGitmodules(`[submodule "cart"]
+    url = ../cart.git
+    team = "Cart team"
+[submodule "orders"]
+    url = ../orders.git
+`, "https://github.com/example/registry.git")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got["cart"].Team != "Cart team" || got["orders"].Team != "" {
+		t.Errorf("teams = %q, %q", got["cart"].Team, got["orders"].Team)
+	}
+}

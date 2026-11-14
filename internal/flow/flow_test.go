@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sheet"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sources"
 )
 
@@ -435,5 +436,43 @@ func TestParseMatchesLoad(t *testing.T) {
 	}
 	if f.Slug != "checkout-to-payment" || len(f.Stages) != 2 || f.Stages[1].ID != "shipping-quote" || f.Line("stage", "1") == 0 {
 		t.Errorf("parsed %+v", f)
+	}
+}
+
+func TestNameMatch(t *testing.T) {
+	s, err := sheet.Parse(".", "sheet.toml", `sheet = "x"
+version = 1
+
+[[row]]
+id = "free_shipping"
+source = "request.freeShipping"
+type = "boolean"
+
+[[row]]
+id = "weight_kg"
+source = "request.order.weightKg"
+type = "number"
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	free, weight := s.ByID["free_shipping"], s.ByID["weight_kg"]
+	for _, c := range []struct {
+		field string
+		row   *sheet.Row
+		want  bool
+	}{
+		{"freeShipping", free, true},
+		{"free-shipping", free, true},
+		{"weightKg", weight, true},
+		{"order.weightKg", weight, true},
+		{"zone", free, false},
+	} {
+		if got := NameMatch(c.field, c.row); got != c.want {
+			t.Errorf("NameMatch(%q, %s) = %v, want %v", c.field, c.row.ID, got, c.want)
+		}
+	}
+	if Norm("Free_Shipping") != "freeshipping" {
+		t.Errorf("Norm = %q", Norm("Free_Shipping"))
 	}
 }

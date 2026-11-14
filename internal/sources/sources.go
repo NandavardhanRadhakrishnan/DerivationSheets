@@ -34,6 +34,7 @@ type Source struct {
 	Ref   string // branch to follow, or tag or commit to pin; "" = the default branch
 	Dir   string // folder inside the repository that the alias means; "" = the root
 	Path  string // local folder; relative to the flow folder in a flow's [sources]
+	Team  string // the team that owns the repository, from the registry's optional team key
 }
 
 // Resolver turns references into local file paths.

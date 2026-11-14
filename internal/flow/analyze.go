@@ -398,6 +398,13 @@ func matches(b *Boundary, field string, r *sheet.Row) (exact, ok bool) {
 	return false, nameMatch(field, r)
 }
 
+// Norm is a name with case and separators removed, as fields and rows are
+// matched by.
+func Norm(s string) string { return norm(s) }
+
+// NameMatch reports whether a row is the one a field carries, by name.
+func NameMatch(field string, r *sheet.Row) bool { return nameMatch(field, r) }
+
 func nameMatch(field string, r *sheet.Row) bool {
 	n, nl := norm(field), norm(last(field))
 	keys := []string{norm(r.ID)}
