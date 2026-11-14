@@ -237,14 +237,14 @@ func ownerOf(b *flow.Boundary) string {
 }
 
 func (c *comparer) schemaAdd(b *flow.Boundary, it flow.Item, row *sheet.Row) {
-	typ, known := flow.RowType(row), true
+	typ, known := c.typeOf(row, 0), true
 	if typ == "" {
-		typ, known = "string", false
+		known = false
 	}
 	required := row.Usage != sheet.UsageSituational && !(row.Send != nil && row.Send.Usage == sheet.UsageSituational && b.Role == flow.RoleOutput)
 	text := typ
 	if !known {
-		text += ", confirm the type"
+		text = "type unknown, set it by hand"
 	}
 	if required {
 		text += ", required"
@@ -257,6 +257,24 @@ func (c *comparer) schemaAdd(b *flow.Boundary, it flow.Item, row *sheet.Row) {
 		File: b.Iface.File, Edit: &SchemaEdit{Op: "add", Field: it.Field, Type: typ, Required: required}})
 	c.schema[fmt.Sprint(b.Index)+"|"+it.Field] = r.ID
 	c.schemaByRow[it.Row] = append(c.schemaByRow[it.Row], r.ID)
+}
+
+// typeOf is the row's type where it is known: what the sheet says, or
+// number for a formula made of numbers and arithmetic. "" when unknown.
+func (c *comparer) typeOf(r *sheet.Row, depth int) string {
+	if t := flow.RowType(r); t != "" {
+		return t
+	}
+	if r.IsInput() || r.Formula == "" || depth > 8 || strings.ContainsAny(r.Formula, "?:\"'<>=!&|") {
+		return ""
+	}
+	for _, u := range r.Uses {
+		d := c.head.Sheet.ByID[u]
+		if d == nil || c.typeOf(d, depth+1) != "number" {
+			return ""
+		}
+	}
+	return "number"
 }
 
 func (c *comparer) schemaFix(b *flow.Boundary, it flow.Item) {
@@ -339,6 +357,12 @@ func (c *comparer) carries() {
 				continue
 			}
 			how := c.head.Transit[s][row]
+			// A step that only consumes a value has nothing to carry: the
+			// Receive covers it. It carries a value that crosses the next
+			// boundary, or one it keeps across a call.
+			if how == "in" && !(s+1 < len(c.head.Boundaries) && c.head.Boundaries[s+1].Needs(row)) {
+				continue
+			}
 			what, why := "pass `"+row+"` on to the next boundary", "the value arrives here and is needed later"
 			keys := []string{"send:" + fmt.Sprint(s) + "|" + row}
 			if how == "kept" {

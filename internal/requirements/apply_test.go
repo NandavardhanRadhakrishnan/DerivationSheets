@@ -197,3 +197,16 @@ func TestApplyCRLF(t *testing.T) {
 		t.Errorf("line endings were not kept:\n%q", s)
 	}
 }
+
+func TestApplyRefusesAnUnknownType(t *testing.T) {
+	bare := seedRemote(t, paymentsOriginal(t))
+	r := schemaResult("handlingFee")
+	r.Requirements[0].Edit.Type = ""
+	_, err := Apply(r, applyOpts(t, bare))
+	if err == nil || !strings.Contains(err.Error(), "type") {
+		t.Fatalf("want a refusal about the unknown type, got %v", err)
+	}
+	if out := git(t, bare, "branch", "--list", "dsheets/*"); out != "" {
+		t.Errorf("nothing should be pushed, remote has %q", out)
+	}
+}

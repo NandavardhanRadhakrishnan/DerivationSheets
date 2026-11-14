@@ -55,6 +55,9 @@ func Run(o Options) (*Result, error) {
 		return nil, err
 	}
 	top := revs.Top()
+	if rel, err := filepath.Rel(filepath.Join(top, filepath.FromSlash(sources.CacheDir)), o.Flow); err == nil && !strings.HasPrefix(rel, "..") {
+		return nil, fmt.Errorf("%s is a fetched copy of another repository; run the command in the repository that holds the flow", o.Flow)
+	}
 	flowAbs, err := filepath.Abs(o.Flow)
 	if err != nil {
 		return nil, err
@@ -98,7 +101,7 @@ func Run(o Options) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
-	locate(rs, headA, fe)
+	locate(rs, headA, fe, top, headRoot)
 	return &Result{Flow: headA.Flow.Slug, Base: short(base), Head: short(head), Requirements: rs}, nil
 }
 
@@ -115,6 +118,12 @@ func exportTo(revs *store.Revs, rev string) (string, error) {
 		return "", err
 	}
 	if err := revs.Export(rev, tmp); err != nil {
+		os.RemoveAll(tmp)
+		return "", err
+	}
+	// The tree stands in for a repository: finding a repository's root, and
+	// with it its dsheets.toml and registry, looks for a .git folder.
+	if err := os.MkdirAll(filepath.Join(tmp, ".git"), 0o755); err != nil {
 		os.RemoveAll(tmp)
 		return "", err
 	}
@@ -146,16 +155,23 @@ func originURL(root string) string {
 // locate gives each Schema requirement the repository that owns its
 // interface file, by its registry alias when it has one, and the file's path
 // inside that repository.
-func locate(rs []Requirement, a *flow.Analysis, fe *sources.Fetcher) {
+//
+// headRoot is where the head was read from: top, or an export of a revision
+// of the repository at top, whose files belong to that repository.
+func locate(rs []Requirement, a *flow.Analysis, fe *sources.Fetcher, top, headRoot string) {
 	var reg map[string]sources.Source
 	for i := range rs {
 		if rs[i].Kind != Schema {
 			continue
 		}
 		if reg == nil {
-			reg, _ = sources.NewResolver(a.Flow.Dir, a.Flow.Sources, fe).Registered()
+			reg, _ = sources.NewResolver(top, nil, fe).Registered()
 		}
 		root := sources.RepoRoot(filepath.Dir(rs[i].File))
+		if r, err := filepath.Rel(headRoot, rs[i].File); err == nil && !strings.HasPrefix(r, "..") {
+			root = top
+			rs[i].File = filepath.Join(top, r) // so the rest reads it as a file of top
+		}
 		rs[i].Repo = filepath.Base(root)
 		if url := originURL(root); url != "" {
 			for alias, src := range reg {

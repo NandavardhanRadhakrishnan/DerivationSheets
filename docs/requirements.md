@@ -121,5 +121,9 @@ shrinking as the owner pull requests merge.
 - A team and a repository are treated as the same here.
 - A flow that fails to analyse at the base or at head reports the error and
   no list.
-- A new field's type, when the sheet cannot tell, is written as `string` and
-  the Schema item says to confirm it.
+- A new field's type comes from the sheet (an input's type, the values of a
+  table or lookup, or `number` for arithmetic on numbers). When it cannot be
+  told, the Schema item says so and `--apply` refuses, before changing
+  anything, rather than write a guess into another team's contract.
+- The flow must be in the repository you run the command in, not in a fetched
+  copy under `.dsheets/`.

@@ -236,3 +236,27 @@ func TestCompareNoChange(t *testing.T) {
 		t.Fatalf("got %+v, %v; want none", rs, err)
 	}
 }
+
+func TestCompareNoCarryForAStepThatOnlyConsumes(t *testing.T) {
+	_, head := pair(t, func(string) {})
+	rs, err := Compare(nil, head, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// is_member is read by the Storefront team and sent nowhere after it.
+	if c := find(rs, Carry, "Storefront team", "is_member"); c != nil {
+		t.Errorf("a step that only consumes a value does not carry it: %+v", c)
+	}
+}
+
+func TestCompareInfersNumberForArithmetic(t *testing.T) {
+	base, head := pair(t, func(d string) { addHandling(t, d, true) })
+	rs, err := Compare(base, head, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := find(rs, Schema, "Payments team", "handlingFee")
+	if s == nil || s.Edit == nil || s.Edit.Type != "number" {
+		t.Fatalf("handling_fee = shipping_fee * 0.1 is a number, got %+v", s)
+	}
+}

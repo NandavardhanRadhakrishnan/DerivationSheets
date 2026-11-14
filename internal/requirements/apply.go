@@ -62,6 +62,11 @@ type job struct {
 func Apply(r *Result, o ApplyOptions) ([]Applied, error) {
 	byRepo := map[string][]Requirement{}
 	for _, q := range r.Requirements {
+		if q.Kind == Schema && q.Edit != nil && q.Edit.Op == "add" && q.Edit.Type == "" {
+			// The sheet cannot say what type the field has, and a guess would
+			// be written into another team's contract.
+			return nil, fmt.Errorf("the type of `%s` (%s) is unknown, so nothing was applied; add the field to %s by hand, or give the row a type in the sheet", q.Edit.Field, q.ID, q.File)
+		}
 		if q.Kind == Schema && q.Edit != nil {
 			byRepo[q.Repo] = append(byRepo[q.Repo], q)
 		}

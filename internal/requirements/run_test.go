@@ -110,3 +110,53 @@ func TestRunSchemaFileIsRepoRelative(t *testing.T) {
 		t.Fatalf("schema = %+v", s)
 	}
 }
+
+func TestRunWithRegistryFileAtBase(t *testing.T) {
+	dir := fixtureRepo(t, true)
+	if err := os.WriteFile(filepath.Join(dir, "dsheets.toml"), []byte("registry = { path = \".\" }\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".gitmodules"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	git(t, dir, "add", "-A")
+	git(t, dir, "commit", "-m", "registry")
+	git(t, dir, "switch", "-c", "feature")
+	edit(t, dir, "specs/order-checkout/sheet.toml", `"free_shipping ? 0 : shipping_fee"`, `"free_shipping ? 0 : shipping_fee * 2"`)
+	git(t, dir, "commit", "-am", "double it")
+	o := runOpts(dir, t)
+	o.Base = "main" // the registry here names no alias for this repository
+	res, err := Run(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Requirements) != 1 {
+		t.Fatalf("got %+v", res.Requirements)
+	}
+}
+
+func TestRunSchemaFileWhenHeadIsARevision(t *testing.T) {
+	dir := fixtureRepo(t, true)
+	first := git(t, dir, "rev-parse", "HEAD")
+	addHandling(t, dir, true)
+	git(t, dir, "commit", "-am", "add handling")
+	o := runOpts(dir, t)
+	o.Base, o.Head = first, "HEAD"
+	res, err := Run(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := find(res.Requirements, Schema, "Payments team", "handlingFee")
+	if s == nil || s.File != "interfaces/payments/payment-request.toml" || s.Repo != filepath.Base(dir) {
+		t.Fatalf("schema = %+v", s)
+	}
+}
+
+func TestRunRefusesAFetchedFlow(t *testing.T) {
+	dir := fixtureRepo(t, true)
+	o := runOpts(dir, t)
+	o.Flow = filepath.Join(dir, ".dsheets", "sources", "abc123", "flows", "x")
+	if _, err := Run(o); err == nil || !strings.Contains(err.Error(), "fetched") {
+		t.Fatalf("want a refusal naming the fetched copy, got %v", err)
+	}
+}
