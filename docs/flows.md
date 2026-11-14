@@ -269,6 +269,8 @@ the fields of the interfaces they share, including fields still being
 agreed. The exported pieces of a flow combine back into the flow's own
 layout. With `--check`, each flow is also checked against the others.
 
+To turn a flow change into per-team work, see [requirements.md](requirements.md).
+
 ## Not yet
 
 - Lists ("for each item"): arrays are imported as a single `array` field.
