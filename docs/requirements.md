@@ -11,6 +11,8 @@ dsheets requirements flows/checkout-to-payment             # this branch against
 dsheets requirements flows/checkout-to-payment main..HEAD  # two revisions, compared directly
 dsheets requirements flows/checkout-to-payment --json      # the same, for scripts that make tracker items
 dsheets requirements flows/checkout-to-payment --out reqs  # reqs/<team>.md and reqs/<team>.json per team
+dsheets requirements flows/checkout-to-payment --show-done # also list what the owners' sheets already show as done
+dsheets requirements flows/checkout-to-payment --no-check  # do not read the owners' sheets: every item is open
 ```
 
 The default base is the one `dsheets diff` uses: the branch the registry
@@ -48,6 +50,48 @@ serve it. The product manager can pin it in the flow.
 check that code matches the sheet; the reviewer does that. It does not group
 requirements into tickets, create tickets or open pull requests.
 
+A Compute item prints the rule from the product manager's sheet under it (the
+formula, the decision table with its hit policy, or the lookup, and any reject
+rules), so the owning team can implement it without opening the flow's branch.
+`--json` carries the same text as `rule`.
+
+## Done, open and not documented
+
+Each rerun also reads the owning team's own sheets, on the branch the registry
+follows for it, and decides every item:
+
+| State | Meaning | Listed | Blocks the flow merge |
+|---|---|---|---|
+| done | the owner's sheets show the work | no, counted (`3 of 5 done`) | no |
+| open | the owner has sheets and the evidence is missing or differs | yes | yes |
+| not documented | dsheets cannot tell: no repository for the team in the registry, or it has no sheets, or it could not be read | yes, under `Not documented (dsheets cannot tell):` | no, the PM decides |
+
+What counts as evidence, looked for in every `sheet.toml` under the owner's
+dsheets folder:
+
+| Kind | Done when the owner's sheets contain |
+|---|---|
+| Schema | the interface declares the field (as before) |
+| Compute | a derived row for the value whose rule equals the flow's |
+| Compute (stop) | no derived row for the value, in an owner that has at least one sheet |
+| Send | a row that sends the field |
+| Receive | an input row that reads the field |
+| Carry | the row, in the owner's sheet |
+
+A derived row that exists with a different rule stays open, with a note. Rows
+and fields match by id, then by name, ignoring case and separators
+(`free_shipping` matches `freeShipping`). dsheets never reads code: a merged
+sheet is taken to mean the team's code has merged.
+
+A team is found in the registry by an optional `team = "Cart team"` key on its
+entry, or else by the alias equal to the first word of the team's name
+(`cart`). See [repositories.md](repositories.md). A team that keeps only
+interfaces has no sheets to read, so its Compute, Send, Receive and Carry
+items show as not documented; its Schema items still close.
+
+`--json` lists every item, done ones included, with `status` and `note`.
+`--no-check` skips all of this, and `--offline` uses only what is fetched.
+
 ## Workflow
 
 1. The teams and the product manager agree a change in a meeting, using
@@ -59,8 +103,9 @@ requirements into tickets, create tickets or open pull requests.
 4. Each owner's pull request merges when ready. The flow's pull request merges
    last, so the default branch always describes what is live. Until then the
    flow reports missing fields, which is the unfinished work.
-5. Rerun `requirements` to see what is left. When it prints nothing, the flow
-   can merge.
+5. Rerun `requirements` to see what is left. Items drop out as each owner's
+   sheets on the followed branch show the work. When nothing is open, the
+   flow can merge; items listed as not documented are the PM's call.
 
 ## `--apply`
 
