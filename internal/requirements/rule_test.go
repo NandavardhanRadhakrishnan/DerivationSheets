@@ -21,6 +21,16 @@ func ruleOf(t *testing.T, text, id string) string {
 	return RuleText(r)
 }
 
+// ruleKeyOf is RuleKey of the named row of a one-sheet fixture.
+func ruleKeyOf(t *testing.T, text, id string) string {
+	t.Helper()
+	s, err := sheet.Parse(".", "sheet.toml", "sheet = \"x\"\nversion = 1\n"+text)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return RuleKey(s.ByID[id])
+}
+
 const inputs = `
 [[row]]
 id = "subtotal"
@@ -86,7 +96,7 @@ values_file = "data/shipping_zones.csv"
   message = "no"
 `, "zone")
 	want := "lookup: from db.shipping_zones, key loyalty_tier, values_file data/shipping_zones.csv\n" +
-		`reject when zone == "NONE" -> NOT_SERVED`
+		`reject when zone == "NONE" -> NOT_SERVED: no`
 	if got != want {
 		t.Errorf("got:\n%s\nwant:\n%s", got, want)
 	}

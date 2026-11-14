@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/diff"
@@ -121,9 +122,26 @@ func Run(o Options) (*Result, error) {
 	}
 	if !o.NoCheck {
 		reg, _ := sources.NewResolver(top, nil, fe).Registered() // no registry: nothing to check against
-		Check(rs, reg, fe)
+		Check(rs, reg, fe, selfAlias(reg, origin))
 	}
 	return &Result{Flow: headA.Flow.Slug, Base: short(base), Head: short(head), Requirements: rs}, nil
+}
+
+// selfAlias is this repository's alias in the registry, "" when it has none.
+// Its sheets at the followed branch are the flow's own base, so they cannot
+// show that its owners have done anything.
+func selfAlias(reg map[string]sources.Source, origin string) string {
+	var found []string
+	for alias, src := range reg {
+		if origin != "" && sources.SameRepo(src.Git, origin) {
+			found = append(found, alias)
+		}
+	}
+	sort.Strings(found)
+	if len(found) == 0 {
+		return ""
+	}
+	return found[0]
 }
 
 func short(sha string) string {

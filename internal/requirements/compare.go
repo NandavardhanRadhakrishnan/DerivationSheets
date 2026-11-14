@@ -138,7 +138,7 @@ func (c *comparer) computes() error {
 		if c.base != nil {
 			bt, was = teamOf(c.base, r.ID)
 		}
-		req := Requirement{Kind: Compute, Team: ht, Subject: r.ID, Row: r.ID, Rule: RuleText(r), Why: fmt.Sprintf("row `%s` of the end-to-end sheet", r.ID)}
+		req := Requirement{Kind: Compute, Team: ht, Subject: r.ID, Row: r.ID, Rule: RuleText(r), RuleKey: RuleKey(r), Why: fmt.Sprintf("row `%s` of the end-to-end sheet", r.ID)}
 		if !c.head.Pinned(r.ID) {
 			req.Placed = "default"
 		}
@@ -306,7 +306,7 @@ func (c *comparer) sendReceive(b *flow.Boundary, it flow.Item) {
 	subject := bkey(b) + ":" + it.Field
 	if j >= 1 {
 		team := c.head.Steps[j-1].Team()
-		r := c.add(Requirement{Kind: Send, Team: team, Subject: subject, Row: it.Row, Field: it.Field, What: "send " + label + ", from `" + it.Row + "`", Why: why})
+		r := c.add(Requirement{Kind: Send, Team: team, Subject: subject, Row: it.Row, Field: it.Field, Role: b.Role, Stage: b.StageID, What: "send " + label + ", from `" + it.Row + "`", Why: why})
 		c.send[fmt.Sprint(j)+"|"+it.Row] = r.ID
 		keys := []string{}
 		if p, ok := c.head.Place[it.Row]; ok && p == j-1 {
@@ -321,7 +321,7 @@ func (c *comparer) sendReceive(b *flow.Boundary, it flow.Item) {
 	}
 	if j < len(c.head.Steps) {
 		team := c.head.Steps[j].Team()
-		r := c.add(Requirement{Kind: Receive, Team: team, Subject: subject, Row: it.Row, Field: it.Field, What: "read " + label, Why: why})
+		r := c.add(Requirement{Kind: Receive, Team: team, Subject: subject, Row: it.Row, Field: it.Field, Role: b.Role, Stage: b.StageID, What: "read " + label, Why: why})
 		keys := []string{"send:" + fmt.Sprint(j) + "|" + it.Row}
 		if it.Status == flow.Missing {
 			keys = append(keys, "schema:"+fmt.Sprint(j)+"|"+it.Field)

@@ -60,19 +60,27 @@ var registry = map[string]sources.Source{
 func check(t *testing.T, q Requirement, dirs fakeFetcher) Requirement {
 	t.Helper()
 	rs := []Requirement{q}
-	Check(rs, registry, dirs)
+	Check(rs, registry, dirs, "")
 	return rs[0]
 }
 
-func TestOwnerAlias(t *testing.T) {
-	if a, ok := ownerAlias("The Order Desk", registry); !ok || a != "orders" {
-		t.Errorf("team key: %q, %v", a, ok)
+func TestOwnerAliases(t *testing.T) {
+	if a := ownerAliases("The Order Desk", registry); len(a) != 1 || a[0] != "orders" {
+		t.Errorf("team key: %v", a)
 	}
-	if a, ok := ownerAlias("Cart team", registry); !ok || a != "cart" {
-		t.Errorf("first word: %q, %v", a, ok)
+	if a := ownerAliases("Cart team", registry); len(a) != 1 || a[0] != "cart" {
+		t.Errorf("first word: %v", a)
 	}
-	if a, ok := ownerAlias("Payments team", registry); ok {
-		t.Errorf("unknown team resolved to %q", a)
+	if a := ownerAliases("Payments team", registry); len(a) != 0 {
+		t.Errorf("unknown team resolved to %v", a)
+	}
+	two := map[string]sources.Source{"cart": {Alias: "cart", Team: "Cart team"}, "cart-web": {Alias: "cart-web", Team: "Cart team"}}
+	if a := ownerAliases("Cart team", two); len(a) != 2 || a[0] != "cart" || a[1] != "cart-web" {
+		t.Errorf("a team key shared by two repositories gives both, in order: %v", a)
+	}
+	other := map[string]sources.Source{"orders": {Alias: "orders", Team: "Fulfilment team"}}
+	if a := ownerAliases("Orders team", other); len(a) != 0 {
+		t.Errorf("an alias that names another team by key is not found by first word: %v", a)
 	}
 }
 
@@ -121,12 +129,8 @@ func TestCheckComputeRemove(t *testing.T) {
 	}
 }
 
-func TestCheckSend(t *testing.T) {
-	q := Requirement{Kind: Send, Team: "Cart team", Row: "free_shipping", Field: "freeShipping"}
-	sends := inputs + freeShippingTable + "\n  [row.send]\n  field = \"freeShipping\"\n  usage = \"R\"\n"
-	if got := check(t, q, fakeFetcher{"cart": owner(t, sends)}); got.Status != StatusDone {
-		t.Errorf("own target: %+v", got)
-	}
+func TestCheckSendMatchesTheBoundary(t *testing.T) {
+	own := inputs + freeShippingTable + "\n  [row.send]\n  field = \"freeShipping\"\n  usage = \"R\"\n"
 	call := inputs + `
 [[row]]
 id = "subtotal_copy"
@@ -138,22 +142,54 @@ formula = "subtotal"
   field = "freeShipping"
   usage = "R"
 `
-	if got := check(t, q, fakeFetcher{"cart": owner(t, call)}); got.Status != StatusDone {
-		t.Errorf("call send: %+v", got)
+	handoff := Requirement{Kind: Send, Team: "Cart team", Row: "free_shipping", Field: "freeShipping", Role: "handoff", Stage: "0"}
+	request := Requirement{Kind: Send, Team: "Cart team", Row: "free_shipping", Field: "freeShipping", Role: "request", Stage: "shipping-quote"}
+	if got := check(t, handoff, fakeFetcher{"cart": owner(t, own)}); got.Status != StatusDone {
+		t.Errorf("handoff, own target: %+v", got)
 	}
-	if got := check(t, q, fakeFetcher{"cart": owner(t, inputs+freeShippingTable)}); got.Status != StatusOpen || !strings.Contains(got.Note, "freeShipping") {
+	if got := check(t, handoff, fakeFetcher{"cart": owner(t, call)}); got.Status != StatusOpen {
+		t.Errorf("a send to a call request does not fill a handoff: %+v", got)
+	}
+	if got := check(t, request, fakeFetcher{"cart": owner(t, call)}); got.Status != StatusDone {
+		t.Errorf("request, send to that stage: %+v", got)
+	}
+	if got := check(t, request, fakeFetcher{"cart": owner(t, own)}); got.Status != StatusOpen {
+		t.Errorf("a send to the sheet's own target does not fill a call request: %+v", got)
+	}
+	if got := check(t, handoff, fakeFetcher{"cart": owner(t, inputs+freeShippingTable)}); got.Status != StatusOpen || !strings.Contains(got.Note, "freeShipping") {
 		t.Errorf("no send: %+v", got)
 	}
 }
 
-func TestCheckReceive(t *testing.T) {
-	q := Requirement{Kind: Receive, Team: "The Order Desk", Row: "free_shipping", Field: "freeShipping"}
-	reads := inputs + "\n[[row]]\nid = \"free_shipping\"\nsource = \"request.freeShipping\"\ntype = \"boolean\"\n"
-	if got := check(t, q, fakeFetcher{"orders": owner(t, reads)}); got.Status != StatusDone {
-		t.Errorf("reads it: %+v", got)
+func TestCheckReceiveMatchesTheSource(t *testing.T) {
+	row := func(id, source string) string {
+		return inputs + "\n[[row]]\nid = \"" + id + "\"\nsource = \"" + source + "\"\ntype = \"number\"\n"
 	}
-	if got := check(t, q, fakeFetcher{"orders": owner(t, inputs+freeShippingTable)}); got.Status != StatusOpen || !strings.Contains(got.Note, "reads") {
+	handoff := Requirement{Kind: Receive, Team: "The Order Desk", Row: "free_shipping", Field: "freeShipping", Role: "handoff", Stage: "0"}
+	if got := check(t, handoff, fakeFetcher{"orders": owner(t, row("free_shipping", "request.freeShipping"))}); got.Status != StatusDone {
+		t.Errorf("reads it from the request: %+v", got)
+	}
+	tax := Requirement{Kind: Receive, Team: "The Order Desk", Row: "sales_tax_rate", Field: "salesTaxRate", Role: "handoff", Stage: "0"}
+	if got := check(t, tax, fakeFetcher{"orders": owner(t, row("sales_tax_rate", "config.tax.sales_tax_rate"))}); got.Status != StatusOpen {
+		t.Errorf("reading the value from config is not reading the field: %+v", got)
+	}
+	if got := check(t, handoff, fakeFetcher{"orders": owner(t, inputs+freeShippingTable)}); got.Status != StatusOpen || !strings.Contains(got.Note, "reads") {
 		t.Errorf("derives it instead: %+v", got)
+	}
+	billing := Requirement{Kind: Receive, Team: "Cart team", Row: "billing_country", Field: "billing.country", Role: "input"}
+	if got := check(t, billing, fakeFetcher{"cart": owner(t, row("country", "request.shipping.country"))}); got.Status != StatusOpen {
+		t.Errorf("billing.country is not shipping.country: %+v", got)
+	}
+	plain := Requirement{Kind: Receive, Team: "Cart team", Row: "country", Field: "country", Role: "input"}
+	if got := check(t, plain, fakeFetcher{"cart": owner(t, row("country", "request.shipping.country"))}); got.Status != StatusDone {
+		t.Errorf("a field with no dots matches the last part of a path: %+v", got)
+	}
+	resp := Requirement{Kind: Receive, Team: "The Order Desk", Row: "shipping_fee", Field: "fee", Role: "response", Stage: "shipping-quote"}
+	if got := check(t, resp, fakeFetcher{"orders": owner(t, row("shipping_fee", "call.shipping-quote.fee"))}); got.Status != StatusDone {
+		t.Errorf("reads the response: %+v", got)
+	}
+	if got := check(t, resp, fakeFetcher{"orders": owner(t, row("shipping_fee", "request.fee"))}); got.Status != StatusOpen {
+		t.Errorf("a request field is not the response: %+v", got)
 	}
 }
 
@@ -190,5 +226,82 @@ func TestCheckLeavesSchemaOpen(t *testing.T) {
 	q := Requirement{Kind: Schema, Team: "Cart team", Status: StatusOpen}
 	if got := check(t, q, fakeFetcher{"cart": owner(t, inputs)}); got.Status != StatusOpen {
 		t.Errorf("got %+v", got)
+	}
+}
+
+func TestCheckRuleCoversEveryNonLabelField(t *testing.T) {
+	base := inputs + `
+[[row]]
+id = "zone"
+uses = ["loyalty_tier"]
+lookup = { from = "db.zones", key = ["loyalty_tier"] }
+values_file = "data/z.csv"
+
+  [[row.reject]]
+  when = "zone == \"NONE\""
+  code = "NOT_SERVED"
+  message = "We do not ship there"
+`
+	rule := ruleOf(t, base, "zone")
+	key := ruleKeyOf(t, base, "zone")
+	q := Requirement{Kind: Compute, Team: "Cart team", Row: "zone", Rule: rule, RuleKey: key}
+	if got := check(t, q, fakeFetcher{"cart": owner(t, base)}); got.Status != StatusDone {
+		t.Errorf("same row: %+v", got)
+	}
+	message := strings.Replace(base, "We do not ship there", "Sorry, not served", 1)
+	if got := check(t, q, fakeFetcher{"cart": owner(t, message)}); got.Status != StatusOpen {
+		t.Errorf("a changed reject message changes the row: %+v", got)
+	}
+	uses := strings.Replace(base, `uses = ["loyalty_tier"]`, `uses = ["loyalty_tier", "subtotal"]`, 1)
+	if got := check(t, q, fakeFetcher{"cart": owner(t, uses)}); got.Status != StatusOpen {
+		t.Errorf("changed uses change the row: %+v", got)
+	}
+}
+
+func TestCheckOwnRepositoryIsUndocumented(t *testing.T) {
+	rs := []Requirement{{Kind: Carry, Team: "Cart team", Row: "subtotal"}}
+	Check(rs, registry, fakeFetcher{"cart": owner(t, inputs)}, "cart")
+	if rs[0].Status != StatusUndocumented || !strings.Contains(rs[0].Note, "this repository") {
+		t.Errorf("got %+v", rs[0])
+	}
+}
+
+func TestCheckUnreadableSheetBlocksAnAbsence(t *testing.T) {
+	root := owner(t, inputs+"\n[[row]]\nid = \"free_shipping\"\nsource = \"request.freeShipping\"\ntype = \"boolean\"\n")
+	broken := filepath.Join(root, "specs", "broken")
+	if err := os.MkdirAll(broken, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(broken, "sheet.toml"), []byte("this is [not toml"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stop := Requirement{Kind: Compute, Team: "Cart team", Row: "free_shipping", Remove: true}
+	got := check(t, stop, fakeFetcher{"cart": root})
+	if got.Status != StatusUndocumented || !strings.Contains(got.Note, "broken") {
+		t.Errorf("a stop must not close while a sheet cannot be read: %+v", got)
+	}
+	carry := Requirement{Kind: Carry, Team: "Cart team", Row: "subtotal"}
+	if got := check(t, carry, fakeFetcher{"cart": root}); got.Status != StatusDone {
+		t.Errorf("evidence that was found still counts: %+v", got)
+	}
+	allBroken := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(allBroken, "specs", "x"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(allBroken, "specs", "x", "sheet.toml"), []byte("[[[["), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := check(t, carry, fakeFetcher{"cart": allBroken}); got.Status != StatusUndocumented || strings.Contains(got.Note, "no sheets") || !strings.Contains(got.Note, "could not read") {
+		t.Errorf("all unreadable is not 'no sheets': %+v", got)
+	}
+}
+
+func TestCheckSharedTeamKeyReadsEveryRepository(t *testing.T) {
+	two := map[string]sources.Source{"cart": {Alias: "cart", Git: "x", Team: "Cart team"}, "cart-web": {Alias: "cart-web", Git: "x", Team: "Cart team"}}
+	rs := []Requirement{{Kind: Carry, Team: "Cart team", Row: "subtotal"}}
+	other := "\n[[row]]\nid = \"other\"\nsource = \"request.other\"\ntype = \"string\"\n"
+	Check(rs, two, fakeFetcher{"cart": owner(t, other), "cart-web": owner(t, inputs)}, "")
+	if rs[0].Status != StatusDone {
+		t.Errorf("evidence in either repository of the team counts: %+v", rs[0])
 	}
 }

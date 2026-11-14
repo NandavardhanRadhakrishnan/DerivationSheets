@@ -252,3 +252,68 @@ func TestCounts(t *testing.T) {
 		t.Errorf("Counts = %d of %d", done, total)
 	}
 }
+
+// An owner's sheet, fetched through the registry, closes the item end to end.
+func TestRunClosesAnItemFromTheOwnersSheet(t *testing.T) {
+	dir := fixtureRepo(t, true)
+
+	owners := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(owners, "sheets", "specs", "orders"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	ordersSheet := `sheet = "orders"
+version = 1
+
+[[row]]
+id = "free_shipping"
+source = "request.freeShipping"
+type = "boolean"
+
+[[row]]
+id = "shipping_fee"
+source = "call.shipping-quote.fee"
+type = "number"
+
+[[row]]
+id = "shipping_cost"
+uses = ["free_shipping", "shipping_fee"]
+formula = "free_shipping ? 0 : shipping_fee * 2"
+`
+	if err := os.WriteFile(filepath.Join(owners, "sheets", "specs", "orders", "sheet.toml"), []byte(ordersSheet), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	git(t, owners, "init", "-b", "main")
+	git(t, owners, "add", "-A")
+	git(t, owners, "commit", "-m", "orders sheets")
+
+	if err := os.WriteFile(filepath.Join(dir, "dsheets.toml"), []byte("registry = { path = \".\" }\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	modules := "[submodule \"orders\"]\n    path = orders\n    url = " + filepath.ToSlash(owners) + "\n    branch = main\n    dsheets = sheets\n"
+	if err := os.WriteFile(filepath.Join(dir, ".gitmodules"), []byte(modules), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	git(t, dir, "add", "-A")
+	git(t, dir, "commit", "-m", "registry")
+	git(t, dir, "switch", "-c", "feature")
+	edit(t, dir, "specs/order-checkout/sheet.toml", `"free_shipping ? 0 : shipping_fee"`, `"free_shipping ? 0 : shipping_fee * 2"`)
+	git(t, dir, "commit", "-am", "double it")
+
+	o := runOpts(dir, t)
+	o.Base = "main" // the registry here names no alias for this repository
+	res, err := Run(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	q := find(res.Requirements, Compute, "Orders team", "shipping_cost")
+	if q == nil || q.Status != StatusDone {
+		t.Fatalf("the owner's sheet already has the rule, got %+v", q)
+	}
+	var out strings.Builder
+	if err := res.WriteMarkdown(&out); err != nil || out.String() != "" {
+		t.Errorf("everything done prints nothing, got %q, %v", out.String(), err)
+	}
+	if done, total := res.Counts(); done != total || total == 0 {
+		t.Errorf("Counts = %d of %d", done, total)
+	}
+}

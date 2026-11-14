@@ -49,8 +49,15 @@ type Requirement struct {
 	Row    string `json:"row,omitempty"`
 	Field  string `json:"field,omitempty"`
 	Remove bool   `json:"remove,omitempty"`
-	// Rule is the row's rule from the end-to-end sheet, on Compute items.
-	Rule string `json:"rule,omitempty"`
+	// Role and Stage say which boundary a Send or Receive is on (a flow.Role*
+	// value and the stage id), so evidence is looked for at that boundary.
+	Role  string `json:"role,omitempty"`
+	Stage string `json:"stage,omitempty"`
+	// Rule is the row's rule from the end-to-end sheet, on Compute items, for
+	// reading. RuleKey is what an owner's row is compared with: the rule and
+	// every other field `dsheets diff` does not treat as a label.
+	Rule    string `json:"rule,omitempty"`
+	RuleKey string `json:"-"`
 	// Status is open, done or undocumented, and Note says why; both are set
 	// by Check. An empty Status reads as open.
 	Status string `json:"status,omitempty"`

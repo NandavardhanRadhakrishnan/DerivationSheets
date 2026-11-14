@@ -78,14 +78,34 @@ dsheets folder:
 | Receive | an input row that reads the field |
 | Carry | the row, in the owner's sheet |
 
-A derived row that exists with a different rule stays open, with a note. Rows
-and fields match by id, then by name, ignoring case and separators
-(`free_shipping` matches `freeShipping`). dsheets never reads code: a merged
-sheet is taken to mean the team's code has merged.
+A derived row that exists with a different rule stays open, with a note. The
+comparison covers every field of the row except its labels (name, description,
+open questions) and its send, as `dsheets diff` does, so a changed reject
+message or a changed `uses` counts as a different rule.
+
+Matching is by where the value sits, not by name alone:
+
+- Compute, Compute (stop) and Carry find the owner's row by id (case and
+  separators ignored: `free_shipping`).
+- Send needs a send of the field to the same place: a call request is filled by
+  a send to that stage, anything else by a send to the sheet's own target.
+- Receive needs an input row whose source is the request (or, for a call's
+  response, `call.<stage>.<field>`). A value read from config, a database or
+  the context is not the field.
+- Field names match ignoring case and separators. When only one name is a
+  dotted path, its last part may stand for it (`country` and
+  `shipping.country`); two paths must match whole.
+
+An item is never closed on a guess. A "stop computing" item stays out of done
+while any of the owner's sheets could not be read, because a missing row might
+be in the sheet that failed; it shows as not documented, naming the file. Items
+owned by the repository the flow itself is in are also not documented: its
+sheets on the followed branch are the flow's own base.
 
 A team is found in the registry by an optional `team = "Cart team"` key on its
-entry, or else by the alias equal to the first word of the team's name
-(`cart`). See [repositories.md](repositories.md). A team that keeps only
+entry (every entry with that key is read, so a team can own several
+repositories), or else by the alias equal to the first word of the team's name
+(`cart`) when that entry names no other team. See [repositories.md](repositories.md). A team that keeps only
 interfaces has no sheets to read, so its Compute, Send, Receive and Carry
 items show as not documented; its Schema items still close.
 
