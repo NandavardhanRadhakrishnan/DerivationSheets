@@ -89,3 +89,90 @@ func TestWriteFolder(t *testing.T) {
 		t.Errorf("a team's file holds only that team's requirements:\n%s", data)
 	}
 }
+
+func statusResult() *Result {
+	rule := "table, first match:\n  subtotal >= 100, loyalty_tier any -> true\n  subtotal any, loyalty_tier any -> false"
+	return &Result{Flow: "f", Base: "b0b0b0b", Requirements: []Requirement{
+		{ID: "R-0001", Kind: Compute, Team: "Cart team", Subject: "free_shipping", What: "compute `free_shipping`", Rule: rule, Status: StatusDone},
+		{ID: "R-0002", Kind: Send, Team: "Cart team", Subject: "s", What: "send `freeShipping` in order-placed", Status: StatusDone},
+		{ID: "R-0003", Kind: Compute, Team: "Orders team", Subject: "free_shipping (remove)", What: "stop computing `free_shipping`", Status: StatusDone},
+		{ID: "R-0004", Kind: Receive, Team: "Orders team", Subject: "r", What: "read `freeShipping` in order-placed", Status: StatusOpen, Note: "no input row in orders's sheets reads `freeShipping`"},
+		{ID: "R-0005", Kind: Compute, Team: "Orders team", Subject: "gift", What: "compute `gift`", Rule: rule, Status: StatusOpen},
+		{ID: "R-0006", Kind: Send, Team: "Payments team", Subject: "p", What: "send `giftWrapFee`", Status: StatusUndocumented, Note: "no sheets in payments"},
+	}}
+}
+
+func TestMarkdownHidesDoneAndGroupsTheRest(t *testing.T) {
+	var buf bytes.Buffer
+	if err := statusResult().WriteMarkdown(&buf); err != nil {
+		t.Fatal(err)
+	}
+	want := "Orders team: f (base b0b0b0b)\n" +
+		" R-0004  Receive  read `freeShipping` in order-placed   open: no input row in orders's sheets reads `freeShipping`\n" +
+		" R-0005  Compute  compute `gift`\n" +
+		"            table, first match:\n" +
+		"              subtotal >= 100, loyalty_tier any -> true\n" +
+		"              subtotal any, loyalty_tier any -> false\n" +
+		"\n" +
+		"Not documented (dsheets cannot tell):\n" +
+		"Payments team: f (base b0b0b0b)\n" +
+		" R-0006  Send     send `giftWrapFee`   no sheets in payments\n" +
+		"\n" +
+		"3 of 6 done\n"
+	if buf.String() != want {
+		t.Errorf("got:\n%s\nwant:\n%s", buf.String(), want)
+	}
+}
+
+func TestMarkdownShowDone(t *testing.T) {
+	r := statusResult()
+	r.ShowDone = true
+	var buf bytes.Buffer
+	if err := r.WriteMarkdown(&buf); err != nil {
+		t.Fatal(err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "Cart team: f") || !strings.Contains(out, " R-0002  Send     send `freeShipping` in order-placed   done\n") {
+		t.Errorf("done items missing:\n%s", out)
+	}
+}
+
+func TestMarkdownAllDoneIsEmpty(t *testing.T) {
+	r := &Result{Flow: "f", Requirements: []Requirement{{ID: "R-0001", Kind: Send, Team: "T", What: "x", Status: StatusDone}}}
+	var buf bytes.Buffer
+	if err := r.WriteMarkdown(&buf); err != nil || buf.String() != "" {
+		t.Errorf("got %q, %v; want nothing", buf.String(), err)
+	}
+}
+
+func TestJSONHasStatusNoteAndRule(t *testing.T) {
+	var buf bytes.Buffer
+	if err := statusResult().WriteJSON(&buf); err != nil {
+		t.Fatal(err)
+	}
+	var back Result
+	if err := json.Unmarshal(buf.Bytes(), &back); err != nil {
+		t.Fatal(err)
+	}
+	if len(back.Requirements) != 6 || back.Requirements[0].Status != StatusDone || back.Requirements[3].Note == "" || back.Requirements[0].Rule == "" {
+		t.Errorf("round trip lost data: %+v", back.Requirements)
+	}
+}
+
+func TestWriteFolderFollowsTheListing(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "reqs")
+	if err := statusResult().WriteFolder(dir); err != nil {
+		t.Fatal(err)
+	}
+	orders, err := os.ReadFile(filepath.Join(dir, "orders-team.md"))
+	if err != nil || strings.Contains(string(orders), "R-0003") || !strings.Contains(string(orders), "R-0004") {
+		t.Errorf("orders-team.md: %v\n%s", err, orders)
+	}
+	pay, err := os.ReadFile(filepath.Join(dir, "payments-team.md"))
+	if err != nil || !strings.Contains(string(pay), "Not documented") {
+		t.Errorf("payments-team.md: %v\n%s", err, pay)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "cart-team.md")); err != nil {
+		t.Errorf("a team with only done items still gets a (summary) file: %v", err)
+	}
+}

@@ -12,11 +12,13 @@ import (
 )
 
 func cmdRequirements(args []string, out, errw io.Writer) error {
-	fs := newFlags("requirements", "<flow> [base]..[head] [--all] [--json] [--out dir] [--as alias] [--offline] [--apply [--clone alias=path] [--branch alias=name] [--change label] [--no-push]]", errw)
+	fs := newFlags("requirements", "<flow> [base]..[head] [--all] [--json] [--out dir] [--no-check] [--show-done] [--as alias] [--offline] [--apply [--clone alias=path] [--branch alias=name] [--change label] [--no-push]]", errw)
 	all := fs.Bool("all", false, "also include label and formatting changes (names, descriptions, comments)")
 	asJSON := fs.Bool("json", false, "print the requirements as JSON")
 	outDir := fs.String("out", "", "also write one markdown and one JSON file per team into this folder")
 	as := fs.String("as", "", "this repository's alias in the registry (default: found from the origin remote)")
+	noCheck := fs.Bool("no-check", false, "do not read the owners' sheets: list every requirement as open")
+	showDone := fs.Bool("show-done", false, "also list the requirements the owners' sheets show as done")
 	offline := fs.Bool("offline", false, "do not fetch; use what is already fetched")
 	apply := fs.Bool("apply", false, "write each owner's interface edits to a new branch in a clone of its repository, commit and push it")
 	noPush := fs.Bool("no-push", false, "with --apply, stop after the local commit")
@@ -47,7 +49,7 @@ func cmdRequirements(args []string, out, errw io.Writer) error {
 		fmt.Fprintln(errw, "--branch:", err)
 		return errUsage
 	}
-	opt := requirements.Options{As: *as, All: *all, Fetcher: newFetcher(*offline)}
+	opt := requirements.Options{As: *as, All: *all, Fetcher: newFetcher(*offline), NoCheck: *noCheck}
 	if len(pos) == 2 {
 		if strings.Contains(pos[1], "...") {
 			fs.Usage()
@@ -69,6 +71,7 @@ func cmdRequirements(args []string, out, errw io.Writer) error {
 	if err != nil {
 		return err
 	}
+	res.ShowDone = *showDone
 	if *asJSON {
 		err = res.WriteJSON(out)
 	} else {

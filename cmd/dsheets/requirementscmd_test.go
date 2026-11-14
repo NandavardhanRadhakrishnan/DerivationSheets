@@ -147,3 +147,20 @@ func TestRequirementsApplyWithNothingToApply(t *testing.T) {
 		t.Errorf("nothing should have been applied:\n%s", out)
 	}
 }
+
+func TestRequirementsNoCheckAndShowDoneFlags(t *testing.T) {
+	doubleShipping(t, requirementsRepo(t))
+	out := runOK(t, "requirements", "flows/checkout-to-payment", "--no-check")
+	if strings.Contains(out, "Not documented") || !strings.Contains(out, "Orders team: checkout-to-payment (base ") {
+		t.Errorf("--no-check should list items as open:\n%s", out)
+	}
+	runOK(t, "requirements", "flows/checkout-to-payment", "--show-done")
+}
+
+func TestRequirementsWithoutARegistryIsNotDocumented(t *testing.T) {
+	doubleShipping(t, requirementsRepo(t))
+	out := runOK(t, "requirements", "flows/checkout-to-payment")
+	if !strings.Contains(out, "Not documented (dsheets cannot tell):") || !strings.Contains(out, "Orders team: checkout-to-payment (base ") {
+		t.Errorf("got:\n%s", out)
+	}
+}
