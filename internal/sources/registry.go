@@ -80,13 +80,13 @@ func ParseGitmodules(text, base string) (map[string]Source, error) {
 		if ref == "." {
 			ref = ""
 		}
-		out[m.name] = Source{Alias: m.name, Git: resolveURL(base, m.url), Ref: ref, Dir: m.dir}
+		out[m.name] = Source{Alias: m.name, Git: resolveURL(base, m.url), Ref: ref, Dir: m.dir, Team: m.team}
 	}
 	return out, nil
 }
 
 // module is one [submodule "name"] section of a .gitmodules file.
-type module struct{ name, path, url, branch, dir string }
+type module struct{ name, path, url, branch, dir, team string }
 
 // parseModules reads .gitmodules, which uses git's config syntax. Other
 // sections, unknown keys and malformed lines are skipped, as git does for
@@ -121,6 +121,8 @@ func parseModules(text string) []module {
 			m.branch = value
 		case "dsheets":
 			m.dir = strings.Trim(value, "/")
+		case "team":
+			m.team = value
 		}
 	}
 	kept := out[:0]

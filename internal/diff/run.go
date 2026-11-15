@@ -66,27 +66,9 @@ func Run(o Options) (*Report, error) {
 	if err != nil {
 		return nil, err
 	}
-	headRev := o.Head
-	if headRev == "" {
-		headRev = "HEAD"
-	}
-	head, err := revs.Resolve(headRev)
+	base, head, err := ResolveRange(revs, o)
 	if err != nil {
 		return nil, err
-	}
-	var base string
-	if o.Base != "" {
-		if base, err = revs.Resolve(o.Base); err != nil {
-			return nil, err
-		}
-	} else {
-		def, err := defaultBase(revs, o)
-		if err != nil {
-			return nil, err
-		}
-		if base, err = revs.MergeBase(def, head); err != nil {
-			return nil, err
-		}
 	}
 	changes, err := revs.Changed(base, head)
 	if err != nil {
@@ -162,6 +144,30 @@ func Run(o Options) (*Report, error) {
 		}
 	}
 	return r, nil
+}
+
+// ResolveRange returns the two commits o names: o.Head (HEAD when empty) and
+// o.Base, or, when that is empty, the merge-base of the default base and the
+// head. Other commands that compare against a pull request's base use it, so
+// they never differ from diff.
+func ResolveRange(revs *store.Revs, o Options) (base, head string, err error) {
+	headRev := o.Head
+	if headRev == "" {
+		headRev = "HEAD"
+	}
+	if head, err = revs.Resolve(headRev); err != nil {
+		return "", "", err
+	}
+	if o.Base != "" {
+		base, err = revs.Resolve(o.Base)
+		return base, head, err
+	}
+	def, err := defaultBase(revs, o)
+	if err != nil {
+		return "", "", err
+	}
+	base, err = revs.MergeBase(def, head)
+	return base, head, err
 }
 
 // defaultBase names the branch a pull request is compared with: the one the

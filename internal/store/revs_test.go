@@ -156,3 +156,25 @@ func TestRevsNotGit(t *testing.T) {
 		t.Fatal("NewRevs on a plain folder: want an error")
 	}
 }
+
+func TestExport(t *testing.T) {
+	dir := revRepo(t)
+	first := revOf(t, dir, "HEAD")
+	write(t, filepath.Join(dir, "a.txt"), "two\n")
+	run(t, dir, "commit", "-am", "second")
+	r, err := NewRevs(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dest := t.TempDir()
+	if err := r.Export(first, dest); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(filepath.Join(dest, "a.txt"))
+	if err != nil || string(got) != "one\n" {
+		t.Fatalf("a.txt = %q, %v; want the first revision's content", got, err)
+	}
+	if err := r.Export("no-such-rev", t.TempDir()); err == nil {
+		t.Fatal("unknown revision exported without an error")
+	}
+}

@@ -1,9 +1,12 @@
 package store
 
 import (
+	"archive/tar"
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -103,6 +106,50 @@ func (r *Revs) ReadAt(rev, path string) ([]byte, error) {
 		return nil, err
 	}
 	return out, nil
+}
+
+// Export writes the whole tree of a revision under dest, so a flow can be
+// read as it was without touching the working tree.
+func (r *Revs) Export(rev, dest string) error {
+	cmd := exec.Command("git", "-C", r.top, "-c", "core.autocrlf=false", "archive", "--format=tar", rev)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf("exporting %s: %v (%s)", rev, err, strings.TrimSpace(stderr.String()))
+	}
+	root, err := filepath.Abs(dest)
+	if err != nil {
+		return err
+	}
+	tr := tar.NewReader(bytes.NewReader(out))
+	for {
+		h, err := tr.Next()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(root, filepath.FromSlash(h.Name))
+		if target != root && !strings.HasPrefix(target, root+string(filepath.Separator)) {
+			return fmt.Errorf("exporting %s: %s lies outside the destination", rev, h.Name)
+		}
+		switch h.Typeflag {
+		case tar.TypeDir:
+			err = os.MkdirAll(target, 0o755)
+		case tar.TypeReg:
+			if err = os.MkdirAll(filepath.Dir(target), 0o755); err == nil {
+				var data []byte
+				if data, err = io.ReadAll(tr); err == nil {
+					err = os.WriteFile(target, data, 0o644)
+				}
+			}
+		}
+		if err != nil {
+			return err
+		}
+	}
 }
 
 func gitOut(dir string, args ...string) ([]byte, error) {

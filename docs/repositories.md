@@ -31,6 +31,7 @@ team repository. dsheets reads only its `.gitmodules`:
 | `url` | Where to fetch the repository. A relative URL (`../orders-sheets.git`) is relative to the registry's own URL. |
 | `branch` | The branch to follow. Without it, the repository's default branch. |
 | `dsheets` | The folder inside the repository that holds its sheets. The alias means that folder. Leave it out when the whole repository is sheets. |
+| `team` | Optional: the team name that owns the repository (`team = "Cart team"`). `dsheets requirements` uses it to find a team's sheets; without it, the alias equal to the first word of the team's name is used. |
 
 Adding a team:
 
