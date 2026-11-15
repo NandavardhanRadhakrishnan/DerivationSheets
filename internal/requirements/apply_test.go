@@ -53,6 +53,11 @@ func schemaResult(field string) *Result {
 }
 
 func applyOpts(t *testing.T, bare string) ApplyOptions {
+	// Apply commits with whatever identity git finds; a CI runner has none.
+	t.Setenv("GIT_AUTHOR_NAME", "t")
+	t.Setenv("GIT_AUTHOR_EMAIL", "t@example.com")
+	t.Setenv("GIT_COMMITTER_NAME", "t")
+	t.Setenv("GIT_COMMITTER_EMAIL", "t@example.com")
 	return ApplyOptions{
 		Registry: map[string]sources.Source{"payments": {Alias: "payments", Git: bare, Ref: "main", Dir: "interfaces"}},
 		Work:     filepath.Join(t.TempDir(), "work"),
