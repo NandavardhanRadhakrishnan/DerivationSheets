@@ -23,6 +23,9 @@ type runner struct {
 	notFound []string          // why a segment has no team flow
 	noFlow   []bool            // the segment's team has no own flow for it
 	bySource map[string]string // the PM's input rows by source
+	// chainUnsure says, end to end, why a stage before the one running
+	// might have rejected the case; see outcome.unsure.
+	chainUnsure string
 }
 
 func newRunner(pm *flow.Analysis, mode Mode, r *Report) *runner {
@@ -65,10 +68,13 @@ type outcome struct {
 // chain runs one case end to end. Each segment is fed what the segment
 // before it sent; a callee segment runs only through its caller. The chain
 // runs past the PM's reject until a team rejects or the flow ends, and the
-// case gets one reject check, wherever the chain rejects.
+// case gets one reject check, wherever the chain rejects. The fields the
+// rejecting team, and its caller, did not send are judged as in isolated
+// mode; the segments after it are not reached and get no checks.
 func (ru *runner) chain(c pmCase) {
 	var in payload
 	started, broken, unsure := false, "", ""
+	defer func() { ru.chainUnsure = "" }()
 	for i, sg := range ru.segs {
 		if sg.Callee {
 			continue
@@ -80,9 +86,13 @@ func (ru *runner) chain(c pmCase) {
 			ru.cannotTell(i, c, broken, nil)
 			continue
 		}
+		ru.chainUnsure = unsure
 		o := ru.run(i, c, in, true)
 		if o.reject != "" {
-			ru.chainReject(c, o)
+			if unsure == "" {
+				unsure = o.unsure
+			}
+			ru.chainReject(c, o, unsure)
 			return
 		}
 		if unsure == "" {
@@ -112,8 +122,10 @@ func (ru *runner) chain(c pmCase) {
 
 // chainReject is the one reject check of a case whose chain rejected end
 // to end: it agrees when the PM's case rejects with the same code,
-// whichever team rejects.
-func (ru *runner) chainReject(c pmCase, o outcome) {
+// whichever team rejects. unsure says why an earlier stage might have
+// rejected first; then a PM reject cannot be told either way. A case the
+// PM does not reject differs wherever the chain rejects.
+func (ru *runner) chainReject(c pmCase, o outcome, unsure string) {
 	ck := ru.rejectBase(o.rejectSeg, c)
 	ck.Actual, ck.Note = o.reject, o.rejectNote
 	row, _, pmRejects := ru.pmReject(c)
@@ -129,7 +141,16 @@ func (ru *runner) chainReject(c pmCase, o outcome) {
 	if owner := ru.ownerOf(c); owner != o.rejectSeg && ck.Note == "" {
 		ck.Note = fmt.Sprintf("the PM's sheet rejects at %s, placed with %s", row, ru.segs[owner].Team)
 	}
+	if unsure != "" {
+		ck.Status, ck.Note = CannotTell, unsure
+	}
 	ru.add(ck)
+}
+
+// chainAgrees says a reject with code is the PM case's, end to end.
+func (ru *runner) chainAgrees(c pmCase, code string) bool {
+	_, _, ok := ru.pmReject(c)
+	return ok && c.Res.Reject.Code == code
 }
 
 // expected is the PM's payload on a boundary: every field that carries a
@@ -200,12 +221,17 @@ func (ru *runner) run(i int, c pmCase, in payload, emit bool) outcome {
 			switch {
 			case o.reject != "":
 				// Isolated, the callee's own run reports its reject; end to
-				// end, the chain does.
-				if emit && ru.mode == Isolated && ru.rejectsIn(sg, c) {
-					ck := ru.rejectBase(i, c)
-					ck.Status = CannotTell
-					ck.Note = fmt.Sprintf("the call %s rejected first, with %s", ru.pm.Boundaries[req].StageID, o.reject)
-					ru.add(ck)
+				// end, the chain does. What this team did not send after
+				// the call cannot be told.
+				note := fmt.Sprintf("the call %s rejected with %s", ru.pm.Boundaries[req].StageID, o.reject)
+				switch {
+				case emit && ru.mode == Isolated:
+					ru.cannotTell(i, c, note, made)
+				case emit && !ru.chainAgrees(c, o.reject):
+					ru.unsent(i, c, made, CannotTell, note, false)
+				}
+				if o.unsure == "" {
+					o.unsure = calleeUnsure
 				}
 				return o
 			case !o.ok:
@@ -242,12 +268,33 @@ func (ru *runner) run(i int, c pmCase, in payload, emit bool) outcome {
 		}
 		return outcome{why: why}
 	case res.Reject != nil:
-		o := outcome{reject: res.Reject.Code, rejectSeg: i}
+		o := outcome{reject: res.Reject.Code, rejectSeg: i, unsure: calleeUnsure}
 		if res.Reject.Code == eval.MissingInputCode {
 			o.rejectNote = missingNote(a, res.Reject.Row)
 		}
-		if emit && ru.mode == Isolated {
-			ru.teamReject(i, c, o)
+		// A reject the PM's case does not make here leaves the fields the
+		// team did not send differing.
+		note := o.rejectNote
+		if note == "" {
+			note = "the sheet rejects with " + o.reject
+		}
+		switch {
+		case !emit:
+		case ru.mode == Isolated:
+			if ru.teamReject(i, c, o) != Agrees {
+				ru.unsent(i, c, made, Differs, note, false)
+			}
+		case !ru.chainAgrees(c, o.reject):
+			status := Differs
+			unsure := ru.chainUnsure
+			if unsure == "" {
+				unsure = calleeUnsure
+			}
+			if _, _, pmRejects := ru.pmReject(c); pmRejects && unsure != "" {
+				// An earlier stage might have rejected with the PM's code.
+				status, note = CannotTell, unsure
+			}
+			ru.unsent(i, c, made, status, note, false)
 		}
 		return o
 	}
@@ -423,10 +470,19 @@ func (ru *runner) cannotTell(i int, c pmCase, note string, made map[int]bool) {
 		ck.Status, ck.Note, ck.NoFlow = CannotTell, note, noFlow
 		ru.add(ck)
 	}
+	ru.unsent(i, c, made, CannotTell, note, noFlow)
+}
+
+// unsent reports the expected values segment i did not send in a case, with
+// status and note: the requests of the calls not made, and its outgoing
+// boundary (for a callee, its response). End to end, it reports the callees
+// of the calls not made as cannot tell, since they run only through it.
+func (ru *runner) unsent(i int, c pmCase, made map[int]bool, status, note string, noFlow bool) {
+	sg := ru.segs[i]
 	unknown := func(bi int) {
 		for _, w := range ru.wants(c, bi) {
 			ck := ru.base(c, bi, sg.Team, w.field)
-			ck.Expected, ck.Status, ck.Note, ck.NoFlow = w.v, CannotTell, note, noFlow
+			ck.Expected, ck.Status, ck.Note, ck.NoFlow = w.v, status, note, noFlow
 			ru.add(ck)
 		}
 	}
@@ -442,9 +498,9 @@ func (ru *runner) cannotTell(i int, c pmCase, note string, made map[int]bool) {
 	unknown(sg.Out)
 }
 
-// teamReject reports a team's reject in isolated mode: the reject belongs
-// to the team its PM row is placed with.
-func (ru *runner) teamReject(i int, c pmCase, o outcome) {
+// teamReject reports a team's reject in isolated mode, and returns its
+// status: the reject belongs to the team its PM row is placed with.
+func (ru *runner) teamReject(i int, c pmCase, o outcome) string {
 	ck := ru.rejectBase(i, c)
 	ck.Actual, ck.Note = o.reject, o.rejectNote
 	if ru.rejectsIn(ru.segs[i], c) {
@@ -456,6 +512,7 @@ func (ru *runner) teamReject(i int, c pmCase, o outcome) {
 		ck.Expected, ck.Status = none, Differs
 	}
 	ru.add(ck)
+	return ck.Status
 }
 
 // missedReject reports, in isolated mode, a PM reject placed in segment i

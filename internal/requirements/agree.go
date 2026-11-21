@@ -7,7 +7,6 @@ import (
 
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/agree"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/flow"
-	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sources"
 )
 
 // applyCases decides Compute and Send items again on the PM's cases, run
@@ -184,21 +183,18 @@ func joinNotes(a, b string) string {
 }
 
 // explainCases adds to the items the notes of the run that explain them: on
-// an item the rule text decided, why its team's flows were left out; on an
-// item the cases could not tell, why the PM's filled values were not used.
-func explainCases(rs []Requirement, rep *agree.Report, reg map[string]sources.Source, filledWhy string) {
+// an item the rule text decided, the notes on its team's flows, such as why
+// they were left out; on an item the cases could not tell, why the PM's
+// filled values were not used.
+func explainCases(rs []Requirement, rep *agree.Report, filledWhy string) {
 	for i := range rs {
 		q := &rs[i]
 		switch {
 		case q.Status == StatusUndocumented && len(q.Cases) > 0 && filledWhy != "":
 			q.Note = joinNotes(q.Note, filledWhy+", so the cases ran without its filled values")
 		case strings.Contains(q.Note, ruleText) && rep != nil:
-			for _, alias := range sources.TeamAliases(q.Team, reg) {
-				for _, n := range rep.Notes {
-					if strings.HasPrefix(n, alias+": ") || strings.HasPrefix(n, "could not read "+alias+": ") {
-						q.Note = joinNotes(q.Note, n)
-					}
-				}
+			for _, n := range rep.TeamNotes[q.Team] {
+				q.Note = joinNotes(q.Note, n)
 			}
 		}
 	}

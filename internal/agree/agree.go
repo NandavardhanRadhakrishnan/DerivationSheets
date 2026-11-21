@@ -4,6 +4,7 @@ package agree
 
 import (
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/cases"
@@ -40,8 +41,8 @@ type Check struct {
 	Actual   any    `json:"actual,omitempty"`
 	Note     string `json:"note,omitempty"`
 	// NoFlow marks a cannot-tell check whose team has no own flow for the
-	// segment (none or several match): its sheet was not run at all, and
-	// Note says why.
+	// segment (none matches; several matching is not NoFlow): its sheet was
+	// not run at all, and Note says why.
 	NoFlow bool `json:"-"`
 }
 
@@ -52,6 +53,8 @@ type Report struct {
 	Cases  int
 	Checks []Check
 	Notes  []string // what could not be read, once each
+	// TeamNotes are the notes on each team's flows, by team, once each.
+	TeamNotes map[string][]string
 }
 
 // TeamFlows returns the analysed own flows of a team, and notes on what
@@ -68,7 +71,7 @@ type Options struct {
 // Run runs the PM's generated cases through each team's own sheet along the
 // PM's flow and compares the values at every boundary that carries a PM row.
 func Run(pm *flow.Analysis, teams TeamFlows, o Options) *Report {
-	r := &Report{Flow: pm.Flow.Slug, Mode: o.Mode}
+	r := &Report{Flow: pm.Flow.Slug, Mode: o.Mode, TeamNotes: map[string][]string{}}
 	cs := pmCases(pm, o)
 	r.Cases = len(cs)
 	ru := newRunner(pm, o.Mode, r)
@@ -84,9 +87,11 @@ func Run(pm *flow.Analysis, teams TeamFlows, o Options) *Report {
 				seen[n] = true
 				r.Notes = append(r.Notes, n)
 			}
+			if !slices.Contains(r.TeamNotes[sg.Team], n) {
+				r.TeamNotes[sg.Team] = append(r.TeamNotes[sg.Team], n)
+			}
 		}
-		ru.found[i], ru.notFound[i] = findFlow(pm, sg, flows)
-		ru.noFlow[i] = ru.found[i] == nil
+		ru.found[i], ru.notFound[i], ru.noFlow[i] = findFlow(pm, sg, flows)
 		if m := ru.found[i]; m != nil && m.A.Engine == nil {
 			ru.found[i], ru.notFound[i] = nil, fmt.Sprintf("the sheet of %s cannot be evaluated", m.A.Flow.Dir)
 		}

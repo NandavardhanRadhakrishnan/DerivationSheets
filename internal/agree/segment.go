@@ -61,15 +61,16 @@ func ifaceName(b *flow.Boundary) string {
 // findFlow picks the one team flow whose first and last boundaries' interface
 // names equal the segment's In and Out, and which has, for every call in the
 // segment, a request boundary with the same interface name. note says why
-// none was found, or names the candidates when several match.
-func findFlow(pm *flow.Analysis, sg segment, flows []*flow.Analysis) (m *match, note string) {
+// none was found, or names the candidates when several match; none says
+// that no flow matched at all.
+func findFlow(pm *flow.Analysis, sg segment, flows []*flow.Analysis) (m *match, note string, none bool) {
 	in, out := ifaceName(pm.Boundaries[sg.In]), ifaceName(pm.Boundaries[sg.Out])
 	var found []*match
 	for _, a := range flows {
 		if a == nil || len(a.Boundaries) == 0 {
 			continue
 		}
-		if in == "" || ifaceName(a.Boundaries[0]) != in || ifaceName(a.Boundaries[len(a.Boundaries)-1]) != out {
+		if in == "" || out == "" || ifaceName(a.Boundaries[0]) != in || ifaceName(a.Boundaries[len(a.Boundaries)-1]) != out {
 			continue
 		}
 		cand := &match{A: a, StageOf: map[int]string{}}
@@ -94,7 +95,7 @@ func findFlow(pm *flow.Analysis, sg segment, flows []*flow.Analysis) (m *match, 
 	}
 	switch len(found) {
 	case 1:
-		return found[0], ""
+		return found[0], "", false
 	case 0:
 		note = fmt.Sprintf("no flow of %s takes %s in and gives %s out", sg.Team, in, out)
 		if len(sg.Calls) > 0 {
@@ -104,11 +105,11 @@ func findFlow(pm *flow.Analysis, sg segment, flows []*flow.Analysis) (m *match, 
 			}
 			note += ", with a call request for " + strings.Join(names, ", ")
 		}
-		return nil, note
+		return nil, note, true
 	}
 	dirs := make([]string, len(found))
 	for i, f := range found {
 		dirs[i] = f.A.Flow.Dir
 	}
-	return nil, fmt.Sprintf("several flows of %s take %s in and give %s out: %s", sg.Team, in, out, strings.Join(dirs, ", "))
+	return nil, fmt.Sprintf("several flows of %s take %s in and give %s out: %s", sg.Team, in, out, strings.Join(dirs, ", ")), false
 }

@@ -593,3 +593,205 @@ func TestEndToEndUnrejectedCaseIsOneCheck(t *testing.T) {
 		}
 	}
 }
+
+func TestUnexpectedRejectReportsTheUnsentFields(t *testing.T) {
+	// Shipping rejects at weight > 3; the PM only at weight > 30. Where the
+	// PM's case does not reject, Shipping's fee differs (it was not sent)
+	// and Orders' cost, which needs the quote, cannot be told.
+	ship := replaceIn(t, shippingSheet, `when    = "weight > 30"`, `when    = "weight > 3"`)
+	for _, mode := range modes {
+		pm, teams := shop(t, map[string]string{shippingSheet: ship})
+		rej := rejecting(pm)
+		r := Run(pm, teams, Options{Mode: mode})
+		hit := map[string]bool{}
+		for _, c := range r.Checks {
+			if rej[c.Case] || c.Field == "reject" {
+				continue
+			}
+			switch c.Field {
+			case "fee":
+				if c.Status == Differs {
+					hit[c.Case] = true
+					if c.Row != "shipping_fee" || c.Actual != nil || c.Note != "the sheet rejects with TOO_HEAVY" {
+						t.Errorf("mode %v: %+v", mode, c)
+					}
+				}
+			case "shippingCost":
+				if c.Status != Agrees && (c.Status != CannotTell || c.Note != "the call shipping-quote rejected with TOO_HEAVY") {
+					t.Errorf("mode %v: %+v", mode, c)
+				}
+			}
+		}
+		if len(hit) == 0 {
+			t.Fatalf("mode %v: no unsent fee reported: %+v", mode, r.Checks)
+		}
+		for id := range hit {
+			n := map[string]int{}
+			for _, c := range r.Checks {
+				if c.Case == id {
+					n[c.Field+" "+c.Status]++
+				}
+			}
+			if n["fee differs"] != 1 || n["reject differs"] != 1 {
+				t.Errorf("mode %v case %s: one fee and one reject check: %v", mode, id, n)
+			}
+			if n["shippingCost cannot-tell"] != 1 {
+				t.Errorf("mode %v case %s: Orders' cost cannot be told: %v", mode, id, n)
+			}
+		}
+	}
+}
+
+func TestTeamRejectReportsItsUnsentRequest(t *testing.T) {
+	// Orders reads a field order-placed does not carry: every case rejects
+	// with MISSING_INPUT in isolated mode, and the fields Orders did not
+	// send differ, naming the field.
+	orders := replaceIn(t, ordersSheet, `source = "request.tier"`, `source = "request.tierCode"`)
+	pm, teams := shop(t, map[string]string{ordersSheet: orders})
+	rej := rejecting(pm)
+	r := Run(pm, teams, Options{Mode: Isolated})
+	const note = "reads request.tierCode, which order-placed does not carry"
+	weight, cost := 0, 0
+	for _, c := range r.Checks {
+		if c.Team != "Orders team" {
+			continue
+		}
+		if c.Status != Differs || c.Note != note {
+			t.Errorf("%+v", c)
+		}
+		switch c.Field {
+		case "weight":
+			weight++
+		case "shippingCost":
+			cost++
+		}
+	}
+	if weight != r.Cases || cost != r.Cases-len(rej) {
+		t.Errorf("want %d weight and %d cost checks, got %d and %d: %+v", r.Cases, r.Cases-len(rej), weight, cost, r.Checks)
+	}
+}
+
+func TestEndToEndRejectAfterAnUnsureStageCannotTell(t *testing.T) {
+	// Cart has a reject on a context value the PM's case does not give, so
+	// the chain might have rejected there: Shipping's later reject, with
+	// the PM's code or another, is no evidence either way.
+	cart := replaceIn(t, cartSheet, `[[row]]
+id     = "weight"`, `[[row]]
+id     = "channel"
+name   = "Channel"
+source = "context.channel"
+type   = "string"
+
+  [[row.reject]]
+  when    = "channel == \"blocked\""
+  code    = "BLOCKED"
+  message = "Blocked channel"
+
+[[row]]
+id     = "weight"`)
+	for _, code := range []string{"TOO_HEAVY", "HEAVY"} {
+		ship := replaceIn(t, shippingSheet, `code    = "TOO_HEAVY"`, `code    = "`+code+`"`)
+		pm, teams := shop(t, map[string]string{cartSheet: cart, shippingSheet: ship})
+		rej := rejecting(pm)
+		if len(rej) == 0 {
+			t.Fatal("no rejecting case")
+		}
+		byCase := rejectChecks(Run(pm, teams, Options{Mode: EndToEnd}))
+		for id := range rej {
+			got := byCase[id]
+			if len(got) != 1 || got[0].Status != CannotTell || !strings.Contains(got[0].Note, "channel") {
+				t.Errorf("code %s, case %s: %+v", code, id, got)
+			}
+		}
+	}
+}
+
+func TestSeveralTeamFlowsCannotTell(t *testing.T) {
+	// Two Cart flows match: the sheet is not run, and, unlike no flow at
+	// all, the rule text does not decide either (NoFlow is not set).
+	for _, mode := range modes {
+		pm, all := shop(t, nil)
+		teams := func(team string) ([]*flow.Analysis, []string) {
+			fl, notes := all(team)
+			if team == "Cart team" {
+				fl = append(fl, fl[0])
+			}
+			return fl, notes
+		}
+		r := Run(pm, teams, Options{Mode: mode})
+		if countBy(r, "Cart team", "", CannotTell) == 0 {
+			t.Fatalf("mode %v: %+v", mode, r.Checks)
+		}
+		for _, c := range r.Checks {
+			if c.Team != "Cart team" {
+				continue
+			}
+			if c.Status != CannotTell || c.NoFlow || !strings.Contains(c.Note, "several flows of Cart team") {
+				t.Errorf("mode %v: %+v", mode, c)
+			}
+		}
+	}
+}
+
+func TestContextConfigAndDbInputsAreFedFromThePMsRows(t *testing.T) {
+	// The PM's sheet and the teams' sheets read the same context, config
+	// and db sources: each team gets the PM's value. Without it, the
+	// config and db rows have no design-time value and the context row is
+	// pending, so nothing would agree.
+	const (
+		weightRow = `[[row]]
+id     = "weight"`
+		channel = `[[row]]
+id     = "channel"
+name   = "Channel"
+source = "context.channel"
+type   = "string"
+
+`
+		rateAndBonus = `[[row]]
+id     = "rate"
+name   = "Rate"
+source = "config.rate"
+type   = "number"
+
+[[row]]
+id     = "bonus"
+name   = "Bonus"
+source = "db.bonus"
+type   = "number"
+
+`
+		tier = `uses    = ["member"]
+formula = "member ? \"Silver\" : \"Standard\""`
+		tierBy = `uses    = ["member", "channel"]
+formula = "member ? \"Silver\" : channel"`
+		fee = `uses    = ["weight"]
+formula = "weight * 2"`
+		feeFrom = `uses    = ["weight", "rate", "bonus"]
+formula = "weight * rate + bonus"`
+	)
+	// The PM's config and db rows have defaults; the teams' rows do not,
+	// so only feeding gives them a value.
+	pmRows := strings.ReplaceAll(rateAndBonus, `type   = "number"
+`, `type   = "number"
+default = 3
+`)
+	pmText := replaceIn(t, pmSheet, weightRow, channel+pmRows+weightRow)
+	pmText = strings.Replace(strings.Replace(pmText, tier, tierBy, 1), fee, feeFrom, 1)
+	cart := replaceIn(t, cartSheet, weightRow, channel+weightRow)
+	cart = strings.Replace(cart, tier, tierBy, 1)
+	ship := replaceIn(t, shippingSheet, weightRow, rateAndBonus+weightRow)
+	ship = strings.Replace(ship, fee, feeFrom, 1)
+	for _, mode := range modes {
+		pm, teams := shop(t, map[string]string{pmSheet: pmText, cartSheet: cart, shippingSheet: ship})
+		r := Run(pm, teams, Options{Mode: mode})
+		for _, c := range r.Checks {
+			if c.Status != Agrees {
+				t.Errorf("mode %v: %+v", mode, c)
+			}
+		}
+		if countBy(r, "Cart team", "tier", Agrees) == 0 || countBy(r, "Shipping team", "fee", Agrees) == 0 {
+			t.Errorf("mode %v: missing checks: %+v", mode, r.Checks)
+		}
+	}
+}

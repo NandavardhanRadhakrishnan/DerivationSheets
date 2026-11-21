@@ -129,7 +129,7 @@ func Run(o Options) (*Result, error) {
 			filled, why := cases.ReadFilled(headA.SheetDir)
 			rep := agree.Run(headA, agree.RegistryTeams(reg, fe, self), agree.Options{Mode: agree.Isolated, Filled: filled})
 			applyCases(rs, headA, rep)
-			explainCases(rs, rep, reg, why)
+			explainCases(rs, rep, why)
 		}
 	}
 	return &Result{Flow: headA.Flow.Slug, Base: short(base), Head: short(head), Requirements: rs}, nil
