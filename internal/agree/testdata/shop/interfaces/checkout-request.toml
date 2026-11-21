@@ -1,0 +1,15 @@
+interface = "checkout-request"
+title     = "checkout-request"
+kind      = "api-request"
+owner     = "Storefront team"
+status    = "existing"
+
+[[field]]
+name     = "member"
+type     = "boolean"
+required = true
+
+[[field]]
+name     = "weight"
+type     = "number"
+required = true

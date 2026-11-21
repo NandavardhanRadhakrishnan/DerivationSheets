@@ -1,0 +1,42 @@
+sheet   = "shop"
+version = 1
+title   = "Shop checkout (product)"
+
+[[row]]
+id     = "member"
+name   = "Member"
+source = "request.member"
+type   = "boolean"
+
+[[row]]
+id     = "weight"
+name   = "Weight"
+source = "request.weight"
+type   = "number"
+
+[[row]]
+id      = "tier"
+name    = "Tier"
+uses    = ["member"]
+formula = "member ? \"Silver\" : \"Standard\""
+
+[[row]]
+id      = "shipping_fee"
+name    = "Shipping fee"
+uses    = ["weight"]
+formula = "weight * 2"
+
+  [[row.reject]]
+  when    = "weight > 30"
+  code    = "TOO_HEAVY"
+  message = "Too heavy to ship"
+
+[[row]]
+id      = "shipping_cost"
+name    = "Shipping cost"
+uses    = ["tier", "shipping_fee"]
+formula = "tier == \"Silver\" ? shipping_fee / 2 : shipping_fee"
+
+  [row.send]
+  field = "shippingCost"
+  usage = "R"

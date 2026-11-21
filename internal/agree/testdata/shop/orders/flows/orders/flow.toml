@@ -1,0 +1,23 @@
+flow    = "orders"
+version = 1
+title   = "Orders"
+sheet   = "../../specs/orders"
+
+[input]
+interface = "../../../interfaces/order-placed.toml"
+
+[[stage]]
+id     = "quote"
+kind   = "call"
+caller = "Orders team"
+callee = "Shipping team"
+
+  [stage.request]
+  interface = "../../../interfaces/quote-request.toml"
+
+  [stage.response]
+  interface = "../../../interfaces/quote-response.toml"
+
+[output]
+interface = "../../../interfaces/payment-request.toml"
+producer  = "Orders team"

@@ -1,0 +1,15 @@
+interface = "order-placed"
+title     = "order-placed"
+kind      = "kafka-topic"
+owner     = "Cart team"
+status    = "existing"
+
+[[field]]
+name     = "tier"
+type     = "string"
+required = true
+
+[[field]]
+name     = "weight"
+type     = "number"
+required = true

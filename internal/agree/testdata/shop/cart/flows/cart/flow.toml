@@ -1,0 +1,11 @@
+flow    = "cart"
+version = 1
+title   = "Cart"
+sheet   = "../../specs/cart"
+
+[input]
+interface = "../../../interfaces/checkout-request.toml"
+
+[output]
+interface = "../../../interfaces/order-placed.toml"
+producer  = "Cart team"
