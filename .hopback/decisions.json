@@ -60,6 +60,293 @@
       "decided_at": "2026-11-06T15:06:20.0973044Z",
       "source_session": "20261106T145500Z-e1f7ac",
       "recorded_by": "claude-code"
+    },
+    {
+      "id": "D-6",
+      "title": "Formatter scope: should dsheets fmt (T-7) normalise value text or only layout?",
+      "status": "decided",
+      "context": "Raised when editor M1 merged (tomledit.Format re-lays out spans but keeps each value's text as written; the editor writes canonical text only for values it changed). Developer chose on 2026-11-06 to settle this when T-7 starts. Concierge recommended layout only.",
+      "options": [
+        {
+          "name": "Layout only",
+          "tradeoffs": "key order, alignment, indentation; 0.10 stays 0.10 and hand-aligned decision tables keep their spacing. Free on tomledit.Format; identical to what the editor writes, so the two never disagree."
+        },
+        {
+          "name": "Layout and values",
+          "tradeoffs": "fully uniform files, but hand-aligned decision-table cells lose their alignment (less readable in raw TOML) and tomledit needs a value-normalising mode."
+        }
+      ],
+      "decision": "Layout only: dsheets fmt normalises key order, alignment and indentation, and keeps each value's text as written.",
+      "rationale": "Free on tomledit.Format and identical to what the editor writes, so the two never disagree; hand-aligned decision tables keep their spacing and 0.10 stays 0.10.",
+      "created_at": "2026-11-06T17:19:01.5289085Z",
+      "decided_at": "2026-11-11T16:42:41.0955834Z",
+      "source_session": "20261106T171527Z-3e06d5",
+      "recorded_by": "claude-code"
+    },
+    {
+      "id": "D-7",
+      "title": "Build editor M2 (T-2) next, starting with an independent review of M1",
+      "status": "decided",
+      "context": "Concierge session 2026-11-06, after M1 (internal/store, internal/tomledit) merged as PR #2 with only a self-review. Alternatives weighed: T-7 formatter first (small; keeps editor diffs tight in repos not yet in canonical layout, but example files already are, so it does not block T-2); T-8 lists design first (only open format question; would avoid reworking RowData and panel forms, but it is a wide design conversation and nothing is blocked).",
+      "decision": "Build T-2 next. Its first step is a fresh independent review (e.g. /code-review) of the M1 merge 9c5c18a, with fixes on the T-2 branch before plan Task 5. T-5 and T-6 review flags cleared (no scope change; they read committed content via store.Committed). T-7 stays flagged until its fmt-scope decision is made.",
+      "rationale": "T-2 is the first milestone people can use, the reason for the editor (D-3, D-4); T-3 and T-4 depend on it; the plan already breaks it into tasks 5-9 with tests. M2 builds directly on tomledit, whose byte-for-byte guarantee is the editor's core promise, so a fresh review before building on it is cheap insurance.",
+      "created_at": "2026-11-06T17:19:01.5860105Z",
+      "decided_at": "2026-11-06T17:19:01.5860105Z",
+      "source_session": "20261106T171527Z-3e06d5",
+      "recorded_by": "claude-code"
+    },
+    {
+      "id": "D-8",
+      "title": "Input rows may have reject conditions",
+      "status": "decided",
+      "context": "The validator refuses [[row.reject]] on input rows (error reject-on-input: 'reject conditions belong on derived rows; add a derived row for the check'), and docs/format.md lists rejects for derived rows only. The rule dates from the first commit (86c264c) with no recorded reason. Raised while testing the M2 editor, which offers Add reject on input rows.",
+      "decision": "Allow reject conditions on input rows.",
+      "rationale": "Developer: logically input rows should also allow rejections; there is no reason they should not, and the restriction was probably overlooked when format.md was written. Input rows can already reject (a missing required input rejects with MISSING_INPUT).",
+      "created_at": "2026-11-06T18:51:08.682979Z",
+      "decided_at": "2026-11-06T18:51:08.682979Z",
+      "source_session": "20261106T171929Z-7646f2",
+      "recorded_by": "claude-code"
+    },
+    {
+      "id": "D-9",
+      "title": "Which rows may an input row's reject condition name?",
+      "status": "decided",
+      "context": "Raised while building T-19 (PR #4, merged 615de84). As built, an input row's reject names rows directly (inputs have no uses) and may name any row, including derived ones, matching what an input's when already allows; the graph orders the input after them and the validator reports cycles. T-19's description could be read as 'the row itself and other inputs' only. Developer asked at the end of the session; not answered yet.",
+      "options": [
+        {
+          "name": "Any row (as built)",
+          "tradeoffs": "consistent with an input's when; an input check may depend on a derived value, which delays reading that input until the value is computed."
+        },
+        {
+          "name": "The row itself and other inputs only",
+          "tradeoffs": "keeps input checks about the request; needs a small extra validator check and a doc line."
+        }
+      ],
+      "decision": "The row itself and other inputs only. An input row's reject may not name derived rows; a check that needs a derived value is written as a reject on that derived row.",
+      "rationale": "Developer, 2026-11-08: if required, the user can write it in the derived row. Nothing is lost, because a derived row's reject can name anything in its uses. It avoids the cycle trap (an input reject naming a derived row that uses that input, such as subtotal -\u003e discount) and keeps input rejects as checks on the request itself. An input's `when` may still name derived rows, because it decides whether the input is required at all. Neither specs/order-checkout nor examples/pieces/2-orders-team has an input reject today.",
+      "created_at": "2026-11-06T19:20:43.7475671Z",
+      "decided_at": "2026-11-07T18:34:54.8992503Z",
+      "source_session": "20261106T185805Z-e822c4",
+      "recorded_by": "claude-code"
+    },
+    {
+      "id": "D-10",
+      "title": "Editor: how an edit shows on the sheet before saving",
+      "status": "decided",
+      "context": "T-17. The developer asked for a 'save in the panel'; clarified 2026-11-07 they meant an in-place visual update to review before the real Save, not a write. An 'Update sheet' button was built, then removed at the developer's request because the sheet already redraws when typing pauses.",
+      "options": [
+        {
+          "name": "Live redraw only",
+          "tradeoffs": "the sheet redraws from the draft ~0.4s after typing stops; no panel button"
+        },
+        {
+          "name": "Live redraw plus an Update sheet button",
+          "tradeoffs": "redundant with the live redraw"
+        }
+      ],
+      "decision": "Live redraw only, no panel button; Save in the bottom bar is the only write",
+      "rationale": "Developer: the button adds nothing when the sheet already updates in 0.4s",
+      "created_at": "2026-11-07T18:25:42.5192927Z",
+      "decided_at": "2026-11-07T18:25:42.5192927Z",
+      "source_session": "20261107T182511Z-37d6ef",
+      "recorded_by": "claude-code"
+    },
+    {
+      "id": "D-11",
+      "title": "Loose ends not put in the backlog (2026-11-08)",
+      "status": "decided",
+      "context": "The concierge offered to add carried-over items from past handoffs to the backlog. The developer added two (broken-sheet repair, editor polish) and chose not to add the others.",
+      "decision": "Not in the backlog: an independent /code-review of PRs #3-#7, and the tomledit bug where a comment inside an empty [] list attaches to the next item.",
+      "rationale": "The developer's choice in the 2026-11-08 concierge session; no reason given. Don't offer them again unless something changes.",
+      "created_at": "2026-11-07T19:07:00.3122228Z",
+      "decided_at": "2026-11-07T19:07:00.3122228Z",
+      "source_session": "20261107T190519Z-968c78",
+      "recorded_by": "claude-code"
+    },
+    {
+      "id": "D-12",
+      "title": "Show every decision table as a rule table; drop the 2-input cross-tab",
+      "status": "decided",
+      "context": "The developer found the sheet page's 2-input decision table (loyalty_tier: corner 'is_member ╲ customer_years', one input down the side, one across the top) hard to understand, and thought it could not show more than two inputs. The format has no such limit; internal/render/rule.go tableHTML draws 1 input as an inline list, 2 inputs as a cross-tab (grid2D), and 3+ inputs (or a too-large grid) as a rule table (compactTable). The T-3 editor uses the rule-list form, so a cross-tab view would show the same table in two shapes.",
+      "options": [
+        {
+          "name": "Rule table + grid toggle",
+          "tradeoffs": "rule table by default, cross-tab as an optional view for 2-input tables"
+        },
+        {
+          "name": "Rule table only",
+          "tradeoffs": "drop the cross-tab; every table looks the same"
+        },
+        {
+          "name": "Keep grid, label it",
+          "tradeoffs": "cross-tab for 2 inputs with clear axis labels"
+        }
+      ],
+      "decision": "Rule table only: one row per rule, one column per input, then the result column and the hit policy, for every decision table, matching the file and the T-3 editor. The 2-input cross-tab (grid2D) goes. Done in T-3's first PR.",
+      "rationale": "Developer's choice (2026-11-08): one consistent shape that works for any number of inputs and matches what the editor edits. The cross-tab's one advantage (seeing gaps and overlaps) is not needed as a separate view because T-3 flags gaps and overlaps while editing.",
+      "created_at": "2026-11-07T19:14:48.0258075Z",
+      "decided_at": "2026-11-07T19:14:48.0258075Z",
+      "source_session": "20261107T190519Z-968c78",
+      "recorded_by": "claude-code"
+    },
+    {
+      "id": "D-13",
+      "title": "T-3 editor: how table cells are edited and what the case list shows",
+      "status": "decided",
+      "context": "Asked at the start of T-3 (2026-11-08).",
+      "options": [
+        {
+          "name": "Free-text cells",
+          "tradeoffs": "type what the file holds (\u003e= 2, -, Gold, true)"
+        },
+        {
+          "name": "Operator + value",
+          "tradeoffs": "a dropdown and a value box per cell"
+        }
+      ],
+      "decision": "Free-text cells. The case list shows, per case, the values of the rows the selected row uses and its result (or why there is none).",
+      "rationale": "Developer's choice; free text is fastest for people who know the format, and seeing the inputs explains each result without leaving the panel.",
+      "created_at": "2026-11-08T13:34:28.3091362Z",
+      "decided_at": "2026-11-08T13:34:28.3091362Z",
+      "source_session": "20261108T130858Z-a2cfbc",
+      "recorded_by": "claude-code"
+    },
+    {
+      "id": "D-14",
+      "title": "Keep values_file CSVs once lookups can hold multi-key values inline?",
+      "status": "superseded",
+      "context": "Raised by the developer on 2026-11-08 during T-3: lookup data really lives in a database, so the repo only needs design-time sample values, and an editable table in the panel is enough. See the task for inline multi-key values.",
+      "options": [
+        {
+          "name": "Remove values_file",
+          "tradeoffs": "one way to write lookup data, all of it editable in the panel; the example CSVs move into sheet.toml; any sheet using values_file must be migrated (only this repo's examples today)"
+        },
+        {
+          "name": "Keep both, the editor writes inline",
+          "tradeoffs": "nothing breaks; CSV-backed lookups stay read-only in the editor; two ways to write the same thing"
+        }
+      ],
+      "created_at": "2026-11-08T14:02:18.4456591Z",
+      "source_session": "20261108T130858Z-a2cfbc",
+      "recorded_by": "claude-code"
+    },
+    {
+      "id": "D-15",
+      "title": "Brainstorm: how should dsheets handle database-backed lookups?",
+      "status": "open",
+      "context": "Developer, 2026-11-08, during T-3's lookup form: in real code lookup data lives in a database, so values_file CSVs in the repo are an outlier. To be settled in a brainstorming session, not decided yet. Questions to cover: what a lookup's design-time values are for (cases, validation of gaps and overlaps, the sheet page); whether they live inline in sheet.toml (multi-key with ranges, as [row.table] has), in CSVs, or are read from the real database or a snapshot (see T-14); whether values_file stays; how the editor shows and edits them. Today: inline values take one key; specs/order-checkout's zone and shipping_fee use CSVs; the editor shows CSV data read-only (branch editor-m3-lookups).",
+      "supersedes": "D-14",
+      "created_at": "2026-11-08T14:08:36.2847391Z",
+      "source_session": "20261108T130858Z-a2cfbc",
+      "recorded_by": "claude-code"
+    },
+    {
+      "id": "D-16",
+      "title": "Flow editor: what the panel offers for warning (⚠) and rowless missing (✕) marks",
+      "status": "decided",
+      "context": "T-4 planning, 2026-11-08. The spec's 'add field or map to an existing field' fits ✕ marks; ⚠ means the field exists but does not fit (optional when always needed, wrong type, enum). Some ✕ marks have no row (a required field nothing produces, e.g. payment-request currency).",
+      "options": [
+        {
+          "name": "Map + fix the field",
+          "tradeoffs": "map to another field, plus 'make required' and 'change type' on interface files in this repository; enum mismatches read-only"
+        },
+        {
+          "name": "Map only",
+          "tradeoffs": "as the spec says; fixes stay hand edits"
+        },
+        {
+          "name": "Read-only",
+          "tradeoffs": "only ✕ marks get actions"
+        }
+      ],
+      "decision": "⚠: map to another field, plus 'make required' (optional when always needed) and 'change type' (type mismatch) on interface files in this repository; enum mismatches stay read-only. Rowless ✕ marks stay in the To agree list, not handled in M4. T-4 ships as one PR.",
+      "rationale": "Developer's choice. Enum fixes are usually a send map on the sheet; rowless gaps are usually fixed by a new row on the sheet page.",
+      "created_at": "2026-11-08T15:54:38.296946Z",
+      "decided_at": "2026-11-08T15:54:38.296946Z",
+      "source_session": "20261108T155142Z-60972e",
+      "recorded_by": "claude-code"
+    },
+    {
+      "id": "D-17",
+      "title": "Should dsheets diff prefer the registry's followed branch as its default base?",
+      "status": "decided",
+      "context": "T-5 resolves the default base from git (origin/HEAD, origin/main, origin/master, main, master). dsheets impact instead uses the branch the registry follows. Raised in the T-5 design review; left open in PR #13.",
+      "options": [
+        {
+          "name": "Yes, registry branch first",
+          "tradeoffs": "diff and impact never disagree about the base; needs the registry resolver reachable from diff"
+        },
+        {
+          "name": "No, git chain only",
+          "tradeoffs": "diff stays usable with no registry; two commands may pick different bases"
+        }
+      ],
+      "decision": "Yes: dsheets diff prefers the registry's followed branch as its default base, falling back to the git chain (origin/HEAD, origin/main, origin/master, main, master) when there is no registry.",
+      "rationale": "diff and impact should never disagree about the base. Developer chose this on 2026-11-13.",
+      "created_at": "2026-11-13T17:18:38.5406387Z",
+      "decided_at": "2026-11-13T17:22:09.9824098Z",
+      "source_session": "20261113T171054Z-25cbeb",
+      "recorded_by": "claude-code"
+    },
+    {
+      "id": "D-18",
+      "title": "T-6: requirements come from comparing the flow analysed at base and at head",
+      "status": "decided",
+      "context": "Developer approved the design in docs/superpowers/specs/2026-11-13-requirements-design.md on 2026-11-14.",
+      "decision": "`dsheets requirements \u003cflow\u003e` compares flow.Analyze at the base and at head and writes a flat, dependency-ordered list per team: Compute, Send, Receive, Carry, Schema. diff.Report only supplies before/after text and the label filter. dsheets does not group requirements into tickets and does not order teams against each other.",
+      "rationale": "diff.Report sees only the repository being diffed, cannot tell a new Send from an existing one and has no Carry; the analysis already resolves the flow across repositories. Ticket grouping and cross-team coordination belong to the team lead or PM.",
+      "created_at": "2026-11-14T07:05:06.0335854Z",
+      "decided_at": "2026-11-14T07:05:06.0335854Z",
+      "source_session": "20261114T063822Z-600652",
+      "recorded_by": "claude-code"
+    },
+    {
+      "id": "D-19",
+      "title": "T-6: --apply writes interface edits only, on a pushed new branch in the owner repo",
+      "status": "decided",
+      "context": "Interfaces are the minimum every team has; teams document at different depths.",
+      "decision": "`--apply` makes a sparse shallow clone of the owner repo's dsheets folder, cuts a new branch (default dsheets/\u003cflow\u003e, or --branch alias=name) from the branch the registry names for that repo, edits the interface with tomledit, commits and pushes it (--no-push to stop locally). It never touches existing branches, never force-pushes, never pushes to the default branch, and does not open the pull request. A team's own internal sheets or docs are updated by the team; dsheets neither writes them nor lists an item.",
+      "rationale": "The interface change rides in the owner's development PR with the code so a reviewer sees both. The developer renames the branch and starts work. No platform API is needed.",
+      "created_at": "2026-11-14T07:05:06.0335854Z",
+      "decided_at": "2026-11-14T07:05:06.0335854Z",
+      "source_session": "20261114T063822Z-600652",
+      "recorded_by": "claude-code"
+    },
+    {
+      "id": "D-20",
+      "title": "T-6: the flow pull request merges after development; no shared branch names",
+      "status": "decided",
+      "context": "Teams use their own branch naming (initials, sprint, user story, description).",
+      "decision": "The PM's flow PR stays open as the agreement and merges last, after the owner PRs, so every alias is read from its followed branch and no branch lookup in other repositories is needed. Requirements are recomputed from git and shrink as owner PRs merge. PRs are linked by stable requirement ids, a record file written by --apply (changes/\u003clabel\u003e.md) that survives squash, and a printed PR description; branch names and trailers are never relied on.",
+      "rationale": "Keeps main describing what is live and keeps the diff recomputable; works with any team's naming and any merge style.",
+      "created_at": "2026-11-14T07:05:06.0335854Z",
+      "decided_at": "2026-11-14T07:05:06.0335854Z",
+      "source_session": "20261114T063822Z-600652",
+      "recorded_by": "claude-code"
+    },
+    {
+      "id": "D-21",
+      "title": "Requirements close from the owners' own sheets on the branch the registry follows (approach A)",
+      "status": "decided",
+      "context": "T-30 brainstorm, 2026-11-14, developer decisions. A merged owner sheet is taken to mean the team's code is merged and working; dsheets never reads code. Done items drop out of the list like Schema items, with a count. A team with no sheet shows 'not documented', separate from open, and does not block the flow merge. Approaches considered: A read the owner's sheets (chosen), B re-run flow analysis on the owner's flow, C teams list finished ids in a record file. The rule from the PM's sheet travels with each Compute item. There is no release-order guard: merged is not released, ordering between teams is a release concern, not dsheets'. Design: docs/superpowers/specs/2026-11-14-requirements-done-check-design.md.",
+      "decision": "Approach A: an item is done when the owner's own sheets on the registry-followed branch show the work; no sheet means not documented (never done, never blocking); done items are hidden and counted; Compute items carry the rule; no ordering guard between teams.",
+      "rationale": "Matches the developer's assumption that a merged sheet means merged, working code, covers teams that document at different depths without wrongly marking work done, and needs no extra file or flow in the owner's repo. Option C was rejected as a second mechanism; B only works for teams with flows.",
+      "created_at": "2026-11-14T18:52:46.2778065Z",
+      "decided_at": "2026-11-14T18:52:46.2778065Z",
+      "source_session": "20261114T184305Z-20ccda",
+      "recorded_by": "claude-code"
+    },
+    {
+      "id": "D-22",
+      "title": "T-30 fixes from the whole-branch review: boundary-aware matching, never close on a guess",
+      "status": "decided",
+      "context": "Final review of T-30 found false-close cases; fixes made 2026-11-14 and committed. Recorded so the matching rules are not loosened later.",
+      "decision": "Send closes only at its boundary (call request by a send to that stage, anything else by the sheet's own target); Receive only from the request, or call.\u003cstage\u003e.\u003cfield\u003e for a response, never config, db or context; the rule comparison covers every non-label field of the row; items owned by the flow's own repository, and absence-evidence when a sheet cannot be read, are not documented; every repository of a team is read.",
+      "rationale": "The spec's anti-goal: an item must never close on a guess. Each rule was reproduced as a false done in the Acme sandbox before it was fixed.",
+      "created_at": "2026-11-14T18:52:46.3727066Z",
+      "decided_at": "2026-11-14T18:52:46.3727066Z",
+      "source_session": "20261114T184305Z-20ccda",
+      "recorded_by": "claude-code"
     }
   ]
 }

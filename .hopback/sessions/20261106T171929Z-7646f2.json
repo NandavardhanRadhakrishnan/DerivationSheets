@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "id": "20261106T171929Z-7646f2",
+  "project_id": "e790ba3d-ea34-4612-a843-85ab5e393eb0",
+  "role": "build",
+  "agent": "claude-code",
+  "native_session_id": "6945ee8c-2bd3-4e98-b8d0-329c0626acb7",
+  "name": "hopback build: T-2 Editor M2: sheet editing (inputs, formul",
+  "objective_task_id": "T-2",
+  "status": "parked",
+  "launched": true,
+  "started_at": "2026-11-06T17:19:29.1988121Z",
+  "ended_at": "2026-11-06T18:57:47.900157Z",
+  "parked_at": "2026-11-06T18:57:26.8356482Z",
+  "handoff": "sessions/20261106T171929Z-7646f2.md"
+}

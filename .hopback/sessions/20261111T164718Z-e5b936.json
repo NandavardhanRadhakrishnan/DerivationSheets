@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "id": "20261111T164718Z-e5b936",
+  "project_id": "e790ba3d-ea34-4612-a843-85ab5e393eb0",
+  "role": "build",
+  "agent": "claude-code",
+  "native_session_id": "4f5fc210-3202-4685-a25d-0f8c18f4799d",
+  "name": "hopback build: T-7 Formatter and pre-commit hook",
+  "objective_task_id": "T-7",
+  "status": "parked",
+  "launched": true,
+  "started_at": "2026-11-11T16:47:18.5277785Z",
+  "ended_at": "2026-11-11T16:53:52.4672409Z",
+  "parked_at": "2026-11-11T16:53:42.9197552Z",
+  "handoff": "sessions/20261111T164718Z-e5b936.md"
+}

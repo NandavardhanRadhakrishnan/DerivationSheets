@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "id": "20261111T172512Z-c2c9ea",
+  "project_id": "e790ba3d-ea34-4612-a843-85ab5e393eb0",
+  "role": "build",
+  "agent": "claude-code",
+  "native_session_id": "7df44818-a298-4f2f-979b-16ffe94af9dd",
+  "name": "hopback build: T-5 Row-level diffs for pull requests",
+  "objective_task_id": "T-5",
+  "status": "interrupted",
+  "launched": true,
+  "started_at": "2026-11-11T17:25:12.5661099Z",
+  "ended_at": "2026-11-13T17:10:44.5792636Z"
+}

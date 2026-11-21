@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "id": "20261113T172620Z-cb4353",
+  "project_id": "e790ba3d-ea34-4612-a843-85ab5e393eb0",
+  "role": "build",
+  "agent": "claude-code",
+  "native_session_id": "9081ba57-e6fa-431a-8fb8-87b14fd1669a",
+  "name": "hopback build: T-25 dsheets diff: default base prefers the r",
+  "objective_task_id": "T-25",
+  "status": "parked",
+  "launched": true,
+  "started_at": "2026-11-13T17:26:20.6401971Z",
+  "ended_at": "2026-11-13T17:39:44.7041791Z",
+  "parked_at": "2026-11-13T17:39:35.3714309Z",
+  "handoff": "sessions/20261113T172620Z-cb4353.md"
+}

@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "id": "20261108T130858Z-a2cfbc",
+  "project_id": "e790ba3d-ea34-4612-a843-85ab5e393eb0",
+  "role": "build",
+  "agent": "claude-code",
+  "native_session_id": "a399e339-5e42-4c53-a455-984ba6dc2adb",
+  "name": "hopback build: T-3 Editor M3: decision tables, lookups and ",
+  "objective_task_id": "T-3",
+  "status": "parked",
+  "launched": true,
+  "started_at": "2026-11-08T13:08:58.6460471Z",
+  "ended_at": "2026-11-08T15:42:08.2009398Z",
+  "parked_at": "2026-11-08T14:14:24.5192444Z",
+  "handoff": "sessions/20261108T130858Z-a2cfbc.md"
+}

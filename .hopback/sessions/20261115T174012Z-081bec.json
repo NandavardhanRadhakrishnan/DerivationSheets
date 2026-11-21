@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "id": "20261115T174012Z-081bec",
+  "project_id": "e790ba3d-ea34-4612-a843-85ab5e393eb0",
+  "role": "build",
+  "agent": "claude-code",
+  "native_session_id": "90ab4caf-36f0-49ce-837f-f6b32606a416",
+  "name": "hopback build (reopened)",
+  "objective_task_id": "T-32",
+  "status": "active",
+  "launched": true,
+  "resumed_from": "20261115T163653Z-d64ecc",
+  "started_at": "2026-11-15T17:40:12.6030819Z"
+}

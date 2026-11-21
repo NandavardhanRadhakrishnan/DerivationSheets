@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "id": "20261114T071528Z-bc2b91",
+  "project_id": "e790ba3d-ea34-4612-a843-85ab5e393eb0",
+  "role": "concierge",
+  "agent": "claude-code",
+  "native_session_id": "297fb1ef-c7c1-4dc8-8e4d-1322842ffea7",
+  "name": "hopback concierge: DerivationSheets",
+  "status": "completed",
+  "launched": true,
+  "started_at": "2026-11-14T07:15:28.463812Z",
+  "ended_at": "2026-11-14T07:17:57.4499859Z"
+}
