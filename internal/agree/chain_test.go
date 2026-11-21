@@ -432,3 +432,159 @@ func TestExpectedValuesAreWireValues(t *testing.T) {
 		}
 	}
 }
+
+// rejectChecks maps each case to its reject checks.
+func rejectChecks(r *Report) map[string][]Check {
+	m := map[string][]Check{}
+	for _, c := range r.Checks {
+		if c.Field == "reject" {
+			m[c.Case] = append(m[c.Case], c)
+		}
+	}
+	return m
+}
+
+// pmReject is the TOO_HEAVY reject block of the PM sheet and of
+// Shipping's sheet, for moving or removing it.
+const pmReject = `
+
+  [[row.reject]]
+  when    = "weight > 30"
+  code    = "TOO_HEAVY"
+  message = "Too heavy to ship"
+`
+
+func TestEndToEndRejectPlacedEarlierAgrees(t *testing.T) {
+	// Probe A: the PM rejects on the input row weight (step 0, Cart); the
+	// teams' chain still rejects at Shipping with the same code.
+	pmText := replaceIn(t, pmSheet, pmReject, "\n")
+	pmText = strings.Replace(pmText, `source = "request.weight"
+type   = "number"
+`, `source = "request.weight"
+type   = "number"
+`+strings.TrimPrefix(pmReject, "\n"), 1)
+	pm, teams := shop(t, map[string]string{pmSheet: pmText})
+	rej := rejecting(pm)
+	if len(rej) == 0 {
+		t.Fatal("no rejecting case")
+	}
+	for _, c := range pmCases(pm, Options{}) {
+		if c.Res.Reject != nil && (c.Res.Reject.Row != "weight" || pm.Place[c.Res.Reject.Row] != 0) {
+			t.Fatalf("the PM's reject is at %+v", c.Res.Reject)
+		}
+	}
+	e2e := Run(pm, teams, Options{Mode: EndToEnd})
+	byCase := rejectChecks(e2e)
+	for id := range rej {
+		got := byCase[id]
+		if len(got) != 1 || got[0].Team != "Shipping team" || got[0].Status != Agrees || got[0].Expected != "TOO_HEAVY" || got[0].Row != "weight" ||
+			!strings.Contains(got[0].Note, "Cart team") {
+			t.Errorf("end to end, case %s: %+v", id, got)
+		}
+	}
+	for _, c := range e2e.Checks {
+		if c.Status != Agrees {
+			t.Errorf("end to end: %+v", c)
+		}
+		if rej[c.Case] && c.Field != "reject" && c.Boundary > 0 {
+			t.Errorf("end to end: no field after the PM's reject: %+v", c)
+		}
+	}
+	// Isolated, the reject belongs to Cart, which does not make it.
+	iso := Run(pm, teams, Options{Mode: Isolated})
+	for id := range rej {
+		got := rejectChecks(iso)[id]
+		if len(got) != 1 || got[0].Team != "Cart team" || got[0].Status != Differs || got[0].Actual != none {
+			t.Errorf("isolated, case %s: %+v", id, got)
+		}
+	}
+}
+
+func TestEndToEndCalleeRejectIsJudged(t *testing.T) {
+	// Probe B: the PM rejects on parcel_weight, which Orders computes
+	// before the call (step 1); the teams' chain rejects inside the call,
+	// at Shipping, with the same code.
+	pmText := replaceIn(t, pmSheet, `[[row]]
+id      = "shipping_fee"
+name    = "Shipping fee"
+uses    = ["weight"]
+formula = "weight * 2"
+`+strings.TrimPrefix(pmReject, "\n"), `[[row]]
+id      = "parcel_weight"
+name    = "Parcel weight"
+uses    = ["weight"]
+formula = "weight"
+`+strings.TrimPrefix(pmReject, "\n")+`
+[[row]]
+id      = "shipping_fee"
+name    = "Shipping fee"
+uses    = ["parcel_weight"]
+formula = "parcel_weight * 2"
+`)
+	flowText := replaceIn(t, "product/flows/shop/flow.toml", `callee_computes = ["shipping_fee"]`, `computes = ["parcel_weight"]
+callee_computes = ["shipping_fee"]`)
+	flowText = strings.Replace(flowText, `interface = "../../../interfaces/quote-request.toml"`, `interface = "../../../interfaces/quote-request.toml"
+  carries   = { weight = "parcel_weight" }`, 1)
+	pm, teams := shop(t, map[string]string{pmSheet: pmText, "product/flows/shop/flow.toml": flowText})
+	rej := rejecting(pm)
+	if len(rej) == 0 {
+		t.Fatal("no rejecting case")
+	}
+	for _, c := range pmCases(pm, Options{}) {
+		if c.Res.Reject != nil && pm.Place[c.Res.Reject.Row] != 1 {
+			t.Fatalf("the PM's reject %+v is placed at %d", c.Res.Reject, pm.Place[c.Res.Reject.Row])
+		}
+	}
+	e2e := Run(pm, teams, Options{Mode: EndToEnd})
+	byCase := rejectChecks(e2e)
+	for id := range rej {
+		got := byCase[id]
+		if len(got) != 1 || got[0].Team != "Shipping team" || got[0].Status != Agrees || got[0].Row != "parcel_weight" {
+			t.Errorf("end to end, case %s: %+v", id, got)
+		}
+	}
+	for _, c := range e2e.Checks {
+		if c.Status != Agrees {
+			t.Errorf("end to end: %+v", c)
+		}
+	}
+}
+
+func TestEndToEndRejectWithAnotherCodeExpectsThePMs(t *testing.T) {
+	// Orders rejects heavy orders itself with its own code; the PM rejects
+	// later, at Shipping, with TOO_HEAVY.
+	orders := replaceIn(t, ordersSheet, `source = "request.weight"
+type   = "number"
+`, `source = "request.weight"
+type   = "number"
+
+  [[row.reject]]
+  when    = "weight > 30"
+  code    = "HEAVY_ORDER"
+  message = "Too heavy"
+`)
+	pm, teams := shop(t, map[string]string{ordersSheet: orders})
+	rej := rejecting(pm)
+	byCase := rejectChecks(Run(pm, teams, Options{Mode: EndToEnd}))
+	for id := range rej {
+		got := byCase[id]
+		if len(got) != 1 || got[0].Team != "Orders team" || got[0].Status != Differs || got[0].Expected != "TOO_HEAVY" || got[0].Actual != "HEAVY_ORDER" {
+			t.Errorf("case %s: %+v", id, got)
+		}
+	}
+}
+
+func TestEndToEndUnrejectedCaseIsOneCheck(t *testing.T) {
+	// Shipping no longer rejects: the chain never does, so the PM's reject
+	// differs once, at the team it is placed with.
+	ship := replaceIn(t, shippingSheet, pmReject, "\n")
+	pm, teams := shop(t, map[string]string{shippingSheet: ship})
+	rej := rejecting(pm)
+	byCase := rejectChecks(Run(pm, teams, Options{Mode: EndToEnd}))
+	for id := range rej {
+		got := byCase[id]
+		if len(got) != 1 || got[0].Team != "Shipping team" || got[0].Status != Differs || got[0].Expected != "TOO_HEAVY" || got[0].Actual != none {
+			t.Errorf("case %s: %+v", id, got)
+		}
+	}
+}
