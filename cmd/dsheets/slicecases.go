@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"slices"
 	"strings"
 
@@ -16,52 +15,37 @@ import (
 
 // sliceCases runs the PM's generated cases through each team's own sheet,
 // end to end, prints where the teams differ, and returns the report.
-func sliceCases(out io.Writer, a *flow.Analysis, fe *sources.Fetcher) (*agree.Report, error) {
+func sliceCases(out io.Writer, a *flow.Analysis, fe *sources.Fetcher) *agree.Report {
 	cwd, err := os.Getwd()
 	if err != nil {
-		return nil, err
+		cwd = "."
 	}
 	root := sources.RepoRoot(cwd)
-	reg, err := sources.NewResolver(root, nil, fe).Registered()
-	if err != nil {
-		return nil, err
-	}
 	var teams agree.TeamFlows
-	if reg == nil {
+	reg, err := sources.NewResolver(root, nil, fe).Registered()
+	switch {
+	case err != nil:
+		fmt.Fprintf(out, "\nregistry: %v; team flows cannot be found\n", err)
+	case reg == nil:
 		fmt.Fprintln(out, "\nno registry: team flows cannot be found")
-	} else {
-		teams = agree.RegistryTeams(reg, fe, selfAlias(root, reg))
+	default:
+		teams = agree.RegistryTeams(reg, fe, sources.SelfAlias(reg, sources.OriginURL(root)))
 	}
 	opt := agree.Options{Mode: agree.EndToEnd}
 	if p := cases.Path(a.SheetDir); fileExists(p) {
 		if opt.Filled, err = cases.Read(p); err != nil {
-			return nil, err
+			fmt.Fprintf(out, "\n%s could not be read: %v; running without its filled values\n", p, err)
+			opt.Filled = nil
 		}
 	}
 	rep := agree.Run(a, teams, opt)
 	printAgreement(out, rep)
-	return rep, nil
+	return rep
 }
 
 func fileExists(p string) bool {
 	_, err := os.Stat(p)
 	return err == nil
-}
-
-// selfAlias is this repository's alias in the registry, "" when it has none.
-func selfAlias(root string, reg map[string]sources.Source) string {
-	o, err := exec.Command("git", "-C", root, "remote", "get-url", "origin").Output()
-	origin := strings.TrimSpace(string(o))
-	if err != nil || origin == "" {
-		return ""
-	}
-	best := ""
-	for alias, src := range reg {
-		if sources.SameRepo(src.Git, origin) && (best == "" || alias < best) {
-			best = alias
-		}
-	}
-	return best
 }
 
 // printAgreement prints one line per team, then the checks that differ or

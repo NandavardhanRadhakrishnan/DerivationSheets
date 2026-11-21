@@ -240,24 +240,25 @@ func replaceInFile(t *testing.T, path, old, new string) {
 	}
 }
 
-// A PM repository whose registry lists the team repositories: the cases run
-// through each team's own sheet, and a team that gets a rule wrong is named.
-func TestSliceCases(t *testing.T) {
+// shopWorld builds a PM repository and the team repositories its registry
+// lists, from the shop fixture. With registry false the PM repository has no
+// registry and reads the interfaces through a source of its own flow.
+func shopWorld(t *testing.T, registry bool) (pm, repos string) {
+	t.Helper()
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not installed")
 	}
 	fixture := filepath.Join("..", "..", "internal", "agree", "testdata", "shop")
 	root := t.TempDir()
-	pm := filepath.Join(root, "pm")
-	repos := filepath.Join(root, "repos")
+	pm = filepath.Join(root, "pm")
+	repos = filepath.Join(root, "repos")
 	url := func(name string) string { return filepath.ToSlash(filepath.Join(repos, name)) }
 
 	// The interfaces live in a repository of their own, named by alias.
 	copyDir(t, filepath.Join(fixture, "interfaces"), filepath.Join(repos, "shop", "interfaces"))
 	teams := map[string]string{"cart": "Cart", "orders": "Orders", "shipping": "Shipping"}
-	for dir, team := range teams {
+	for dir := range teams {
 		copyDir(t, filepath.Join(fixture, dir), filepath.Join(repos, dir))
-		_ = team
 		matches, _ := filepath.Glob(filepath.Join(repos, dir, "flows", "*", "flow.toml"))
 		for _, m := range matches {
 			replaceInFile(t, m, "[input]", "[sources]\nshop = { path = \""+url("shop")+"\" }\n\n[input]")
@@ -282,24 +283,34 @@ func TestSliceCases(t *testing.T) {
 		t.Fatal(err)
 	}
 	pmFlow := strings.ReplaceAll(string(data), "../../../interfaces/", "shop:interfaces/")
+	if registry {
+		modules := "[submodule \"shop\"]\n    path = shop\n    url = " + url("shop") + "\n    branch = main\n    dsheets = .\n"
+		for dir, team := range teams {
+			modules += "[submodule \"" + dir + "\"]\n    path = " + dir + "\n    url = " + url(dir) + "\n    branch = main\n    dsheets = .\n    team = \"" + team + " team\"\n"
+		}
+		for name, text := range map[string]string{"dsheets.toml": "registry = { path = \".\" }\n", ".gitmodules": modules} {
+			if err := os.WriteFile(filepath.Join(pm, name), []byte(text), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+	} else {
+		pmFlow = strings.Replace(pmFlow, "[input]", "[sources]\nshop = { path = \""+url("shop")+"\" }\n\n[input]", 1)
+	}
 	if err := os.WriteFile(flowFile, []byte(pmFlow), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(pm, "dsheets.toml"), []byte("registry = { path = \".\" }\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	modules := "[submodule \"shop\"]\n    path = shop\n    url = " + url("shop") + "\n    branch = main\n    dsheets = .\n"
-	for dir, team := range teams {
-		modules += "[submodule \"" + dir + "\"]\n    path = " + dir + "\n    url = " + url(dir) + "\n    branch = main\n    dsheets = .\n    team = \"" + team + " team\"\n"
-	}
-	if err := os.WriteFile(filepath.Join(pm, ".gitmodules"), []byte(modules), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	gitCmd(t, pm, "init", "-b", "main")
 	gitCmd(t, pm, "add", "-A")
 	gitCmd(t, pm, "commit", "-m", "pm")
 	t.Chdir(pm)
+	return pm, repos
+}
 
+// A PM repository whose registry lists the team repositories: the cases run
+// through each team's own sheet, and a team that gets a rule wrong is named.
+// The fixture's PM has no cases.toml, which is not needed.
+func TestSliceCases(t *testing.T) {
+	_, repos := shopWorld(t, true)
 	out := runOK(t, "slice", "flows/shop", "--cases")
 	if !strings.Contains(out, "Cases (") || !strings.Contains(out, "Orders team") {
 		t.Fatalf("output:\n%s", out)
@@ -309,18 +320,53 @@ func TestSliceCases(t *testing.T) {
 			t.Errorf("nothing differs yet, got %q", line)
 		}
 	}
-	t.Logf("passing run:\n%s", out)
 
 	// Orders writes the tier in lower case: it is wrong for Silver cases.
 	replaceInFile(t, filepath.Join(repos, "orders", "specs", "orders", "sheet.toml"), `\"Silver\"`, `\"silver\"`)
 	gitCmd(t, filepath.Join(repos, "orders"), "commit", "-am", "lower case")
 	var buf, errw bytes.Buffer
-	err = run([]string{"slice", "flows/shop", "--cases", "--strict"}, &buf, &errw)
+	err := run([]string{"slice", "flows/shop", "--cases", "--strict"}, &buf, &errw)
 	if !errors.Is(err, errFailed) {
 		t.Fatalf("want errFailed, got %v\n%s%s", err, buf.String(), errw.String())
 	}
 	if !strings.Contains(buf.String(), "shippingCost  expected") {
 		t.Errorf("output:\n%s", buf.String())
 	}
-	t.Logf("failing run:\n%s", buf.String())
+}
+
+// Without a registry there is nothing to run: every check is cannot tell,
+// and the run still ends well, even with --strict.
+func TestSliceCasesWithoutRegistry(t *testing.T) {
+	shopWorld(t, false)
+	out := runOK(t, "slice", "flows/shop", "--cases", "--strict")
+	if !strings.Contains(out, "no registry: team flows cannot be found") || !strings.Contains(out, "Cases (") {
+		t.Fatalf("output:\n%s", out)
+	}
+	for _, line := range strings.Split(out, "\n") {
+		if strings.Contains(line, "agree") || strings.Contains(line, "differs") {
+			t.Errorf("every check is cannot tell, got %q", line)
+		}
+	}
+	if !strings.Contains(out, "cannot tell") {
+		t.Errorf("output:\n%s", out)
+	}
+}
+
+// A registry that cannot be read and a cases.toml that cannot be parsed
+// are notes, not a stop: the report still prints.
+func TestSliceCasesDegrades(t *testing.T) {
+	pm, _ := shopWorld(t, false)
+	// A registry folder with no .gitmodules; the flow does not need it.
+	if err := os.WriteFile(filepath.Join(pm, "dsheets.toml"), []byte("registry = { path = \".\" }\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(pm, "specs", "shop", "cases.toml"), []byte("not [ toml"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out := runOK(t, "slice", "flows/shop", "--cases", "--strict")
+	for _, want := range []string{"registry: ", "team flows cannot be found", "cases.toml could not be read", "Cases ("} {
+		if !strings.Contains(out, want) {
+			t.Errorf("no %q in:\n%s", want, out)
+		}
+	}
 }

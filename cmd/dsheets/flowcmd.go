@@ -276,10 +276,7 @@ func cmdSlice(args []string, out, errw io.Writer) error {
 	}
 	differs := false
 	if *casesFlag {
-		rep, err := sliceCases(out, a, fe)
-		if err != nil {
-			return err
-		}
+		rep := sliceCases(out, a, fe)
 		for _, ck := range rep.Checks {
 			differs = differs || ck.Status == agree.Differs
 		}

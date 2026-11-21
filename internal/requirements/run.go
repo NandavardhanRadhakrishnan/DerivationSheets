@@ -3,9 +3,7 @@ package requirements
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/diff"
@@ -85,7 +83,7 @@ func Run(o Options) (*Result, error) {
 	if fe == nil {
 		fe = sources.NewFetcher(filepath.Join(top, sources.CacheDir))
 	}
-	origin := originURL(top)
+	origin := sources.OriginURL(top)
 
 	headRoot := top
 	if o.Head != "" {
@@ -122,26 +120,10 @@ func Run(o Options) (*Result, error) {
 	}
 	if !o.NoCheck {
 		reg, _ := sources.NewResolver(top, nil, fe).Registered() // no registry: nothing to check against
-		Check(rs, reg, fe, selfAlias(reg, origin))
+		// This repository's own sheets at the followed branch are the flow's base, so they cannot show owners have acted.
+		Check(rs, reg, fe, sources.SelfAlias(reg, origin))
 	}
 	return &Result{Flow: headA.Flow.Slug, Base: short(base), Head: short(head), Requirements: rs}, nil
-}
-
-// selfAlias is this repository's alias in the registry, "" when it has none.
-// Its sheets at the followed branch are the flow's own base, so they cannot
-// show that its owners have done anything.
-func selfAlias(reg map[string]sources.Source, origin string) string {
-	var found []string
-	for alias, src := range reg {
-		if origin != "" && sources.SameRepo(src.Git, origin) {
-			found = append(found, alias)
-		}
-	}
-	sort.Strings(found)
-	if len(found) == 0 {
-		return ""
-	}
-	return found[0]
 }
 
 func short(sha string) string {
@@ -183,14 +165,6 @@ func analyseIn(root, rel, origin string, fe *sources.Fetcher) (*flow.Analysis, e
 	return flow.Analyze(f, sources.NewResolver(f.Dir, f.Sources, fe)), nil
 }
 
-func originURL(root string) string {
-	out, err := exec.Command("git", "-C", root, "remote", "get-url", "origin").Output()
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(out))
-}
-
 // locate gives each Schema requirement the repository that owns its
 // interface file, by its registry alias when it has one, and the file's path
 // inside that repository.
@@ -215,7 +189,7 @@ func locate(rs []Requirement, a *flow.Analysis, fe *sources.Fetcher, top, headRo
 			rs[i].File = filepath.Join(top, r) // so the rest reads it as a file of top
 		}
 		rs[i].Repo = filepath.Base(root)
-		if url := originURL(root); url != "" {
+		if url := sources.OriginURL(root); url != "" {
 			for alias, src := range reg {
 				if sources.SameRepo(src.Git, url) {
 					rs[i].Repo = alias
