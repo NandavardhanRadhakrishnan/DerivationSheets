@@ -6,7 +6,6 @@ package impact
 
 import (
 	"fmt"
-	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -146,7 +145,7 @@ func Run(o Options) (*Report, error) {
 			}
 			r.Sources[repo.alias] = rev
 		}
-		for _, dir := range flowDirs(repoRoot) {
+		for _, dir := range flow.FindDirs(repoRoot) {
 			name := repo.alias + ":" + rel(repoRoot, dir)
 			f, err := flow.Load(dir)
 			if err != nil {
@@ -268,25 +267,6 @@ func consumers(res *sources.Resolver, reg map[string]sources.Source, self string
 		}
 		out = append(out, c)
 	}
-	return out
-}
-
-// flowDirs finds every folder holding a flow.toml.
-func flowDirs(root string) []string {
-	var out []string
-	filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return nil
-		}
-		if d.IsDir() && (d.Name() == ".git" || d.Name() == ".dsheets") {
-			return filepath.SkipDir
-		}
-		if !d.IsDir() && d.Name() == flow.FileName {
-			out = append(out, filepath.Dir(p))
-		}
-		return nil
-	})
-	sort.Strings(out)
 	return out
 }
 

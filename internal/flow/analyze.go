@@ -108,6 +108,16 @@ type Carry struct {
 // CarryOf returns how a boundary carries a row, or nil.
 func (b *Boundary) CarryOf(row string) *Carry { return b.carry[row] }
 
+// RowOf returns the row a boundary's field carries, or "".
+func (b *Boundary) RowOf(field string) string {
+	for row, c := range b.carry {
+		if c.Field != nil && c.Field.Name == field {
+			return row
+		}
+	}
+	return ""
+}
+
 // Needs reports whether a row must cross the boundary.
 func (b *Boundary) Needs(row string) bool { return len(b.need[row]) > 0 }
 

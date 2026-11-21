@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"sort"
 	"strings"
 )
 
@@ -154,4 +155,26 @@ func resolveURL(base, u string) string {
 		prefix, base = base[:i+1], base[i+1:]
 	}
 	return prefix + path.Join(base, u)
+}
+
+// TeamAliases are the registry repositories of a team: every entry whose team
+// key names it, in alias order, else the alias equal to the first word of the
+// team's name when that entry names no other team.
+func TeamAliases(team string, reg map[string]Source) []string {
+	var out []string
+	for alias, src := range reg {
+		if src.Team != "" && strings.EqualFold(src.Team, team) {
+			out = append(out, alias)
+		}
+	}
+	if len(out) > 0 {
+		sort.Strings(out)
+		return out
+	}
+	first, _, _ := strings.Cut(strings.TrimSpace(team), " ")
+	first = strings.ToLower(first)
+	if src, ok := reg[first]; ok && first != "" && src.Team == "" {
+		return []string{first}
+	}
+	return nil
 }

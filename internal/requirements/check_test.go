@@ -64,26 +64,6 @@ func check(t *testing.T, q Requirement, dirs fakeFetcher) Requirement {
 	return rs[0]
 }
 
-func TestOwnerAliases(t *testing.T) {
-	if a := ownerAliases("The Order Desk", registry); len(a) != 1 || a[0] != "orders" {
-		t.Errorf("team key: %v", a)
-	}
-	if a := ownerAliases("Cart team", registry); len(a) != 1 || a[0] != "cart" {
-		t.Errorf("first word: %v", a)
-	}
-	if a := ownerAliases("Payments team", registry); len(a) != 0 {
-		t.Errorf("unknown team resolved to %v", a)
-	}
-	two := map[string]sources.Source{"cart": {Alias: "cart", Team: "Cart team"}, "cart-web": {Alias: "cart-web", Team: "Cart team"}}
-	if a := ownerAliases("Cart team", two); len(a) != 2 || a[0] != "cart" || a[1] != "cart-web" {
-		t.Errorf("a team key shared by two repositories gives both, in order: %v", a)
-	}
-	other := map[string]sources.Source{"orders": {Alias: "orders", Team: "Fulfilment team"}}
-	if a := ownerAliases("Orders team", other); len(a) != 0 {
-		t.Errorf("an alias that names another team by key is not found by first word: %v", a)
-	}
-}
-
 func TestCheckComputeAdd(t *testing.T) {
 	rule := ruleOf(t, inputs+freeShippingTable, "free_shipping")
 	q := Requirement{Kind: Compute, Team: "Cart team", Row: "free_shipping", Rule: rule, Status: StatusOpen}

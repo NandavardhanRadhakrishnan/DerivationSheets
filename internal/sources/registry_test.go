@@ -93,3 +93,28 @@ func TestParseGitmodulesTeam(t *testing.T) {
 		t.Errorf("teams = %q, %q", got["cart"].Team, got["orders"].Team)
 	}
 }
+
+var registry = map[string]Source{
+	"cart":   {Alias: "cart", Git: "x"},
+	"orders": {Alias: "orders", Git: "x", Team: "The Order Desk"},
+}
+
+func TestTeamAliases(t *testing.T) {
+	if a := TeamAliases("The Order Desk", registry); len(a) != 1 || a[0] != "orders" {
+		t.Errorf("team key: %v", a)
+	}
+	if a := TeamAliases("Cart team", registry); len(a) != 1 || a[0] != "cart" {
+		t.Errorf("first word: %v", a)
+	}
+	if a := TeamAliases("Payments team", registry); len(a) != 0 {
+		t.Errorf("unknown team resolved to %v", a)
+	}
+	two := map[string]Source{"cart": {Alias: "cart", Team: "Cart team"}, "cart-web": {Alias: "cart-web", Team: "Cart team"}}
+	if a := TeamAliases("Cart team", two); len(a) != 2 || a[0] != "cart" || a[1] != "cart-web" {
+		t.Errorf("a team key shared by two repositories gives both, in order: %v", a)
+	}
+	other := map[string]Source{"orders": {Alias: "orders", Team: "Fulfilment team"}}
+	if a := TeamAliases("Orders team", other); len(a) != 0 {
+		t.Errorf("an alias that names another team by key is not found by first word: %v", a)
+	}
+}
