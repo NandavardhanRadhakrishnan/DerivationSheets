@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/cases"
+
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/eval"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/flow"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sheet"
@@ -87,7 +88,68 @@ func TestFilledValueStandsInForATextRow(t *testing.T) {
 	if v, ok := wire(pm, cs[1], out, "shippingCost"); ok {
 		t.Errorf("a \"?\" value stands in for nothing, got %v", v)
 	}
-	if v, ok := wire(pm, cs[len(cs)-1], out, "shippingCost"); len(cs) > 2 && ok {
+	if v, ok := wire(pm, cs[len(cs)-1], out, "shippingCost"); ok {
 		t.Errorf("case with no filled value: got %v", v)
+	}
+}
+
+func TestWireNeverFallsBackToTheUnmappedRowValue(t *testing.T) {
+	// tier is sent to the output only for members, mapped to a code. For a
+	// non-member nothing is sent, so there is no wire value to compare: the
+	// row's own value "Standard" is not what would travel.
+	sheetText := replaceIn(t, pmSheet, `uses    = ["member"]
+formula = "member ? \"Silver\" : \"Standard\""
+`, `uses    = ["member"]
+formula = "member ? \"Silver\" : \"Standard\""
+
+  [row.send]
+  field = "tier"
+  usage = "S"
+  when  = "member"
+  otherwise = "do-not-send"
+  map   = { Silver = "SLV", Standard = "STD" }
+`)
+	ifaceText := replaceIn(t, "interfaces/payment-request.toml", "[[field]]", `[[field]]
+name     = "tier"
+type     = "string"
+required = true
+
+[[field]]`)
+	pm, _ := shop(t, map[string]string{pmSheet: sheetText, "interfaces/payment-request.toml": ifaceText})
+	out := boundary(pm, flow.RoleOutput)
+	c := pmCase{ID: "std", Res: pm.Engine.Evaluate(eval.Input{"member": false, "weight": float64(2)})}
+	if c.Res.Values["tier"] != "Standard" {
+		t.Fatalf("tier = %v", c.Res.Values["tier"])
+	}
+	if v, ok := wire(pm, c, out, "tier"); ok {
+		t.Errorf("unsent tier: got %v, want no value", v)
+	}
+	c = pmCase{ID: "silver", Res: pm.Engine.Evaluate(eval.Input{"member": true, "weight": float64(2)})}
+	if v, ok := wire(pm, c, out, "tier"); !ok || !sheet.Equal(v, "SLV") {
+		t.Errorf("sent tier = %v, %v; want SLV", v, ok)
+	}
+}
+
+func TestWireValueAtTheCallRequest(t *testing.T) {
+	// The PM sends weight to the shipping-quote call, mapped so the sent
+	// value differs from the row value.
+	sheetText := replaceIn(t, pmSheet, `type   = "number"
+
+[[row]]
+id      = "tier"`, `type   = "number"
+
+  [[row.send]]
+  target = "shipping-quote"
+  field  = "weight"
+  usage  = "R"
+  map    = { "2" = "TWO" }
+
+[[row]]
+id      = "tier"`)
+	pm, _ := shop(t, map[string]string{pmSheet: sheetText})
+	req := boundary(pm, flow.RoleRequest)
+	c := pmCaseWith(t, pm, "member", false, "weight", 2)
+	if v, ok := wire(pm, c, req, "weight"); !ok || !sheet.Equal(v, c.Res.CallPayloads["shipping-quote"]["weight"]) {
+		t.Errorf("weight at the request = %v, %v; call payload %v", v, ok, c.Res.CallPayloads)
 	}
 }

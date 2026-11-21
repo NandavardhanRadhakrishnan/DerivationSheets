@@ -19,7 +19,10 @@ type pmCase struct {
 func pmCases(pm *flow.Analysis, o Options) []pmCase {
 	ref := o.RefTime
 	if ref.IsZero() {
-		ref, _ = cases.RefTime(nil)
+		var err error
+		if ref, err = cases.RefTime(nil); err != nil {
+			panic("cases.DefaultReferenceTime does not parse: " + err.Error())
+		}
 	}
 	filled := map[string]map[string]any{}
 	if o.Filled != nil {
@@ -56,26 +59,34 @@ func wire(pm *flow.Analysis, c pmCase, b *flow.Boundary, field string) (v any, o
 	if row == "" {
 		return nil, false
 	}
-	if r := pm.Sheet.ByID[row]; r != nil && c.Res != nil {
-		// A sent field is read from the payload, so the send map applies.
-		switch b.Role {
-		case flow.RoleOutput:
-			if r.Send != nil && flow.Norm(r.Send.Field) == flow.Norm(field) {
-				if v, ok := eval.GetPath(c.Res.Payload, r.Send.Field); ok {
-					return v, true
-				}
-			}
-		case flow.RoleRequest:
-			for _, sd := range r.CallSends {
-				if sd.Target == b.StageID && flow.Norm(sd.Field) == flow.Norm(field) {
-					if v, ok := eval.GetPath(c.Res.CallPayloads[sd.Target], sd.Field); ok {
+	sent := false
+	if c.Res != nil {
+		if r := pm.Sheet.ByID[row]; r != nil {
+			// A sent field is read from the payload so the send map applies. The
+			// row value is never a stand-in: it is not what goes on the wire.
+			switch b.Role {
+			case flow.RoleOutput:
+				if r.Send != nil && flow.Norm(r.Send.Field) == flow.Norm(field) {
+					sent = true
+					if v, ok := eval.GetPath(c.Res.Payload, r.Send.Field); ok {
 						return v, true
+					}
+				}
+			case flow.RoleRequest:
+				for _, sd := range r.CallSends {
+					if sd.Target == b.StageID && flow.Norm(sd.Field) == flow.Norm(field) {
+						sent = true
+						if v, ok := eval.GetPath(c.Res.CallPayloads[sd.Target], sd.Field); ok {
+							return v, true
+						}
 					}
 				}
 			}
 		}
 	}
-	if c.Res != nil && c.Res.Status[row] != eval.StatusUnknown {
+	// A send exists but put nothing on the wire (not sent, or the row is unknown):
+	// only a filled value may stand in, never the unmapped row value.
+	if !sent && c.Res != nil && c.Res.Status[row] != eval.StatusUnknown {
 		if v, ok := c.Res.Values[row]; ok {
 			return v, true
 		}
