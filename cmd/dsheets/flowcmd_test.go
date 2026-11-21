@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"net/http/httptest"
 	"os"
@@ -191,4 +192,135 @@ func TestImportKeepsLocal(t *testing.T) {
 	if !strings.Contains(string(data), "name     = \"shippingMethod\"\ntype     = \"string\"\nrequired = true\nlocal    = true\n") {
 		t.Errorf("shippingMethod not kept:\n%s", data)
 	}
+}
+
+func gitCmd(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@example.com", "GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@example.com")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
+}
+
+func copyDir(t *testing.T, src, dst string) {
+	t.Helper()
+	err := filepath.Walk(src, func(p string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return err
+		}
+		rel, _ := filepath.Rel(src, p)
+		data, err := os.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		to := filepath.Join(dst, rel)
+		if err := os.MkdirAll(filepath.Dir(to), 0o755); err != nil {
+			return err
+		}
+		return os.WriteFile(to, data, 0o644)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func replaceInFile(t *testing.T, path, old, new string) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), old) {
+		t.Fatalf("%s has no %q", path, old)
+	}
+	if err := os.WriteFile(path, []byte(strings.Replace(string(data), old, new, 1)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A PM repository whose registry lists the team repositories: the cases run
+// through each team's own sheet, and a team that gets a rule wrong is named.
+func TestSliceCases(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed")
+	}
+	fixture := filepath.Join("..", "..", "internal", "agree", "testdata", "shop")
+	root := t.TempDir()
+	pm := filepath.Join(root, "pm")
+	repos := filepath.Join(root, "repos")
+	url := func(name string) string { return filepath.ToSlash(filepath.Join(repos, name)) }
+
+	// The interfaces live in a repository of their own, named by alias.
+	copyDir(t, filepath.Join(fixture, "interfaces"), filepath.Join(repos, "shop", "interfaces"))
+	teams := map[string]string{"cart": "Cart", "orders": "Orders", "shipping": "Shipping"}
+	for dir, team := range teams {
+		copyDir(t, filepath.Join(fixture, dir), filepath.Join(repos, dir))
+		_ = team
+		matches, _ := filepath.Glob(filepath.Join(repos, dir, "flows", "*", "flow.toml"))
+		for _, m := range matches {
+			replaceInFile(t, m, "[input]", "[sources]\nshop = { path = \""+url("shop")+"\" }\n\n[input]")
+			data, _ := os.ReadFile(m)
+			s := strings.ReplaceAll(string(data), "../../../interfaces/", "shop:interfaces/")
+			if err := os.WriteFile(m, []byte(s), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	for _, name := range []string{"shop", "cart", "orders", "shipping"} {
+		gitCmd(t, filepath.Join(repos, name), "init", "-b", "main")
+		gitCmd(t, filepath.Join(repos, name), "add", "-A")
+		gitCmd(t, filepath.Join(repos, name), "commit", "-m", "first")
+	}
+
+	// The PM's part of the fixture, with its interfaces read through the alias.
+	copyDir(t, filepath.Join(fixture, "product"), pm)
+	flowFile := filepath.Join(pm, "flows", "shop", "flow.toml")
+	data, err := os.ReadFile(flowFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pmFlow := strings.ReplaceAll(string(data), "../../../interfaces/", "shop:interfaces/")
+	if err := os.WriteFile(flowFile, []byte(pmFlow), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(pm, "dsheets.toml"), []byte("registry = { path = \".\" }\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	modules := "[submodule \"shop\"]\n    path = shop\n    url = " + url("shop") + "\n    branch = main\n    dsheets = .\n"
+	for dir, team := range teams {
+		modules += "[submodule \"" + dir + "\"]\n    path = " + dir + "\n    url = " + url(dir) + "\n    branch = main\n    dsheets = .\n    team = \"" + team + " team\"\n"
+	}
+	if err := os.WriteFile(filepath.Join(pm, ".gitmodules"), []byte(modules), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitCmd(t, pm, "init", "-b", "main")
+	gitCmd(t, pm, "add", "-A")
+	gitCmd(t, pm, "commit", "-m", "pm")
+	t.Chdir(pm)
+
+	out := runOK(t, "slice", "flows/shop", "--cases")
+	if !strings.Contains(out, "Cases (") || !strings.Contains(out, "Orders team") {
+		t.Fatalf("output:\n%s", out)
+	}
+	for _, line := range strings.Split(out, "\n") {
+		if strings.Contains(line, "differs") {
+			t.Errorf("nothing differs yet, got %q", line)
+		}
+	}
+	t.Logf("passing run:\n%s", out)
+
+	// Orders writes the tier in lower case: it is wrong for Silver cases.
+	replaceInFile(t, filepath.Join(repos, "orders", "specs", "orders", "sheet.toml"), `\"Silver\"`, `\"silver\"`)
+	gitCmd(t, filepath.Join(repos, "orders"), "commit", "-am", "lower case")
+	var buf, errw bytes.Buffer
+	err = run([]string{"slice", "flows/shop", "--cases", "--strict"}, &buf, &errw)
+	if !errors.Is(err, errFailed) {
+		t.Fatalf("want errFailed, got %v\n%s%s", err, buf.String(), errw.String())
+	}
+	if !strings.Contains(buf.String(), "shippingCost  expected") {
+		t.Errorf("output:\n%s", buf.String())
+	}
+	t.Logf("failing run:\n%s", buf.String())
 }
