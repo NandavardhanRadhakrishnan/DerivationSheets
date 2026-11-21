@@ -320,3 +320,20 @@ func TestInputRejectsCovered(t *testing.T) {
 		}
 	}
 }
+
+func TestReadFilled(t *testing.T) {
+	dir := t.TempDir()
+	if f, why := ReadFilled(dir); f != nil || why != "" {
+		t.Errorf("no cases.toml is not an error: %v, %q", f, why)
+	}
+	f, why := ReadFilled(filepath.Join("..", "..", "specs", "order-checkout"))
+	if f == nil || why != "" || len(f.Cases) == 0 {
+		t.Errorf("the fixture's cases.toml: %v, %q", f, why)
+	}
+	if err := os.WriteFile(Path(dir), []byte("not [ toml"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if f, why := ReadFilled(dir); f != nil || !strings.Contains(why, "cases.toml could not be read") {
+		t.Errorf("a broken cases.toml gives a reason: %v, %q", f, why)
+	}
+}

@@ -32,20 +32,13 @@ func sliceCases(out io.Writer, a *flow.Analysis, fe *sources.Fetcher) *agree.Rep
 		teams = agree.RegistryTeams(reg, fe, sources.SelfAlias(reg, sources.OriginURL(root)))
 	}
 	opt := agree.Options{Mode: agree.EndToEnd}
-	if p := cases.Path(a.SheetDir); fileExists(p) {
-		if opt.Filled, err = cases.Read(p); err != nil {
-			fmt.Fprintf(out, "\n%s could not be read: %v; running without its filled values\n", p, err)
-			opt.Filled = nil
-		}
+	var why string
+	if opt.Filled, why = cases.ReadFilled(a.SheetDir); why != "" {
+		fmt.Fprintf(out, "\n%s; running without its filled values\n", why)
 	}
 	rep := agree.Run(a, teams, opt)
 	printAgreement(out, rep)
 	return rep
-}
-
-func fileExists(p string) bool {
-	_, err := os.Stat(p)
-	return err == nil
 }
 
 // printAgreement prints one line per team, then the checks that differ or

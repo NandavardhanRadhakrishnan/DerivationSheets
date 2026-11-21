@@ -7,6 +7,7 @@ import (
 
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/agree"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/flow"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sources"
 )
 
 // applyCases decides Compute and Send items again on the PM's cases, run
@@ -33,9 +34,9 @@ func applyCases(rs []Requirement, pm *flow.Analysis, rep *agree.Report) {
 }
 
 // computeByCases judges a Compute on the team's checks of fields that carry
-// the row. A row no field carries is judged on the team's checks of the rows
-// it feeds. With no such checks, or none the team's sheet was run for, the
-// rule text decides, as Check left it.
+// the row. A row no field carries is judged on the team's checks of the
+// nearest rows it feeds that have any. With no such checks, or none the
+// team's sheet was run for, the rule text decides, as Check left it.
 func computeByCases(q *Requirement, pm *flow.Analysis, checks []agree.Check) {
 	var rel []agree.Check
 	for _, c := range checks {
@@ -45,7 +46,13 @@ func computeByCases(q *Requirement, pm *flow.Analysis, checks []agree.Check) {
 	}
 	judged := ""
 	if len(rel) == 0 {
-		below := descendants(pm, q.Row)
+		checked := map[string]bool{}
+		for _, c := range checks {
+			if c.Team == q.Team && c.Row != "" {
+				checked[c.Row] = true
+			}
+		}
+		below := nearest(pm, q.Row, checked)
 		var fields []string
 		for _, c := range checks {
 			if c.Team == q.Team && below[c.Row] {
@@ -71,7 +78,14 @@ func computeByCases(q *Requirement, pm *flow.Analysis, checks []agree.Check) {
 		q.Status, q.Note, q.Cases = StatusOpen, joinNotes(differNote(differ, rel), judged), differ
 		return
 	}
-	if unsure := withStatus(rel, agree.CannotTell); len(unsure) > 0 {
+	// Done only when every check agrees; anything else is not evidence.
+	var unsure []agree.Check
+	for _, c := range rel {
+		if c.Status != agree.Agrees {
+			unsure = append(unsure, c)
+		}
+	}
+	if len(unsure) > 0 {
 		note := unsure[0].Note
 		if note == "" {
 			note = "the PM's cases cannot tell"
@@ -100,24 +114,35 @@ func sendByCases(q *Requirement, checks []agree.Check) {
 	}
 }
 
+// ruleText starts the note on an item the cases could not decide.
+const ruleText = "checked by rule text: "
+
 // byRuleText keeps Check's result, saying why the cases could not decide.
 func byRuleText(q *Requirement, why string) {
-	q.Note = joinNotes(q.Note, "checked by rule text: "+why)
+	q.Note = joinNotes(q.Note, ruleText+why)
 }
 
-// descendants are the rows that use row, directly or through other rows.
-func descendants(pm *flow.Analysis, row string) map[string]bool {
+// nearest are the rows that use row, directly or through other rows, and
+// are checked, stopping along each path at the first checked row: a row
+// further down is also fed by the rows in between.
+func nearest(pm *flow.Analysis, row string, checked map[string]bool) map[string]bool {
 	out := map[string]bool{}
 	if pm == nil || pm.Engine == nil || pm.Engine.Graph == nil {
 		return out
 	}
+	seen := map[string]bool{row: true}
 	next := []string{row}
 	for len(next) > 0 {
 		r := next[0]
 		next = next[1:]
 		for _, u := range pm.Engine.Graph.Users[r] {
-			if !out[u] && u != row {
+			if seen[u] {
+				continue
+			}
+			seen[u] = true
+			if checked[u] {
 				out[u] = true
+			} else {
 				next = append(next, u)
 			}
 		}
@@ -156,4 +181,25 @@ func joinNotes(a, b string) string {
 		return a
 	}
 	return a + "; " + b
+}
+
+// explainCases adds to the items the notes of the run that explain them: on
+// an item the rule text decided, why its team's flows were left out; on an
+// item the cases could not tell, why the PM's filled values were not used.
+func explainCases(rs []Requirement, rep *agree.Report, reg map[string]sources.Source, filledWhy string) {
+	for i := range rs {
+		q := &rs[i]
+		switch {
+		case q.Status == StatusUndocumented && len(q.Cases) > 0 && filledWhy != "":
+			q.Note = joinNotes(q.Note, filledWhy+", so the cases ran without its filled values")
+		case strings.Contains(q.Note, ruleText) && rep != nil:
+			for _, alias := range sources.TeamAliases(q.Team, reg) {
+				for _, n := range rep.Notes {
+					if strings.HasPrefix(n, alias+": ") || strings.HasPrefix(n, "could not read "+alias+": ") {
+						q.Note = joinNotes(q.Note, n)
+					}
+				}
+			}
+		}
+	}
 }

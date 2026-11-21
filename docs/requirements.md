@@ -98,21 +98,25 @@ The item is decided on the fields that carry the row:
 
 - every case agrees: done, however the team's rule is written;
 - some case differs: open, with `N of M cases differ` and the cases listed;
-- some case cannot be told (an input the team's sheet lacks, a sheet that
-  fails, a call that is not answered): not documented, with the reason.
+- otherwise, any case that does not agree (an input the team's sheet lacks,
+  a sheet that fails, a call that is not answered): not documented, with
+  the reason.
 
-A row no field carries (such as `discount_rate`) is judged on the fields of
-the rows it feeds, and the note says `judged on <fields>, which other rows
-also feed`, since a difference there may come from another row.
+A row no field carries (such as `discount_rate`) is judged on the nearest
+compared fields it feeds: `discountAmount`, not the totals further down,
+which other changes also reach. The note says `judged on <fields>, which
+other rows also feed`, since a difference there may come from another row.
+When the PM's `cases.toml` cannot be read, the cases run without its filled
+values, and an item they cannot tell says so.
 
 When the team has sheets but no own flow that takes the boundary's
 interface in and gives the next one out, or no field carries the row or
 anything it feeds, the rule text decides and the note ends with `checked by
-rule text: <why>`. Then a derived row that exists with a different rule
-stays open, with a note. The comparison covers every field of the row except
-its labels (name, description, open questions) and its send, as `dsheets
-diff` does, so a changed reject message or a changed `uses` counts as a
-different rule.
+rule text: <why>`, followed by why the team's flows were left out, if any
+were. Then a derived row that exists with a different rule stays open, with
+a note. The comparison covers every field of the row except its labels
+(name, description, open questions) and its send, as `dsheets diff` does, so
+a changed reject message or a changed `uses` counts as a different rule.
 
 Matching is by where the value sits, not by name alone:
 

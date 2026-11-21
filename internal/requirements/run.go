@@ -126,13 +126,10 @@ func Run(o Options) (*Result, error) {
 		self := sources.SelfAlias(reg, origin)
 		Check(rs, reg, fe, self)
 		if byCases(rs) && headA.Engine != nil {
-			opt := agree.Options{Mode: agree.Isolated}
-			if p := cases.Path(headA.SheetDir); fileExists(p) {
-				if f, err := cases.Read(p); err == nil { // unreadable: run without its filled values
-					opt.Filled = f
-				}
-			}
-			applyCases(rs, headA, agree.Run(headA, agree.RegistryTeams(reg, fe, self), opt))
+			filled, why := cases.ReadFilled(headA.SheetDir)
+			rep := agree.Run(headA, agree.RegistryTeams(reg, fe, self), agree.Options{Mode: agree.Isolated, Filled: filled})
+			applyCases(rs, headA, rep)
+			explainCases(rs, rep, reg, why)
 		}
 	}
 	return &Result{Flow: headA.Flow.Slug, Base: short(base), Head: short(head), Requirements: rs}, nil
@@ -147,11 +144,6 @@ func byCases(rs []Requirement) bool {
 		}
 	}
 	return false
-}
-
-func fileExists(p string) bool {
-	_, err := os.Stat(p)
-	return err == nil
 }
 
 func short(sha string) string {

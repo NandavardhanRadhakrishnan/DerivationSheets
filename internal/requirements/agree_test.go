@@ -6,6 +6,7 @@ import (
 
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/agree"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/flow"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sources"
 )
 
 // outCheck is a hand-built check of a payment-request field produced by the
@@ -123,11 +124,71 @@ func TestUnsentRowJudgedOnDescendants(t *testing.T) {
 		t.Errorf("cases = %+v", q.Cases)
 	}
 
-	// All agree: done, still saying what it was judged on.
+	// The nearest fields agree: done, still saying what it was judged on. A
+	// row further down (net_amount, fed by discount) is not looked at, so a
+	// difference there, say from shipping_cost, does not hold it open.
 	rs = []Requirement{item}
-	applyCases(rs, pm, &agree.Report{Checks: rep.Checks[:1]})
+	applyCases(rs, pm, &agree.Report{Checks: []agree.Check{
+		rep.Checks[0],
+		outCheck("silver-domestic", "discount", "discountAmount", agree.Agrees, 5.0, 5.0),
+		outCheck("silver-domestic", "net_amount", "netAmount", agree.Differs, 112.0, 100.0),
+		outCheck("silver-domestic", "total", "totalAmount", agree.Differs, 121.0, 108.0),
+	}})
 	if q := rs[0]; q.Status != StatusDone || q.Note != "judged on discountAmount, which other rows also feed" {
 		t.Errorf("got status %q, note %q", q.Status, q.Note)
+	}
+
+	// With no check on discount, the next rows down are the nearest.
+	rs = []Requirement{item}
+	applyCases(rs, pm, &agree.Report{Checks: []agree.Check{
+		outCheck("silver-domestic", "net_amount", "netAmount", agree.Differs, 112.0, 100.0),
+		outCheck("silver-domestic", "customs_value", "customsValue", agree.Agrees, 94.0, 94.0),
+		outCheck("silver-domestic", "total", "totalAmount", agree.Differs, 121.0, 108.0),
+	}})
+	if q := rs[0]; q.Status != StatusOpen || !strings.Contains(q.Note, "judged on netAmount, customsValue,") ||
+		strings.Contains(q.Note, "totalAmount") {
+		t.Errorf("got status %q, note %q", q.Status, q.Note)
+	}
+}
+
+// Done needs every check to agree: a status the runner did not name is
+// not evidence.
+func TestComputeDoneOnlyWhenEveryCaseAgrees(t *testing.T) {
+	rs := []Requirement{costItem(StatusDone, "")}
+	odd := outCheck("silver-domestic", "shipping_cost", "shippingCost", "skipped", 4.0, nil)
+	applyCases(rs, nil, &agree.Report{Checks: []agree.Check{
+		outCheck("gold-domestic", "shipping_cost", "shippingCost", agree.Agrees, 0.0, 0.0),
+		odd,
+	}})
+	if q := rs[0]; q.Status != StatusUndocumented || len(q.Cases) != 1 || q.Note == "" {
+		t.Errorf("got %+v", q)
+	}
+}
+
+// The notes of the run reach the items they explain: why a team's flow was
+// left out on a rule-text fallback, and why the filled values were not used
+// on an item the cases could not tell.
+func TestRunNotesReachTheItems(t *testing.T) {
+	reg := map[string]sources.Source{"orders": {Alias: "orders"}, "ship": {Alias: "ship", Team: "Shipping team"}}
+	rep := &agree.Report{Notes: []string{
+		"orders: flow orders left out: end-to-end sheet x has 9 errors; run validate on it",
+		"ship: flow ship left out: something else",
+		"could not read orders: no network",
+	}}
+	rs := []Requirement{
+		{Kind: Compute, Team: "Orders team", Status: StatusOpen, Note: "rule differs; checked by rule text: no flow of Orders team takes a in and gives b out"},
+		{Kind: Compute, Team: "Orders team", Status: StatusUndocumented, Note: "the PM's case has no value for gift", Cases: []agree.Check{{Case: "c"}}},
+		{Kind: Compute, Team: "Orders team", Status: StatusDone},
+	}
+	explainCases(rs, rep, reg, "cases.toml could not be read: bad")
+	if n := rs[0].Note; !strings.Contains(n, "orders: flow orders left out") || !strings.Contains(n, "could not read orders: no network") || strings.Contains(n, "ship:") {
+		t.Errorf("fallback note: %q", n)
+	}
+	if n := rs[1].Note; !strings.HasSuffix(n, "; cases.toml could not be read: bad, so the cases ran without its filled values") {
+		t.Errorf("undocumented note: %q", n)
+	}
+	if rs[2].Note != "" {
+		t.Errorf("done item: %q", rs[2].Note)
 	}
 }
 
