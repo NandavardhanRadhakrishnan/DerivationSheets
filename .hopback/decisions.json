@@ -423,6 +423,18 @@
       "decided_at": "2026-11-21T18:11:34.8841929Z",
       "source_session": "20261121T173432Z-095336",
       "recorded_by": "claude-code"
+    },
+    {
+      "id": "D-27",
+      "title": "Next build: design section 6 (Requirements panel) before T-34",
+      "status": "decided",
+      "context": "Concierge, 2026-11-21, after T-35 merged. T-34 (test middleware) had been the developer's pick right after T-32. Section 6 was in the T-32 design's delivery order but had no backlog task.",
+      "decision": "Build section 6 next as T-37, starting with the T-36 fix in the same session. T-31 is folded into T-37. T-34 moves to after T-37.",
+      "rationale": "Section 6 is already designed (needs a plan, not a brainstorm), reuses T-35's code while it is fresh, finishes the owner-facing loop of boundary agreement, and removes T-31. T-34 opens a new area (driving team code through adapters) and needs a full brainstorm. T-36 goes first because the panel turns cases green and a missing generated branch would make all green misleading.",
+      "created_at": "2026-11-21T18:23:48.9878069Z",
+      "decided_at": "2026-11-21T18:23:48.9878069Z",
+      "source_session": "20261121T181752Z-630cb7",
+      "recorded_by": "claude-code"
     }
   ]
 }

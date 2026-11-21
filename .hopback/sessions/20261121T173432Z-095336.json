@@ -7,8 +7,11 @@
   "native_session_id": "9bbac5ad-ee57-47bb-9482-36ac9849dd9b",
   "name": "hopback build (reopened)",
   "objective_task_id": "T-35",
-  "status": "active",
+  "status": "parked",
   "launched": true,
   "resumed_from": "20261121T133743Z-416e71",
-  "started_at": "2026-11-21T17:34:32.3604214Z"
+  "started_at": "2026-11-21T17:34:32.3604214Z",
+  "ended_at": "2026-11-21T18:17:49.700703Z",
+  "parked_at": "2026-11-21T18:17:19.8104204Z",
+  "handoff": "sessions/20261121T173432Z-095336.md"
 }

@@ -2,19 +2,34 @@
   "schema_version": 1,
   "items": [
     {
-      "id": "T-35",
-      "title": "Implement boundary agreement: case runner, slice --cases, done-check by cases",
-      "description": "Build steps 1 to 3 of the T-32 design (docs/superpowers/specs/2026-11-21-boundary-agreement-design.md) by the plan docs/superpowers/plans/2026-11-21-boundary-agreement.md, on branch boundary-agreement (design and plan are committed there). Six tasks: groundwork in eval/flow/sources; the PM's expected values with the shop fixture; team segments and finding each team's own flow; running the cases (isolated and end to end, rejects); slice --cases with the docs on what a pin means; requirements closing Compute and Send items by cases, then an Acme sandbox replay. Before starting, ask the developer: (1) confirm the plan's two decisions beyond the design: teams with sheets but no own flow fall back to the T-30 rule-text check; Receive and Carry stay structural; (2) execution method: subagent-driven (recommended) or native. The editor's Requirements panel (design section 6) is a separate, later plan.",
+      "id": "T-36",
+      "title": "cases.Generate drops a branch when a row has a mapped send",
+      "description": "Found while building T-35, 2026-11-21. In the agree shop fixture, giving the PM's tier row a send with map (Silver = SLV, Standard = STD) made the generator stop emitting a member=true case, so the generated cases covered only one tier. The case-based done-check (T-35) can only be as complete as the generated cases, so a missing branch means an item can close without that branch ever being checked, which weakens D-22 (never close on a guess). Investigate why the mapped send changes generation (internal/cases), and make both branches appear. Developer, 2026-11-21: raised to medium; do it first in the T-37 build session, before the Requirements panel, so the panel cannot show all green with a branch missing.",
+      "type": "bug",
+      "priority": "medium",
+      "status": "planned",
+      "rank": 1,
+      "created_at": "2026-11-21T18:11:34.9884244Z",
+      "updated_at": "2026-11-21T18:23:48.9878069Z",
+      "source_session": "20261121T173432Z-095336",
+      "recorded_by": "claude-code",
+      "origin": "agent_suggested"
+    },
+    {
+      "id": "T-37",
+      "title": "Requirements panel in the sheet editor (T-32 design section 6)",
+      "description": "Design section 6 of docs/superpowers/specs/2026-11-21-boundary-agreement-design.md (step 4 of its delivery order; steps 1-3 shipped in T-35). The design exists, so start with a plan (superpowers:writing-plans), not a brainstorm. Scope: (1) serve --edit \u003csheet\u003e --flow \u003calias\u003e:\u003cflow path\u003e@\u003cbranch\u003e names the PM's change; requirements prints that line for each team and --apply writes it into the record file. (2) A Requirements panel lists the open items for this team; selecting one shows the PM's rule as a hint, the failing cases at this team's boundary (input, expected, got), and the rows of this sheet that produce those fields. (3) As the owner edits, the PM's cases rerun against the draft through the chain (reuse agree.Run and the requirements report) and turn green. (4) Saving writes the sheet and, when needed, the team flow in one save (e.g. drop a stale computes entry when a derived row becomes an input). This absorbs T-31. (5) A neighbour that does part of another team's work (Shipping in an I2 split) opens the same line and sees the items whose fields pass through its stage, marked as another team's. Left to the plan: panel layout within the editor, caching of fetched sheets for live reruns, how rejects and 'cannot tell' show. Developer, 2026-11-21: chosen ahead of T-34; fix T-36 first in the same session, so the panel cannot show all green with a generated branch missing.",
       "type": "feature",
       "priority": "high",
-      "status": "in_progress",
-      "rank": 1,
+      "status": "planned",
+      "rank": 2,
       "depends_on": [
-        "T-32"
+        "T-35",
+        "T-36"
       ],
-      "created_at": "2026-11-21T13:32:34.2110527Z",
-      "updated_at": "2026-11-21T13:39:19.6180583Z",
-      "source_session": "20261115T174012Z-081bec",
+      "created_at": "2026-11-21T18:23:06.0116296Z",
+      "updated_at": "2026-11-21T18:23:06.0116296Z",
+      "source_session": "20261121T181752Z-630cb7",
       "recorded_by": "claude-code",
       "origin": "user_requested"
     },
@@ -25,32 +40,13 @@
       "type": "feature",
       "priority": "medium",
       "status": "planned",
-      "rank": 2,
+      "rank": 3,
       "depends_on": [
         "T-32"
       ],
       "created_at": "2026-11-21T12:46:38.580549Z",
       "updated_at": "2026-11-21T12:46:38.580549Z",
       "source_session": "20261115T174012Z-081bec",
-      "recorded_by": "claude-code",
-      "origin": "user_requested"
-    },
-    {
-      "id": "T-32",
-      "title": "Brainstorm: help an owner update their sheet, flow and schema after a requirements change",
-      "description": "Brainstorming session, to be picked after T-26 and its dependency T-29 are complete. Source: the T-27 Acme walkthrough (acme-corp/WALKTHROUGH.md, steps 9 to 14), where the Orders developer took the --apply branch and then had to do a lot of manual work, in the right order, to bring their own files in line with the flow change: unpin free_shipping in their flow (flow editor first, or the flow breaks, see T-31); change the row from derived to input in the sheet editor; add the field to the .avsc by hand (the editor does not edit source schemas); remove the stale computes entry; run validate and slice; commit; merge. Cart's developer did the mirror image: add the row and its table, fix a typo the editor let through (T-28), pin it, check, merge. Questions for the session: should --apply (or a companion command) also update the owner's own sheet and flow where the requirement says exactly what to do (Compute added or removed, Receive, Send), or only suggest the edits; how to keep the order of edits right; whether the source schema (avsc, OpenAPI, JSON Schema) should be edited too; whether the editors should offer these steps from a requirement (open the row, pre-fill the change); how this relates to T-30, where Compute, Send and Receive never close from the owners' work. Related: T-28, T-30, T-31, D-18 to D-20. Nothing is decided.",
-      "type": "research",
-      "priority": "medium",
-      "status": "completed",
-      "rank": 3,
-      "depends_on": [
-        "T-26",
-        "T-29"
-      ],
-      "created_at": "2026-11-14T12:44:18.6780567Z",
-      "updated_at": "2026-11-21T13:32:34.3971415Z",
-      "completed_at": "2026-11-21T13:32:34.3971415Z",
-      "source_session": "20261114T085751Z-e9b048",
       "recorded_by": "claude-code",
       "origin": "user_requested"
     },
@@ -71,17 +67,53 @@
     {
       "id": "T-31",
       "title": "Flow and sheet editors: editing the sheet first leaves a flow the editor cannot open, with no hint about order",
-      "description": "Found in the T-27 Acme walkthrough, 2026-11-14. In the Orders repo, turning free_shipping into an input in the sheet editor first made flow.toml invalid (computes names an input row), so the flow editor refused to draw it with 'fix it by hand first' and the unpin it was needed for could not be done there. The working order is flow editor first (unpin), then sheet editor. Each editor handles one file, and nothing says a change spanning sheet and flow needs an order. Options: when the sheet editor turns a pinned derived row into an input (or deletes a pinned row), warn that the flow pins it, or offer to remove the pin on save; or let the flow editor open an invalid flow read-only with the offending line and a one-click fix. Developer, 2026-11-15: deferred until after T-32, since the T-32 brainstorm may change how the editors and --apply handle edit order.",
+      "description": "Found in the T-27 Acme walkthrough, 2026-11-14. In the Orders repo, turning free_shipping into an input in the sheet editor first made flow.toml invalid (computes names an input row), so the flow editor refused to draw it with 'fix it by hand first' and the unpin it was needed for could not be done there. The working order is flow editor first (unpin), then sheet editor. Developer, 2026-11-21: folded into T-37. Design section 6's single save of sheet and flow is the fix; do not build a separate warning. Close T-31 when T-37 ships, after checking the Acme free_shipping case in the editor.",
       "type": "improvement",
       "priority": "low",
       "status": "idea",
       "rank": 5,
-      "needs_review": {
-        "reason": "T-32 design: section 6 (requirement-driven editing) saves a team's sheet and flow together, which is meant to remove the edit-order problem; T-31 may become unnecessary or shrink.",
-        "event_id": "20261121T132523Z-4b519e"
-      },
+      "depends_on": [
+        "T-37"
+      ],
       "created_at": "2026-11-14T12:34:46.8412593Z",
-      "updated_at": "2026-11-14T19:01:46.8128937Z",
+      "updated_at": "2026-11-21T18:23:48.9878069Z",
+      "source_session": "20261114T085751Z-e9b048",
+      "recorded_by": "claude-code",
+      "origin": "user_requested"
+    },
+    {
+      "id": "T-35",
+      "title": "Implement boundary agreement: case runner, slice --cases, done-check by cases",
+      "description": "Built steps 1 to 3 of the T-32 design (docs/superpowers/specs/2026-11-21-boundary-agreement-design.md) by its plan, on branch boundary-agreement: internal/agree, slice --cases, requirements closing Compute and Send items by the PM's cases. Reviewed per task plus a final whole-branch review and fix wave; suite green; Acme replay matches the plan. PR #16 is open against main (https://github.com/NandavardhanRadhakrishnan/DerivationSheets/pull/16); mark completed when it merges. Decisions: D-25, D-26. The editor's Requirements panel (design section 6) is a separate, later plan.",
+      "type": "feature",
+      "priority": "high",
+      "status": "completed",
+      "rank": 6,
+      "depends_on": [
+        "T-32"
+      ],
+      "created_at": "2026-11-21T13:32:34.2110527Z",
+      "updated_at": "2026-11-21T18:17:02.2499172Z",
+      "completed_at": "2026-11-21T18:17:02.2499172Z",
+      "source_session": "20261115T174012Z-081bec",
+      "recorded_by": "claude-code",
+      "origin": "user_requested"
+    },
+    {
+      "id": "T-32",
+      "title": "Brainstorm: help an owner update their sheet, flow and schema after a requirements change",
+      "description": "Brainstorming session, to be picked after T-26 and its dependency T-29 are complete. Source: the T-27 Acme walkthrough (acme-corp/WALKTHROUGH.md, steps 9 to 14), where the Orders developer took the --apply branch and then had to do a lot of manual work, in the right order, to bring their own files in line with the flow change: unpin free_shipping in their flow (flow editor first, or the flow breaks, see T-31); change the row from derived to input in the sheet editor; add the field to the .avsc by hand (the editor does not edit source schemas); remove the stale computes entry; run validate and slice; commit; merge. Cart's developer did the mirror image: add the row and its table, fix a typo the editor let through (T-28), pin it, check, merge. Questions for the session: should --apply (or a companion command) also update the owner's own sheet and flow where the requirement says exactly what to do (Compute added or removed, Receive, Send), or only suggest the edits; how to keep the order of edits right; whether the source schema (avsc, OpenAPI, JSON Schema) should be edited too; whether the editors should offer these steps from a requirement (open the row, pre-fill the change); how this relates to T-30, where Compute, Send and Receive never close from the owners' work. Related: T-28, T-30, T-31, D-18 to D-20. Nothing is decided.",
+      "type": "research",
+      "priority": "medium",
+      "status": "completed",
+      "rank": 7,
+      "depends_on": [
+        "T-26",
+        "T-29"
+      ],
+      "created_at": "2026-11-14T12:44:18.6780567Z",
+      "updated_at": "2026-11-21T13:32:34.3971415Z",
+      "completed_at": "2026-11-21T13:32:34.3971415Z",
       "source_session": "20261114T085751Z-e9b048",
       "recorded_by": "claude-code",
       "origin": "user_requested"
@@ -93,7 +125,7 @@
       "type": "improvement",
       "priority": "medium",
       "status": "completed",
-      "rank": 6,
+      "rank": 8,
       "depends_on": [
         "T-5"
       ],
@@ -111,7 +143,7 @@
       "type": "research",
       "priority": "medium",
       "status": "completed",
-      "rank": 7,
+      "rank": 9,
       "created_at": "2026-11-06T15:06:20.0973044Z",
       "updated_at": "2026-11-14T07:05:13.1434376Z",
       "completed_at": "2026-11-14T07:05:13.1434376Z",
@@ -126,7 +158,7 @@
       "type": "feature",
       "priority": "medium",
       "status": "completed",
-      "rank": 8,
+      "rank": 10,
       "created_at": "2026-11-06T15:06:20.0973044Z",
       "updated_at": "2026-11-11T18:34:11.9334857Z",
       "completed_at": "2026-11-11T18:34:11.9334857Z",
@@ -141,7 +173,7 @@
       "type": "feature",
       "priority": "high",
       "status": "completed",
-      "rank": 9,
+      "rank": 11,
       "depends_on": [
         "T-2"
       ],
@@ -159,7 +191,7 @@
       "type": "feature",
       "priority": "high",
       "status": "completed",
-      "rank": 10,
+      "rank": 12,
       "depends_on": [
         "T-2"
       ],
@@ -177,7 +209,7 @@
       "type": "improvement",
       "priority": "medium",
       "status": "completed",
-      "rank": 11,
+      "rank": 13,
       "created_at": "2026-11-07T19:07:00.3122228Z",
       "updated_at": "2026-11-11T16:38:43.9639109Z",
       "completed_at": "2026-11-11T16:38:43.9639109Z",
@@ -192,7 +224,7 @@
       "type": "bug",
       "priority": "high",
       "status": "completed",
-      "rank": 12,
+      "rank": 14,
       "depends_on": [
         "T-2"
       ],
@@ -210,7 +242,7 @@
       "type": "improvement",
       "priority": "high",
       "status": "completed",
-      "rank": 13,
+      "rank": 15,
       "created_at": "2026-11-07T18:34:54.8992503Z",
       "updated_at": "2026-11-07T19:03:02.8648292Z",
       "completed_at": "2026-11-07T19:03:02.8648292Z",
@@ -225,7 +257,7 @@
       "type": "improvement",
       "priority": "high",
       "status": "completed",
-      "rank": 14,
+      "rank": 16,
       "depends_on": [
         "T-2"
       ],
@@ -243,7 +275,7 @@
       "type": "improvement",
       "priority": "high",
       "status": "completed",
-      "rank": 15,
+      "rank": 17,
       "depends_on": [
         "T-2"
       ],
@@ -261,7 +293,7 @@
       "type": "feature",
       "priority": "high",
       "status": "completed",
-      "rank": 16,
+      "rank": 18,
       "created_at": "2026-11-06T15:06:20.0973044Z",
       "updated_at": "2026-11-06T16:58:45.8492997Z",
       "completed_at": "2026-11-06T16:58:45.8492997Z",
@@ -276,7 +308,7 @@
       "type": "feature",
       "priority": "high",
       "status": "completed",
-      "rank": 17,
+      "rank": 19,
       "depends_on": [
         "T-1"
       ],
@@ -294,7 +326,7 @@
       "type": "improvement",
       "priority": "medium",
       "status": "completed",
-      "rank": 18,
+      "rank": 20,
       "depends_on": [
         "T-1"
       ],
@@ -312,7 +344,7 @@
       "type": "feature",
       "priority": "medium",
       "status": "idea",
-      "rank": 19,
+      "rank": 21,
       "created_at": "2026-11-06T15:06:20.0973044Z",
       "updated_at": "2026-11-06T15:06:20.0973044Z",
       "source_session": "20261106T145500Z-e1f7ac",
@@ -326,7 +358,7 @@
       "type": "improvement",
       "priority": "low",
       "status": "planned",
-      "rank": 20,
+      "rank": 22,
       "created_at": "2026-11-06T15:06:20.0973044Z",
       "updated_at": "2026-11-06T15:06:20.0973044Z",
       "source_session": "20261106T145500Z-e1f7ac",
@@ -340,7 +372,7 @@
       "type": "feature",
       "priority": "low",
       "status": "planned",
-      "rank": 21,
+      "rank": 23,
       "created_at": "2026-11-06T15:06:20.0973044Z",
       "updated_at": "2026-11-06T15:06:20.0973044Z",
       "source_session": "20261106T145500Z-e1f7ac",
@@ -354,7 +386,7 @@
       "type": "feature",
       "priority": "low",
       "status": "idea",
-      "rank": 22,
+      "rank": 24,
       "created_at": "2026-11-06T15:06:20.0973044Z",
       "updated_at": "2026-11-06T15:06:20.0973044Z",
       "source_session": "20261106T145500Z-e1f7ac",
@@ -368,7 +400,7 @@
       "type": "feature",
       "priority": "low",
       "status": "planned",
-      "rank": 23,
+      "rank": 25,
       "created_at": "2026-11-06T15:06:20.0973044Z",
       "updated_at": "2026-11-06T15:06:20.0973044Z",
       "source_session": "20261106T145500Z-e1f7ac",
@@ -382,7 +414,7 @@
       "type": "feature",
       "priority": "low",
       "status": "planned",
-      "rank": 24,
+      "rank": 26,
       "created_at": "2026-11-06T15:06:20.0973044Z",
       "updated_at": "2026-11-06T15:06:20.0973044Z",
       "source_session": "20261106T145500Z-e1f7ac",
@@ -396,7 +428,7 @@
       "type": "feature",
       "priority": "low",
       "status": "planned",
-      "rank": 25,
+      "rank": 27,
       "created_at": "2026-11-06T15:06:20.0973044Z",
       "updated_at": "2026-11-06T15:06:20.0973044Z",
       "source_session": "20261106T145500Z-e1f7ac",
@@ -410,7 +442,7 @@
       "type": "feature",
       "priority": "low",
       "status": "planned",
-      "rank": 26,
+      "rank": 28,
       "created_at": "2026-11-06T15:06:20.0973044Z",
       "updated_at": "2026-11-06T15:06:20.0973044Z",
       "source_session": "20261106T145500Z-e1f7ac",
@@ -424,7 +456,7 @@
       "type": "improvement",
       "priority": "high",
       "status": "completed",
-      "rank": 27,
+      "rank": 29,
       "created_at": "2026-11-06T18:23:44.7874656Z",
       "updated_at": "2026-11-07T17:42:49.1343468Z",
       "completed_at": "2026-11-07T17:42:49.1343468Z",
@@ -439,7 +471,7 @@
       "type": "improvement",
       "priority": "low",
       "status": "planned",
-      "rank": 28,
+      "rank": 30,
       "created_at": "2026-11-07T19:07:00.3122228Z",
       "updated_at": "2026-11-07T19:07:00.3122228Z",
       "source_session": "20261107T190519Z-968c78",
@@ -453,7 +485,7 @@
       "type": "improvement",
       "priority": "medium",
       "status": "cancelled",
-      "rank": 29,
+      "rank": 31,
       "created_at": "2026-11-08T14:02:18.344622Z",
       "updated_at": "2026-11-08T14:08:36.1828706Z",
       "source_session": "20261108T130858Z-a2cfbc",
@@ -467,7 +499,7 @@
       "type": "feature",
       "priority": "low",
       "status": "planned",
-      "rank": 30,
+      "rank": 32,
       "depends_on": [
         "T-5"
       ],
@@ -484,7 +516,7 @@
       "type": "feature",
       "priority": "medium",
       "status": "completed",
-      "rank": 31,
+      "rank": 33,
       "created_at": "2026-11-14T07:05:06.0335854Z",
       "updated_at": "2026-11-14T13:08:04.1691082Z",
       "completed_at": "2026-11-14T13:08:04.1691082Z",
@@ -499,7 +531,7 @@
       "type": "research",
       "priority": "high",
       "status": "completed",
-      "rank": 32,
+      "rank": 34,
       "created_at": "2026-11-14T08:55:27.2180203Z",
       "updated_at": "2026-11-14T09:15:52.9147459Z",
       "completed_at": "2026-11-14T09:15:52.9147459Z",
@@ -514,7 +546,7 @@
       "type": "bug",
       "priority": "high",
       "status": "completed",
-      "rank": 33,
+      "rank": 35,
       "created_at": "2026-11-14T12:34:46.6656265Z",
       "updated_at": "2026-11-14T13:13:04.4776177Z",
       "completed_at": "2026-11-14T13:13:04.4776177Z",
@@ -529,7 +561,7 @@
       "type": "improvement",
       "priority": "medium",
       "status": "completed",
-      "rank": 34,
+      "rank": 36,
       "created_at": "2026-11-14T12:34:46.7759489Z",
       "updated_at": "2026-11-14T15:34:41.5939293Z",
       "completed_at": "2026-11-14T15:34:41.5939293Z",
@@ -544,26 +576,12 @@
       "type": "feature",
       "priority": "low",
       "status": "idea",
-      "rank": 35,
+      "rank": 37,
       "created_at": "2026-11-21T12:41:08.9935582Z",
       "updated_at": "2026-11-21T12:41:08.9935582Z",
       "source_session": "20261115T174012Z-081bec",
       "recorded_by": "claude-code",
       "origin": "user_requested"
-    },
-    {
-      "id": "T-36",
-      "title": "cases.Generate drops a branch when a row has a mapped send",
-      "description": "Found while building T-35, 2026-11-21. In the agree shop fixture, giving the PM's tier row a send with map (Silver = SLV, Standard = STD) made the generator stop emitting a member=true case, so the generated cases covered only one tier. The case-based done-check (T-35) can only be as complete as the generated cases, so a missing branch means an item can close without that branch ever being checked. Investigate why the mapped send changes generation (internal/cases), and make both branches appear.",
-      "type": "bug",
-      "priority": "low",
-      "status": "idea",
-      "rank": 36,
-      "created_at": "2026-11-21T18:11:34.9884244Z",
-      "updated_at": "2026-11-21T18:11:34.9884244Z",
-      "source_session": "20261121T173432Z-095336",
-      "recorded_by": "claude-code",
-      "origin": "agent_suggested"
     }
   ]
 }
