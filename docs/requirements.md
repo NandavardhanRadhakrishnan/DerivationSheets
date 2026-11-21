@@ -97,10 +97,13 @@ fed in at its incoming handoff, as `slice --cases` does in its isolated mode.
 The item is decided on the fields that carry the row:
 
 - every case agrees: done, however the team's rule is written;
-- some case differs: open, with `N of M cases differ` and the cases listed;
+- some case differs: open, with `N of M cases differ` and the cases listed.
+  A field the team did not send because its sheet rejects where the PM's
+  case does not differs too, and a `MISSING_INPUT` names the field the
+  sheet reads that its incoming boundary does not carry;
 - otherwise, any case that does not agree (an input the team's sheet lacks,
-  a sheet that fails, a call that is not answered): not documented, with
-  the reason.
+  a sheet that fails, a call that is not answered or that rejects): not
+  documented, with the reason.
 
 A row no field carries (such as `discount_rate`) is judged on the nearest
 compared fields it feeds: `discountAmount`, not the totals further down,
@@ -114,7 +117,11 @@ interface in and gives the next one out, or no field carries the row or
 anything it feeds, the rule text decides and the note ends with `checked by
 rule text: <why>`, followed by why the team's flows were left out, if any
 were. Then a derived row that exists with a different rule stays open, with
-a note. The comparison covers every field of the row except its labels
+a note. When several of the team's flows match, the item is not documented,
+naming them: dsheets cannot tell which one is the team's. When a team the
+item depends on through a call (a callee) has no own flow, the caller's
+Compute items are not documented, rather than checked by rule text: the
+call is not answered, so the caller's values cannot be told. The comparison covers every field of the row except its labels
 (name, description, open questions) and its send, as `dsheets diff` does, so
 a changed reject message or a changed `uses` counts as a different rule.
 
@@ -144,9 +151,11 @@ repositories), or else by the alias equal to the first word of the team's name
 interfaces has no sheets to read, so its Compute, Send, Receive and Carry
 items show as not documented; its Schema items still close.
 
-`--json` lists every item, done ones included, with `status` and `note`, and
-on an open or not documented Compute or Send the `cases` behind it: each
-case's id, boundary, field, row, team, status, expected and actual value.
+`--json` lists every item, done ones included, with `status` and `note`. An
+open or not documented Compute, and a Send opened by a differing case, also
+carry the `cases` behind them: for each, the case id (`case`), the boundary
+(`role`, `stage`, `interface`), `field`, `row`, `team`, `status`,
+`expected`, `actual` and `note`.
 `--no-check` skips all of this, and `--offline` uses only what is fetched.
 
 ## Workflow

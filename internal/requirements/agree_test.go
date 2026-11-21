@@ -448,3 +448,24 @@ func TestDifferingRejectOpensTheRowsItem(t *testing.T) {
 		t.Errorf("Orders' cost is not past the reject: %+v", cost)
 	}
 }
+
+// A callee with no own flow leaves its caller's Compute not documented, not
+// checked by rule text: the call is not answered. The callee's own item
+// falls back to the rule text.
+func TestCalleeWithoutFlowLeavesCallerUndocumented(t *testing.T) {
+	pm, all := shopFlows(t)
+	teams := func(team string) ([]*flow.Analysis, []string) {
+		if team == "Shipping team" {
+			return nil, nil
+		}
+		return all(team)
+	}
+	rs := shopItems()
+	applyCases(rs, pm, agree.Run(pm, teams, agree.Options{Mode: agree.Isolated}))
+	if fee := itemOf(rs, "R-fee"); fee.Status != StatusDone || !strings.Contains(fee.Note, ruleText) {
+		t.Errorf("Shipping's fee: %+v", fee)
+	}
+	if cost := itemOf(rs, "R-cost"); cost.Status != StatusUndocumented || strings.Contains(cost.Note, ruleText) || !strings.Contains(cost.Note, "not answered") {
+		t.Errorf("Orders' cost: %+v", cost)
+	}
+}

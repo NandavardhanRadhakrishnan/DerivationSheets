@@ -240,7 +240,9 @@ runs the cases `dsheets cases` generates for the end-to-end sheet through
 each team's own sheet, and compares what they produce with what the
 end-to-end sheet expects at the team's boundary. A team's flows are read
 from the repository the registry lists for it (`team = "Orders team"` in
-`.gitmodules`), on the branch the registry follows. The team's flow is the
+`.gitmodules`), on the branch the registry follows. The registry is the one
+of the repository holding the folder you run the command in, as for the
+other commands. The team's flow is the
 one that takes the same interface in and gives the same interface out.
 Hand-filled values in the PM's committed `cases.toml` are used where a row
 has none to compute.
@@ -255,13 +257,16 @@ There are two modes, and `slice --cases` uses the second:
 Each team gets a line with its interface and counts. Only the values that
 differ, and the ones that cannot be told (a team flow not found, a
 missing input, a text rule that cannot be computed), are listed, with each
-note once per team:
+note once per team. For a small shop flow, where Shipping's fee is
+`weight * 2` and Silver members pay half of it, an Orders sheet that tests
+for `"silver"` instead of `"Silver"` gives:
 
 ```
-Cases (12, end to end):
-  Cart team      order-placed  12 agree
-  Orders team    quote-request, payment-request  11 agree, 1 differs
-    case silver-heavy  shippingCost  expected 31, got 15.5
+Cases (4, end to end):
+  Cart team      order-placed  8 agree
+  Orders team    quote-request, payment-request  6 agree, 1 differs
+    case isolate-tier  shippingCost  expected 2, got 4
+  Shipping team  quote-response  4 agree
 ```
 
 A row of the end-to-end sheet that is carried on a boundary between two
