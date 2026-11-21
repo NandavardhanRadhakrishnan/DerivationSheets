@@ -150,6 +150,11 @@ row that uses it and every boundary that carries it; callees only compute
 what they are given. Context, database and config inputs belong to the
 step that reads them and never cross a boundary.
 
+A row in `computes` means the step's team answers for that value at its
+boundary. The team's own sheet may compute it in more steps, or split it
+with a team it calls; what counts is that the value at the boundary is the
+same. `slice --cases` checks that (see "Checking the teams' sheets").
+
 `slice` reports an error when a row is placed after something that needs
 it.
 
@@ -224,6 +229,51 @@ and with what: the `call` stage in its `flow.toml`, sends with
 carry yet arrive with an open question naming the proposed field. Data
 files the piece uses are copied with it. `slice --export` checks every
 piece on its own after writing it.
+
+## Checking the teams' sheets
+
+```sh
+dsheets slice flows/checkout-to-payment --cases [--strict]
+```
+
+runs the cases `dsheets cases` generates for the end-to-end sheet through
+each team's own sheet, and compares what they produce with what the
+end-to-end sheet expects at the team's boundary. A team's flows are read
+from the repository the registry lists for it (`team = "Orders team"` in
+`.gitmodules`), on the branch the registry follows. The registry is the one
+of the repository holding the folder you run the command in, as for the
+other commands. The team's flow is the
+one that takes the same interface in and gives the same interface out.
+Hand-filled values in the PM's committed `cases.toml` are used where a row
+has none to compute.
+
+There are two modes, and `slice --cases` uses the second:
+
+- Isolated: each team is fed the end-to-end sheet's values at its incoming
+  handoff, so a wrong team is found on its own.
+- End to end: each team is fed what the team before it produced, so the
+  cases travel the way real traffic would.
+
+Each team gets a line with its interface and counts. Only the values that
+differ, and the ones that cannot be told (a team flow not found, a
+missing input, a text rule that cannot be computed), are listed, with each
+note once per team. For a small shop flow, where Shipping's fee is
+`weight * 2` and Silver members pay half of it, an Orders sheet that tests
+for `"silver"` instead of `"Silver"` gives:
+
+```
+Cases (4, end to end):
+  Cart team      order-placed  8 agree
+  Orders team    quote-request, payment-request  6 agree, 1 differs
+    case isolate-tier  shippingCost  expected 2, got 4
+  Shipping team  quote-response  4 agree
+```
+
+A row of the end-to-end sheet that is carried on a boundary between two
+teams is binding (D-23): the team on either side must produce that value,
+even if its own sheet reaches it in more steps. With `--strict`, any
+difference exits 1. Without a registry, every check is reported as
+cannot tell.
 
 ## Branching off, and feeding in
 

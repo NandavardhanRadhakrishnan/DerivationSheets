@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/agree"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/brand"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/flow"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/flowrender"
@@ -213,7 +214,8 @@ func cmdFetch(args []string, out, errw io.Writer) error {
 }
 
 func cmdSlice(args []string, out, errw io.Writer) error {
-	fs := newFlags("slice", "<flow> [--out flow.html] [--strict]", errw)
+	fs := newFlags("slice", "<flow> [--out flow.html] [--strict] [--cases]", errw)
+	casesFlag := fs.Bool("cases", false, "run the generated cases through each team's own sheet and compare the values at the boundaries; with --strict, exit 1 when any differs")
 	outFile := fs.String("out", "", "also write the flow view, with the review marked, to this HTML file")
 	strict := fs.Bool("strict", false, "exit 1 when any boundary has missing fields or warnings")
 	export := fs.String("export", "", "also write each team's piece as its own flow and sheet into this folder")
@@ -272,8 +274,15 @@ func cmdSlice(args []string, out, errw io.Writer) error {
 			return err
 		}
 	}
+	differs := false
+	if *casesFlag {
+		rep := sliceCases(out, a, fe)
+		for _, ck := range rep.Checks {
+			differs = differs || ck.Status == agree.Differs
+		}
+	}
 	c := a.Counts()
-	if *strict && (c[flow.Missing] > 0 || c[flow.Warn] > 0) {
+	if *strict && (c[flow.Missing] > 0 || c[flow.Warn] > 0 || differs) {
 		return errFailed
 	}
 	return nil

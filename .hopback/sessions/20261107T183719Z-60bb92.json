@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "id": "20261107T183719Z-60bb92",
+  "project_id": "e790ba3d-ea34-4612-a843-85ab5e393eb0",
+  "role": "build",
+  "agent": "claude-code",
+  "native_session_id": "3d951645-5fb0-4a1d-816d-2f7ee5a6a6a7",
+  "name": "hopback build: T-18 Editor: the Uses row IDs in the panel lo",
+  "objective_task_id": "T-18",
+  "status": "parked",
+  "launched": true,
+  "started_at": "2026-11-07T18:37:19.4577509Z",
+  "ended_at": "2026-11-07T19:05:10.0290084Z",
+  "parked_at": "2026-11-07T19:04:52.5899139Z",
+  "handoff": "sessions/20261107T183719Z-60bb92.md"
+}

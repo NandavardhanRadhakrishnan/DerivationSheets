@@ -1,0 +1,24 @@
+sheet   = "ship"
+version = 1
+title   = "Shipping"
+
+[[row]]
+id     = "weight"
+name   = "Weight"
+source = "request.weight"
+type   = "number"
+
+[[row]]
+id      = "fee"
+name    = "Fee"
+uses    = ["weight"]
+formula = "weight * 2"
+
+  [[row.reject]]
+  when    = "weight > 30"
+  code    = "TOO_HEAVY"
+  message = "Too heavy to ship"
+
+  [row.send]
+  field = "fee"
+  usage = "R"

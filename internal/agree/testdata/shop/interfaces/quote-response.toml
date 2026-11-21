@@ -1,0 +1,10 @@
+interface = "quote-response"
+title     = "quote-response"
+kind      = "api-response"
+owner     = "Shipping team"
+status    = "existing"
+
+[[field]]
+name     = "fee"
+type     = "number"
+required = true

@@ -1,0 +1,36 @@
+sheet   = "orders"
+version = 1
+title   = "Orders"
+
+[[row]]
+id     = "tier"
+name   = "Tier"
+source = "request.tier"
+type   = "string"
+
+[[row]]
+id     = "weight"
+name   = "Weight"
+source = "request.weight"
+type   = "number"
+
+  [[row.send]]
+  target = "quote"
+  field  = "weight"
+  usage  = "R"
+
+[[row]]
+id     = "fee"
+name   = "Fee"
+source = "call.quote.fee"
+type   = "number"
+
+[[row]]
+id      = "shipping_cost"
+name    = "Shipping cost"
+uses    = ["tier", "fee"]
+formula = "tier == \"Silver\" ? fee / 2 : fee"
+
+  [row.send]
+  field = "shippingCost"
+  usage = "R"

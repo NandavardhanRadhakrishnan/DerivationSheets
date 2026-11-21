@@ -190,3 +190,66 @@ func TestInputRejectSkippedWhenNotRequired(t *testing.T) {
 		t.Errorf("the missing input's reject was evaluated: %v", res.Err)
 	}
 }
+
+const pendingSheet = `sheet = "pending"
+version = 1
+title = "Pending"
+
+[[row]]
+id = "weight"
+name = "Weight"
+source = "request.weight"
+type = "number"
+
+  [[row.send]]
+  target = "quote"
+  field = "weight"
+  usage = "R"
+
+[[row]]
+id = "fee"
+name = "Fee"
+source = "call.quote.fee"
+type = "number"
+
+[[row]]
+id = "cost"
+name = "Cost"
+uses = ["fee"]
+formula = "fee * 2"
+
+  [row.send]
+  field = "cost"
+  usage = "R"
+`
+
+func TestPendingInputIsUnknownNotMissing(t *testing.T) {
+	dir := t.TempDir()
+	s, err := sheet.Parse(dir, filepath.Join(dir, sheet.FileName), pendingSheet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, err := New(s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res := e.Evaluate(Input{"weight": 3, "fee": Pending{Reason: "call quote not made yet"}})
+	if res.Err != nil {
+		t.Fatal(res.Err)
+	}
+	if res.Reject != nil {
+		t.Fatalf("pending is not missing, got reject %+v", res.Reject)
+	}
+	if res.Status["fee"] != StatusUnknown || res.Status["cost"] != StatusUnknown {
+		t.Errorf("status = %v", res.Status)
+	}
+	if res.ByRow["fee"].Detail != "call quote not made yet" {
+		t.Errorf("detail = %q", res.ByRow["fee"].Detail)
+	}
+	if !sheet.Equal(res.CallPayloads["quote"]["weight"], 3) {
+		t.Errorf("the call request is still built, got %v", res.CallPayloads)
+	}
+	if _, sent := res.Payload["cost"]; sent {
+		t.Error("an unknown value is not sent")
+	}
+}

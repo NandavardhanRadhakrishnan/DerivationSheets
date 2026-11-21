@@ -1,0 +1,29 @@
+sheet   = "cart"
+version = 1
+title   = "Cart"
+
+[[row]]
+id     = "member"
+name   = "Member"
+source = "request.member"
+type   = "boolean"
+
+[[row]]
+id     = "weight"
+name   = "Weight"
+source = "request.weight"
+type   = "number"
+
+  [row.send]
+  field = "weight"
+  usage = "R"
+
+[[row]]
+id      = "tier"
+name    = "Tier"
+uses    = ["member"]
+formula = "member ? \"Silver\" : \"Standard\""
+
+  [row.send]
+  field = "tier"
+  usage = "R"

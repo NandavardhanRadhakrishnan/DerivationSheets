@@ -1,7 +1,9 @@
 package cases
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -263,3 +265,19 @@ func key(k string) string {
 }
 
 func quote(s string) string { return strconv.Quote(s) }
+
+// ReadFilled reads the committed cases.toml in a sheet's folder, whose
+// hand-filled values stand in for rows that cannot be computed. No file is
+// not an error: it returns nil and no reason. A file that cannot be read
+// returns nil and why.
+func ReadFilled(dir string) (*File, string) {
+	p := Path(dir)
+	f, err := Read(p)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return nil, ""
+	case err != nil:
+		return nil, fmt.Sprintf("%s could not be read: %v", p, err)
+	}
+	return f, ""
+}

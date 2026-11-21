@@ -219,6 +219,11 @@ func (e *Engine) Evaluate(in Input) *Result {
 	return res
 }
 
+// Pending is an Input value meaning the row's value is not known yet, for
+// example because the call it comes from has not been made. The row is
+// unknown, not missing.
+type Pending struct{ Reason string }
+
 func (e *Engine) input(r *sheet.Row, in Input, res *Result, st *Step, ctx expr.Context) error {
 	if r.Usage == sheet.UsageSituational && r.When != "" {
 		b, err := e.evalBool(r.When, res.Values, ctx)
@@ -226,6 +231,10 @@ func (e *Engine) input(r *sheet.Row, in Input, res *Result, st *Step, ctx expr.C
 			return fmt.Errorf("when: %v", err)
 		}
 		st.InputWhen = &b
+	}
+	if p, ok := in[r.ID].(Pending); ok {
+		st.Status, st.Detail = StatusUnknown, p.Reason
+		return nil
 	}
 	if v, ok := in[r.ID]; ok && v != nil {
 		cv, err := Coerce(r.Type, v)
@@ -564,6 +573,9 @@ func getPath(m map[string]any, path string) (any, bool) {
 	}
 	return cur, true
 }
+
+// SetPath writes a dotted field into a payload.
+func SetPath(m map[string]any, path string, v any) { setPath(m, path, v) }
 
 func setPath(m map[string]any, path string, v any) {
 	parts := strings.Split(path, ".")

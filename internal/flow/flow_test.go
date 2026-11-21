@@ -476,3 +476,34 @@ type = "number"
 		t.Errorf("Norm = %q", Norm("Free_Shipping"))
 	}
 }
+
+func TestRowOf(t *testing.T) {
+	a := example(t, nil)
+	// the example flow's shipping-quote response carries fee = shipping_fee
+	for _, b := range a.Boundaries {
+		if b.Role == RoleResponse && b.RowOf("fee") != "shipping_fee" {
+			t.Errorf("RowOf(fee) = %q", b.RowOf("fee"))
+		}
+	}
+	if a.Boundaries[0].RowOf("no-such-field") != "" {
+		t.Error("an uncarried field has no row")
+	}
+}
+
+func TestFindDirs(t *testing.T) {
+	root := t.TempDir()
+	for _, d := range []string{"b", "a/nested", ".dsheets/x", ".git/y"} {
+		dir := filepath.Join(root, filepath.FromSlash(d))
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, FileName), nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got := FindDirs(root)
+	want := []string{filepath.Join(root, "a", "nested"), filepath.Join(root, "b")}
+	if !slices.Equal(got, want) {
+		t.Errorf("FindDirs = %v, want %v", got, want)
+	}
+}

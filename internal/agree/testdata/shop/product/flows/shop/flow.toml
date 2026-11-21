@@ -1,0 +1,32 @@
+flow    = "shop"
+version = 1
+title   = "Shop"
+sheet   = "../../specs/shop"
+
+[input]
+interface = "../../../interfaces/checkout-request.toml"
+
+[[stage]]
+kind      = "handoff"
+interface = "../../../interfaces/order-placed.toml"
+producer  = "Cart team"
+computes  = ["tier"]
+
+[[stage]]
+id     = "shipping-quote"
+kind   = "call"
+caller = "Orders team"
+callee = "Shipping team"
+callee_computes = ["shipping_fee"]
+
+  [stage.request]
+  interface = "../../../interfaces/quote-request.toml"
+
+  [stage.response]
+  interface = "../../../interfaces/quote-response.toml"
+  carries   = { fee = "shipping_fee" }
+
+[output]
+interface = "../../../interfaces/payment-request.toml"
+producer  = "Orders team"
+computes  = ["shipping_cost"]

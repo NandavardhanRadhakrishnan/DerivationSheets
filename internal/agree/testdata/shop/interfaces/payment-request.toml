@@ -1,0 +1,10 @@
+interface = "payment-request"
+title     = "payment-request"
+kind      = "api-request"
+owner     = "Orders team"
+status    = "existing"
+
+[[field]]
+name     = "shippingCost"
+type     = "number"
+required = true

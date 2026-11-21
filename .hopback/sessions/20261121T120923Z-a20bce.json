@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "id": "20261121T120923Z-a20bce",
+  "project_id": "e790ba3d-ea34-4612-a843-85ab5e393eb0",
+  "role": "build",
+  "agent": "claude-code",
+  "native_session_id": "34158101-bb52-425d-872c-16b19a87ccdb",
+  "name": "hopback build: T-32 Brainstorm: help an owner update their s",
+  "objective_task_id": "T-32",
+  "status": "interrupted",
+  "launched": true,
+  "started_at": "2026-11-21T12:09:23.2904474Z",
+  "ended_at": "2026-11-21T12:11:45.0543704Z"
+}

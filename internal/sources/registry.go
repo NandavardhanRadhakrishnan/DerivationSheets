@@ -2,10 +2,12 @@ package sources
 
 import (
 	"fmt"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"sort"
 	"strings"
 )
 
@@ -154,4 +156,51 @@ func resolveURL(base, u string) string {
 		prefix, base = base[:i+1], base[i+1:]
 	}
 	return prefix + path.Join(base, u)
+}
+
+// TeamAliases are the registry repositories of a team: every entry whose team
+// key names it, in alias order, else the alias equal to the first word of the
+// team's name when that entry names no other team.
+func TeamAliases(team string, reg map[string]Source) []string {
+	var out []string
+	for alias, src := range reg {
+		if src.Team != "" && strings.EqualFold(src.Team, team) {
+			out = append(out, alias)
+		}
+	}
+	if len(out) > 0 {
+		sort.Strings(out)
+		return out
+	}
+	first, _, _ := strings.Cut(strings.TrimSpace(team), " ")
+	first = strings.ToLower(first)
+	if src, ok := reg[first]; ok && first != "" && src.Team == "" {
+		return []string{first}
+	}
+	return nil
+}
+
+// OriginURL is the URL of a repository's origin remote, "" when it has none.
+func OriginURL(root string) string {
+	out, err := exec.Command("git", "-C", root, "remote", "get-url", "origin").Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// SelfAlias is the registry alias of the repository with the given origin,
+// "" when it has none. With several, the first in alias order.
+func SelfAlias(reg map[string]Source, origin string) string {
+	var found []string
+	for alias, src := range reg {
+		if origin != "" && SameRepo(src.Git, origin) {
+			found = append(found, alias)
+		}
+	}
+	sort.Strings(found)
+	if len(found) == 0 {
+		return ""
+	}
+	return found[0]
 }

@@ -1,0 +1,10 @@
+interface = "quote-request"
+title     = "quote-request"
+kind      = "api-request"
+owner     = "Shipping team"
+status    = "existing"
+
+[[field]]
+name     = "weight"
+type     = "number"
+required = true

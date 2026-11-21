@@ -1,0 +1,11 @@
+flow    = "ship"
+version = 1
+title   = "Shipping"
+sheet   = "../../specs/ship"
+
+[input]
+interface = "../../../interfaces/quote-request.toml"
+
+[output]
+interface = "../../../interfaces/quote-response.toml"
+producer  = "Shipping team"

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "id": "20261114T085751Z-e9b048",
+  "project_id": "e790ba3d-ea34-4612-a843-85ab5e393eb0",
+  "role": "build",
+  "agent": "claude-code",
+  "native_session_id": "a2270d25-c28e-486e-9c3b-576a33474252",
+  "name": "hopback build: T-27 Set up a dummy Acme Corp: several team r",
+  "objective_task_id": "T-27",
+  "status": "parked",
+  "launched": true,
+  "started_at": "2026-11-14T08:57:51.6171453Z",
+  "parked_at": "2026-11-14T12:52:43.7758281Z",
+  "handoff": "sessions/20261114T085751Z-e9b048.md"
+}

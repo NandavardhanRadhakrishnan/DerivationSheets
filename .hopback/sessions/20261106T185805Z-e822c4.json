@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "id": "20261106T185805Z-e822c4",
+  "project_id": "e790ba3d-ea34-4612-a843-85ab5e393eb0",
+  "role": "build",
+  "agent": "claude-code",
+  "native_session_id": "db10bc0a-5b47-4b71-8ab3-ba74bb32ad52",
+  "name": "hopback build: T-19 Allow reject conditions on input rows",
+  "objective_task_id": "T-19",
+  "status": "parked",
+  "launched": true,
+  "started_at": "2026-11-06T18:58:05.5314048Z",
+  "ended_at": "2026-11-06T19:21:11.7326598Z",
+  "parked_at": "2026-11-06T19:21:02.2168382Z",
+  "handoff": "sessions/20261106T185805Z-e822c4.md"
+}

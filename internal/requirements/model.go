@@ -7,6 +7,8 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"sort"
+
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/agree"
 )
 
 // Kind says what sort of work a requirement is.
@@ -62,6 +64,10 @@ type Requirement struct {
 	// by Check. An empty Status reads as open.
 	Status string `json:"status,omitempty"`
 	Note   string `json:"note,omitempty"`
+	// Cases are the PM's cases behind an open or undocumented Compute or
+	// Send: the checks that differ, or that cannot be told. Set by
+	// applyCases.
+	Cases []agree.Check `json:"cases,omitempty"`
 	// File is the interface file, relative to its repository's top folder.
 	// Set on Schema requirements only.
 	File string `json:"file,omitempty"`
