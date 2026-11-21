@@ -3,6 +3,7 @@
 package agree
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/cases"
@@ -58,4 +59,45 @@ type Options struct {
 	Mode    Mode
 	RefTime time.Time   // generated cases' reference time; zero means cases.DefaultReferenceTime
 	Filled  *cases.File // the PM's committed cases.toml, for "?" values; may be nil
+}
+
+// Run runs the PM's generated cases through each team's own sheet along the
+// PM's flow and compares the values at every boundary that carries a PM row.
+func Run(pm *flow.Analysis, teams TeamFlows, o Options) *Report {
+	r := &Report{Flow: pm.Flow.Slug, Mode: o.Mode}
+	cs := pmCases(pm, o)
+	r.Cases = len(cs)
+	ru := newRunner(pm, o.Mode, r)
+	seen := map[string]bool{}
+	for i, sg := range ru.segs {
+		var flows []*flow.Analysis
+		var notes []string
+		if teams != nil {
+			flows, notes = teams(sg.Team)
+		}
+		for _, n := range notes {
+			if !seen[n] {
+				seen[n] = true
+				r.Notes = append(r.Notes, n)
+			}
+		}
+		ru.found[i], ru.notFound[i] = findFlow(pm, sg, flows)
+		if m := ru.found[i]; m != nil && m.A.Engine == nil {
+			ru.found[i], ru.notFound[i] = nil, fmt.Sprintf("the sheet of %s cannot be evaluated", m.A.Flow.Dir)
+		}
+	}
+	if o.Mode == EndToEnd {
+		for _, c := range cs {
+			ru.chain(c)
+		}
+		return r
+	}
+	for i := range ru.segs {
+		for _, c := range cs {
+			if !ru.rejectsBefore(ru.segs[i], c) {
+				ru.run(i, c, ru.expected(c, pm.Boundaries[ru.segs[i].In]), true)
+			}
+		}
+	}
+	return r
 }
