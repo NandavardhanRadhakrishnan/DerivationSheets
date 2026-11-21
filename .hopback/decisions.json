@@ -347,6 +347,82 @@
       "decided_at": "2026-11-14T18:52:46.3727066Z",
       "source_session": "20261114T184305Z-20ccda",
       "recorded_by": "claude-code"
+    },
+    {
+      "id": "D-23",
+      "title": "Boundary agreement: a PM row at an intermediate boundary is binding",
+      "status": "decided",
+      "context": "T-32 design (docs/superpowers/specs/2026-11-21-boundary-agreement-design.md). Team sheets are checked against the PM's sheet by running the PM's cases and comparing values at boundaries. Question: when the PM's sheet has a row carried on a boundary between two teams (Acme: shipping_fee on quote-response.fee), and the teams split the work differently (Shipping halves the fee for Silver instead of Orders), is that inner value compared?",
+      "options": [
+        {
+          "name": "A binding",
+          "tradeoffs": "the inner value is part of the contract; the item stays open until the PM changes the sheet"
+        },
+        {
+          "name": "B not compared",
+          "tradeoffs": "only outer boundaries are checked"
+        },
+        {
+          "name": "C warning",
+          "tradeoffs": "report the difference but close the item when everything downstream agrees"
+        }
+      ],
+      "decision": "A: binding. A PM row carried on any boundary, outer or between two teams, is compared; teams choose the split freely only where the PM's sheet has no row at the boundary between them, and otherwise ask the PM to change the sheet.",
+      "rationale": "Developer's choice, 2026-11-21.",
+      "created_at": "2026-11-21T13:22:57.8720314Z",
+      "decided_at": "2026-11-21T13:22:57.8720314Z",
+      "source_session": "20261115T174012Z-081bec",
+      "recorded_by": "claude-code"
+    },
+    {
+      "id": "D-24",
+      "title": "T-32: agree on behaviour at boundaries, checked by the PM's cases",
+      "status": "decided",
+      "context": "T-32 brainstorm, 2026-11-21. The PM's sheet (intent) and the teams' sheets (implementation) describe the same logic at different granularity and drift; the T-30 done-check matches rule text, so it cannot close work written at a different granularity.",
+      "options": [
+        {
+          "name": "A one editor updates flow, sheet and schema together"
+        },
+        {
+          "name": "B developers write only code; the sheet is generated from it"
+        },
+        {
+          "name": "C keep rule-text matching and copy the PM's rule into team sheets"
+        },
+        {
+          "name": "D boundary agreement checked by running the PM's cases"
+        }
+      ],
+      "decision": "D. Each file owns one thing (PM's sheet: intent and cases; flow: boundaries and the answering team per PM row, no logic; team sheets: all logic; interfaces: what crosses). A pin means the team answers for the value at its boundary. Done = verify passes (sheet matches code) and the PM's cases agree at the boundaries (code matches intent). Sheet first is the default; code first gets the same checks. See docs/superpowers/specs/2026-11-21-boundary-agreement-design.md.",
+      "rationale": "Approved by the developer, 2026-11-21. Keeps the slice meeting short, keeps logic out of the flow, lets team sheets be more detailed than the PM's, and works for sheet-first and code-first work.",
+      "created_at": "2026-11-21T13:25:23.0969761Z",
+      "decided_at": "2026-11-21T13:25:23.0969761Z",
+      "source_session": "20261115T174012Z-081bec",
+      "recorded_by": "claude-code"
+    },
+    {
+      "id": "D-25",
+      "title": "T-35 plan calls: own-flow fallback and Send-only value check",
+      "status": "decided",
+      "context": "Two choices in the boundary-agreement plan that the T-32 design does not cover. Developer confirmed both on 2026-11-21.",
+      "decision": "(a) A team that has sheets but no own flow matching the boundary keeps the T-30 rule-text check, with the note 'checked by rule text: no flow of \u003cteam\u003e joins \u003cin\u003e to \u003cout\u003e'. It does not report cannot tell. (b) Receive and Carry items stay structural. Only Send items get the value check by cases.",
+      "rationale": "(a) Keeps the check that teams without a flow have today (TestRunClosesAnItemFromTheOwnersSheet). (b) Gating a Receive item on another team's values would make one team's item depend on another team's work.",
+      "created_at": "2026-11-21T13:39:19.5280089Z",
+      "decided_at": "2026-11-21T13:39:19.5280089Z",
+      "source_session": "20261121T133743Z-416e71",
+      "recorded_by": "claude-code"
+    },
+    {
+      "id": "D-26",
+      "title": "Case checks: callee without a flow; Send when cases cannot tell",
+      "status": "decided",
+      "context": "Two rulings made while building T-35, confirmed by the developer on 2026-11-21.",
+      "decision": "(1) When a team calls a team that has no own flow, the caller's Compute items that depend on the call are not documented, not closed by rule text (D-22). D-25(a)'s rule-text fallback covers only the team that itself lacks a flow. (2) A Send item that is structurally done stays done when its cases cannot tell; only a differing case reopens it.",
+      "rationale": "(1) The caller's values cannot be computed without the callee's answer, so closing by rule text would be a guess. Undocumented items do not block the flow. (2) The value itself is judged by the row's Compute item, so the Send item does not need to judge it again.",
+      "created_at": "2026-11-21T18:11:34.8841929Z",
+      "decided_at": "2026-11-21T18:11:34.8841929Z",
+      "source_session": "20261121T173432Z-095336",
+      "recorded_by": "claude-code"
     }
   ]
 }
