@@ -53,7 +53,46 @@ func (r *Result) line(q Requirement) string {
 			out += strings.Repeat(" ", 12) + l + "\n"
 		}
 	}
+	if q.Status != StatusDone && q.Status != StatusUndocumented {
+		out += failingCases(q)
+	}
 	return out
+}
+
+// shownCases is how many failing cases an open item lists.
+const shownCases = 5
+
+// failingCases lists an open item's differing cases under it, lined up with
+// its kind, the first few and then how many more.
+func failingCases(q Requirement) string {
+	cs := q.Cases
+	if len(cs) > shownCases {
+		cs = cs[:shownCases]
+	}
+	idW, fieldW := 0, 0
+	for _, c := range cs {
+		idW, fieldW = max(idW, len(c.Case)), max(fieldW, len(c.Field))
+	}
+	pad := strings.Repeat(" ", len(q.ID)+3)
+	out := ""
+	for _, c := range cs {
+		out += fmt.Sprintf("%scase %-*s   %-*s  expected %s, got %s", pad, idW, c.Case, fieldW, c.Field, shown(c.Expected), shown(c.Actual))
+		if c.Note != "" {
+			out += " (" + c.Note + ")"
+		}
+		out += "\n"
+	}
+	if more := len(q.Cases) - len(cs); more > 0 {
+		out += fmt.Sprintf("%s… and %d more\n", pad, more)
+	}
+	return out
+}
+
+func shown(v any) string {
+	if v == nil {
+		return "nothing"
+	}
+	return fmt.Sprint(v)
 }
 
 func (r *Result) writeTeam(w io.Writer, team string, qs []Requirement) error {

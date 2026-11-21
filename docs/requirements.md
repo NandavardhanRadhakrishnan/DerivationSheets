@@ -29,6 +29,19 @@ Shipping team: checkout-to-payment (base 502c48a)
  R-77e0b1  Send     send `surcharge` in quote-response, from `shipping_fee`   needs R-91c2e4
 ```
 
+An open Compute or Send that the product manager's cases fail lists up to
+five of them under it, then how many more:
+
+```
+Orders team: checkout-to-payment (base 7c3ac06)
+ R-4bbf66  Compute  shipping_cost: free_shipping ? 0 : shipping_fee -> free_shipping ? 0 : shipping_fee * 2   open: 4 of 6 cases differ
+            formula: free_shipping ? 0 : shipping_fee * 2
+           case loyalty-tier-silver      shippingCost  expected 18, got 27
+           case loyalty-tier-silver-2    shippingCost  expected 18, got 27
+           case isolate-customer-years   shippingCost  expected 18, got 27
+           case isolate-zone             shippingCost  expected 36, got 54
+```
+
 One group per team, in dependency order. Each requirement has a stable id,
 a kind, what to do, why (the row or boundary it comes from) and what it
 needs. The ids come from the kind, team, flow and subject, so a tracker item
@@ -64,7 +77,7 @@ follows for it, and decides every item:
 |---|---|---|---|
 | done | the owner's sheets show the work | no, counted (`3 of 5 done`) | no |
 | open | the owner has sheets and the evidence is missing or differs | yes | yes |
-| not documented | dsheets cannot tell: no repository for the team in the registry, or it has no sheets, or it could not be read | yes, under `Not documented (dsheets cannot tell):` | no, the PM decides |
+| not documented | dsheets cannot tell: no repository for the team in the registry, or it has no sheets, or it could not be read, or the PM's cases cannot be told on the team's sheet | yes, under `Not documented (dsheets cannot tell):` | no, the PM decides |
 
 What counts as evidence, looked for in every `sheet.toml` under the owner's
 dsheets folder:
@@ -72,16 +85,34 @@ dsheets folder:
 | Kind | Done when the owner's sheets contain |
 |---|---|
 | Schema | the interface declares the field (as before) |
-| Compute | a derived row for the value whose rule equals the flow's |
+| Compute | every PM case agrees at the team's boundary (see `slice --cases` in [flows.md](flows.md#checking-the-teams-sheets)); a team with no own flow for the boundary falls back to the rule text: a derived row for the value whose rule equals the flow's |
 | Compute (stop) | no derived row for the value, in an owner that has at least one sheet |
-| Send | a row that sends the field |
+| Send | a row that sends the field, and no PM case differs on that field at the boundary |
 | Receive | an input row that reads the field |
 | Carry | the row, in the owner's sheet |
 
-A derived row that exists with a different rule stays open, with a note. The
-comparison covers every field of the row except its labels (name, description,
-open questions) and its send, as `dsheets diff` does, so a changed reject
-message or a changed `uses` counts as a different rule.
+For a Compute, the cases are the product manager's generated cases (`dsheets
+cases`), run through the team's own flow and sheet with the end-to-end values
+fed in at its incoming handoff, as `slice --cases` does in its isolated mode.
+The item is decided on the fields that carry the row:
+
+- every case agrees: done, however the team's rule is written;
+- some case differs: open, with `N of M cases differ` and the cases listed;
+- some case cannot be told (an input the team's sheet lacks, a sheet that
+  fails, a call that is not answered): not documented, with the reason.
+
+A row no field carries (such as `discount_rate`) is judged on the fields of
+the rows it feeds, and the note says `judged on <fields>, which other rows
+also feed`, since a difference there may come from another row.
+
+When the team has sheets but no own flow that takes the boundary's
+interface in and gives the next one out, or no field carries the row or
+anything it feeds, the rule text decides and the note ends with `checked by
+rule text: <why>`. Then a derived row that exists with a different rule
+stays open, with a note. The comparison covers every field of the row except
+its labels (name, description, open questions) and its send, as `dsheets
+diff` does, so a changed reject message or a changed `uses` counts as a
+different rule.
 
 Matching is by where the value sits, not by name alone:
 
@@ -109,7 +140,9 @@ repositories), or else by the alias equal to the first word of the team's name
 interfaces has no sheets to read, so its Compute, Send, Receive and Carry
 items show as not documented; its Schema items still close.
 
-`--json` lists every item, done ones included, with `status` and `note`.
+`--json` lists every item, done ones included, with `status` and `note`, and
+on an open or not documented Compute or Send the `cases` behind it: each
+case's id, boundary, field, row, team, status, expected and actual value.
 `--no-check` skips all of this, and `--offline` uses only what is fetched.
 
 ## Workflow

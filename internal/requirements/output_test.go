@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/agree"
 )
 
 func shippingResult() *Result {
@@ -174,5 +176,31 @@ func TestWriteFolderFollowsTheListing(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, "cart-team.md")); err != nil {
 		t.Errorf("a team with only done items still gets a (summary) file: %v", err)
+	}
+}
+
+func TestLinePrintsFailingCases(t *testing.T) {
+	q := Requirement{ID: "R-91c2e4", Kind: Compute, Team: "Orders team", Subject: "shipping_cost", What: "change how `shipping_cost` is computed",
+		Status: StatusOpen, Note: "7 of 9 cases differ"}
+	for i, id := range []string{"silver-domestic", "silver-intl", "gold-a", "gold-b", "gold-c", "std-a", "std-b"} {
+		q.Cases = append(q.Cases, agree.Check{Case: id, Field: "shippingCost", Row: "shipping_cost", Team: "Orders team",
+			Status: agree.Differs, Expected: float64(4 + 2*i), Actual: float64(8 + 4*i)})
+	}
+	got := (&Result{}).line(q)
+	want := " R-91c2e4  Compute  change how `shipping_cost` is computed   open: 7 of 9 cases differ\n" +
+		"           case silver-domestic   shippingCost  expected 4, got 8\n" +
+		"           case silver-intl       shippingCost  expected 6, got 12\n" +
+		"           case gold-a            shippingCost  expected 8, got 16\n" +
+		"           case gold-b            shippingCost  expected 10, got 20\n" +
+		"           case gold-c            shippingCost  expected 12, got 24\n" +
+		"           … and 2 more\n"
+	if got != want {
+		t.Errorf("got:\n%s\nwant:\n%s", got, want)
+	}
+
+	// An undocumented item names why, not its cases.
+	q.Status, q.Note = StatusUndocumented, "the sheet orders fails at row x"
+	if got := (&Result{}).line(q); strings.Contains(got, "case ") {
+		t.Errorf("undocumented item lists cases:\n%s", got)
 	}
 }

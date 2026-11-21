@@ -39,6 +39,10 @@ type Check struct {
 	Expected any    `json:"expected,omitempty"`
 	Actual   any    `json:"actual,omitempty"`
 	Note     string `json:"note,omitempty"`
+	// NoFlow marks a cannot-tell check whose team has no own flow for the
+	// segment (none or several match): its sheet was not run at all, and
+	// Note says why.
+	NoFlow bool `json:"-"`
 }
 
 // Report is the outcome of one agreement run.
@@ -82,6 +86,7 @@ func Run(pm *flow.Analysis, teams TeamFlows, o Options) *Report {
 			}
 		}
 		ru.found[i], ru.notFound[i] = findFlow(pm, sg, flows)
+		ru.noFlow[i] = ru.found[i] == nil
 		if m := ru.found[i]; m != nil && m.A.Engine == nil {
 			ru.found[i], ru.notFound[i] = nil, fmt.Sprintf("the sheet of %s cannot be evaluated", m.A.Flow.Dir)
 		}

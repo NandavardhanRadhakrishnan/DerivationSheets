@@ -21,6 +21,7 @@ type runner struct {
 	segs     []segment
 	found    []*match          // each segment's team flow, or nil
 	notFound []string          // why a segment has no team flow
+	noFlow   []bool            // the segment's team has no own flow for it
 	bySource map[string]string // the PM's input rows by source
 }
 
@@ -28,6 +29,7 @@ func newRunner(pm *flow.Analysis, mode Mode, r *Report) *runner {
 	ru := &runner{pm: pm, mode: mode, report: r, segs: segments(pm), bySource: map[string]string{}}
 	ru.found = make([]*match, len(ru.segs))
 	ru.notFound = make([]string, len(ru.segs))
+	ru.noFlow = make([]bool, len(ru.segs))
 	for _, row := range pm.Sheet.Rows {
 		if _, has := ru.bySource[row.Source]; row.IsInput() && !has {
 			ru.bySource[row.Source] = row.ID
@@ -414,16 +416,17 @@ func (ru *runner) cannotTell(i int, c pmCase, note string, made map[int]bool) {
 	if ru.rejectsBefore(sg, c) {
 		return
 	}
+	noFlow := ru.noFlow[i] && note == ru.notFound[i]
 	// End to end, the chain judges the case's reject once.
 	if ru.mode == Isolated && ru.rejectsIn(sg, c) {
 		ck := ru.rejectBase(i, c)
-		ck.Status, ck.Note = CannotTell, note
+		ck.Status, ck.Note, ck.NoFlow = CannotTell, note, noFlow
 		ru.add(ck)
 	}
 	unknown := func(bi int) {
 		for _, w := range ru.wants(c, bi) {
 			ck := ru.base(c, bi, sg.Team, w.field)
-			ck.Expected, ck.Status, ck.Note = w.v, CannotTell, note
+			ck.Expected, ck.Status, ck.Note, ck.NoFlow = w.v, CannotTell, note, noFlow
 			ru.add(ck)
 		}
 	}

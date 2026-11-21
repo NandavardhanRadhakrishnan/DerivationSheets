@@ -325,6 +325,11 @@ func TestNoTeamFlowIsCannotTell(t *testing.T) {
 			if c.Team == "Cart team" && !strings.Contains(c.Note, "order-placed") {
 				t.Errorf("mode %v: note names the boundary: %+v", mode, c)
 			}
+			// Only Cart's own checks are cannot tell for want of a flow;
+			// end to end, Orders cannot tell because Cart sent nothing.
+			if c.NoFlow != (c.Team == "Cart team") {
+				t.Errorf("mode %v: NoFlow marks the team without a flow only: %+v", mode, c)
+			}
 		}
 		if mode == Isolated && countBy(r, "Orders team", "shippingCost", Agrees) == 0 {
 			t.Errorf("isolated: Orders is judged on its own: %+v", r.Checks)

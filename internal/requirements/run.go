@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/agree"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/cases"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/diff"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/flow"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sources"
@@ -121,9 +123,35 @@ func Run(o Options) (*Result, error) {
 	if !o.NoCheck {
 		reg, _ := sources.NewResolver(top, nil, fe).Registered() // no registry: nothing to check against
 		// This repository's own sheets at the followed branch are the flow's base, so they cannot show owners have acted.
-		Check(rs, reg, fe, sources.SelfAlias(reg, origin))
+		self := sources.SelfAlias(reg, origin)
+		Check(rs, reg, fe, self)
+		if byCases(rs) && headA.Engine != nil {
+			opt := agree.Options{Mode: agree.Isolated}
+			if p := cases.Path(headA.SheetDir); fileExists(p) {
+				if f, err := cases.Read(p); err == nil { // unreadable: run without its filled values
+					opt.Filled = f
+				}
+			}
+			applyCases(rs, headA, agree.Run(headA, agree.RegistryTeams(reg, fe, self), opt))
+		}
 	}
 	return &Result{Flow: headA.Flow.Slug, Base: short(base), Head: short(head), Requirements: rs}, nil
+}
+
+// byCases says some item is one the PM's cases may decide: a Compute or Send
+// that Check could tell.
+func byCases(rs []Requirement) bool {
+	for _, q := range rs {
+		if (q.Kind == Compute || q.Kind == Send) && q.Status != StatusUndocumented {
+			return true
+		}
+	}
+	return false
+}
+
+func fileExists(p string) bool {
+	_, err := os.Stat(p)
+	return err == nil
 }
 
 func short(sha string) string {
