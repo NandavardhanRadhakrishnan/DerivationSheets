@@ -77,7 +77,7 @@ func TestRunEqualsPrepareDecide(t *testing.T) {
 
 func TestEditorLines(t *testing.T) {
 	s, _, o := shopChange(t) // product is on branch quarter
-	o.Base = "main"
+	o.Base, o.As = "main", "product"
 	res, err := Run(o)
 	if err != nil {
 		t.Fatal(err)

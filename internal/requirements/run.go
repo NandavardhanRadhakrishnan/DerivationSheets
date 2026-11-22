@@ -180,12 +180,11 @@ func Prepare(o Options) (*Prepared, error) {
 		p.reg, _ = sources.NewResolver(top, nil, fe).Registered() // no registry: nothing to check against
 		// This repository's own sheets at the followed branch are the flow's base, so they cannot show owners have acted.
 		p.self = sources.SelfAlias(p.reg, origin)
-		// The alias the editor lines name: the one given, or found from the
-		// origin, or from this folder when the registry points at it.
+		// The alias the editor lines name: the one given, or found from the origin.
 		if _, ok := p.reg[o.As]; ok {
 			p.aliasAs = o.As
-		} else if p.aliasAs = p.self; p.aliasAs == "" {
-			p.aliasAs = sources.SelfAlias(p.reg, filepath.ToSlash(top))
+		} else {
+			p.aliasAs = p.self
 		}
 		if src, ok := p.reg[p.aliasAs]; ok {
 			if in, err := filepath.Rel(filepath.Join(top, filepath.FromSlash(sources.CleanDir(src.Dir))), flowAbs); err == nil && !strings.HasPrefix(in, "..") {
