@@ -43,6 +43,11 @@ type editServer struct {
 	flowFile string
 	// sheetNote says why a flow's end-to-end sheet cannot be edited.
 	sheetNote string
+
+	// reqs is the PM change serve --flow opened; nil without --flow. msg is
+	// where openRequirements says what it reads; nil prints nothing.
+	reqs *reqState
+	msg  io.Writer
 }
 
 // newEditServer sets up editing for a sheet folder. The store root is the
@@ -169,6 +174,9 @@ func (es *editServer) register(mux *http.ServeMux) {
 		mux.HandleFunc("/edit/state", es.guard(false, es.state))
 		mux.HandleFunc("/edit/check", es.guard(true, es.check))
 		mux.HandleFunc("/edit/save", es.guard(true, es.save))
+		if es.reqs != nil {
+			mux.HandleFunc("/edit/requirements", es.guard(true, es.requirementsEndpoint))
+		}
 	}
 	if es.flowFile != "" {
 		mux.HandleFunc("/edit/flow/state", es.guard(false, es.flowStateEndpoint))
@@ -286,6 +294,9 @@ func (es *editServer) stateJSON() ([]byte, error) {
 	st["functions"] = fns
 	if es.flowFile != "" {
 		st["back"] = "/" // served with its flow: the page links back to it
+	}
+	if es.reqs != nil {
+		st["requirements"] = map[string]string{"flow": es.reqs.ref}
 	}
 	return json.Marshal(st)
 }
