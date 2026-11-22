@@ -9,8 +9,8 @@ import (
 
 // RegistryTeams serves the team flows of every repository the registry
 // lists for a team (sources.TeamAliases), fetched on the branch the registry
-// follows, analysed with flow.Analyze; self is skipped.
-func RegistryTeams(reg map[string]sources.Source, fe *sources.Fetcher, self string) TeamFlows {
+// follows, analysed with flow.AnalyzeWith, reading unsaved sheets and flows from ov; self is skipped.
+func RegistryTeams(reg map[string]sources.Source, fe *sources.Fetcher, self string, ov flow.Overlay) TeamFlows {
 	type repo struct {
 		flows []*flow.Analysis
 		notes []string
@@ -28,12 +28,12 @@ func RegistryTeams(reg map[string]sources.Source, fe *sources.Fetcher, self stri
 			return r
 		}
 		for _, dir := range flow.FindDirs(root) {
-			f, err := flow.Load(dir)
+			f, err := flow.LoadWith(dir, ov)
 			if err != nil {
 				r.notes = append(r.notes, fmt.Sprintf("%s: flow %s left out: %v", alias, dir, err))
 				continue
 			}
-			a := flow.Analyze(f, sources.NewResolver(f.Dir, f.Sources, fe))
+			a := flow.AnalyzeWith(f, sources.NewResolver(f.Dir, f.Sources, fe), ov)
 			if len(a.Errors) > 0 {
 				r.notes = append(r.notes, fmt.Sprintf("%s: flow %s left out: %s", alias, f.Slug, a.Errors[0].Message))
 				continue

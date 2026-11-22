@@ -147,10 +147,7 @@ func (ed *Editor) flowRun(d FlowDraft, write bool) (*FlowResult, error) {
 	} else {
 		ov := flow.Overlay{}
 		for _, f := range ifaces {
-			p, err := filepath.Abs(filepath.Join(ed.Root, filepath.FromSlash(f.Path)))
-			if err == nil {
-				ov[filepath.Clean(p)] = f.Data
-			}
+			ov[flow.OverlayKey(filepath.Join(ed.Root, filepath.FromSlash(f.Path)))] = f.Data
 		}
 		res.Analysis = flow.AnalyzeWith(after, sources.NewResolver(after.Dir, after.Sources, ed.fetcher()), ov)
 		afterErrs, afterWarns = res.Analysis.Errors, res.Analysis.Warnings

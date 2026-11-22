@@ -124,10 +124,10 @@ func Run(o Options) (*Result, error) {
 		reg, _ := sources.NewResolver(top, nil, fe).Registered() // no registry: nothing to check against
 		// This repository's own sheets at the followed branch are the flow's base, so they cannot show owners have acted.
 		self := sources.SelfAlias(reg, origin)
-		Check(rs, reg, fe, self)
+		Check(rs, reg, fe, self, nil)
 		if byCases(rs) && headA.Engine != nil {
 			filled, why := cases.ReadFilled(headA.SheetDir)
-			rep := agree.Run(headA, agree.RegistryTeams(reg, fe, self), agree.Options{Mode: agree.Isolated, Filled: filled})
+			rep := agree.Run(headA, agree.RegistryTeams(reg, fe, self, nil), agree.Options{Mode: agree.Isolated, Filled: filled})
 			applyCases(rs, headA, rep)
 			explainCases(rs, rep, why)
 		}

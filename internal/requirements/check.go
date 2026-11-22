@@ -23,7 +23,7 @@ type fetcher interface {
 // registry, no sheets, a sheet it could not read, or the owner is the
 // repository the flow itself is in, self). Schema requirements are left as
 // they are: they close when the interface declares the field.
-func Check(rs []Requirement, reg map[string]sources.Source, fe fetcher, self string) {
+func Check(rs []Requirement, reg map[string]sources.Source, fe fetcher, self string, ov flow.Overlay) {
 	repos := map[string]*repoSheets{}
 	for i := range rs {
 		q := &rs[i]
@@ -43,7 +43,7 @@ func Check(rs []Requirement, reg map[string]sources.Source, fe fetcher, self str
 		for _, a := range aliases {
 			rp := repos[a]
 			if rp == nil {
-				rp = readRepo(a, reg[a], fe)
+				rp = readRepo(a, reg[a], fe, ov)
 				repos[a] = rp
 			}
 			t.add(rp)
@@ -70,7 +70,7 @@ type repoSheets struct {
 	err    error    // the repository could not be fetched
 }
 
-func readRepo(alias string, src sources.Source, fe fetcher) *repoSheets {
+func readRepo(alias string, src sources.Source, fe fetcher, ov flow.Overlay) *repoSheets {
 	o := &repoSheets{alias: alias}
 	root, _, err := fe.Fetch(src)
 	if err != nil {
@@ -87,7 +87,13 @@ func readRepo(alias string, src sources.Source, fe fetcher) *repoSheets {
 			return filepath.SkipDir
 		}
 		if !d.IsDir() && d.Name() == sheet.FileName {
-			s, err := sheet.Load(filepath.Dir(p))
+			var s *sheet.Sheet
+			var err error
+			if data, ok := ov[flow.OverlayKey(p)]; ok {
+				s, err = sheet.Parse(filepath.Dir(p), p, string(data))
+			} else {
+				s, err = sheet.Load(filepath.Dir(p))
+			}
 			if err != nil {
 				rel, _ := filepath.Rel(root, p)
 				o.failed = append(o.failed, filepath.ToSlash(rel)+": "+err.Error())
