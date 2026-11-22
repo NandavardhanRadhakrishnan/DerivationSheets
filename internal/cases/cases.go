@@ -134,12 +134,17 @@ func CallWhenKey(row, target string, side bool) string {
 	return fmt.Sprintf("%s:send.%s.when:%t", row, target, side)
 }
 
-// IsolationRows are computable derived rows that are not sent, to the
-// target or to a call, so a wrong value only shows through rows downstream.
+// IsolationRows are computable derived rows whose value reaches what is
+// sent: sent themselves, to the target or to a call, or feeding rows that
+// are. Each needs a pair of cases that changes its value. A sent row is
+// checked directly in every case, but only at the values the cases reach,
+// so without a pair a formula branch (member ? "Silver" : "Standard") can go
+// unexercised.
 func IsolationRows(e *eval.Engine) []*sheet.Row {
 	var out []*sheet.Row
 	for _, r := range e.Graph.Order {
-		if r.IsInput() || r.Send != nil || len(r.CallSends) > 0 || r.Rule() == sheet.RuleText || len(e.Graph.Users[r.ID]) == 0 {
+		sent := r.Send != nil || len(r.CallSends) > 0
+		if r.IsInput() || r.Rule() == sheet.RuleText || (!sent && len(e.Graph.Users[r.ID]) == 0) {
 			continue
 		}
 		out = append(out, r)
@@ -388,12 +393,12 @@ func isolates(e *eval.Engine, a, b *candidate, r *sheet.Row, anc map[string]bool
 	if !oka || !okb || sheet.Equal(va, vb) {
 		return false
 	}
-	// What is sent must differ in a field that r feeds, so the difference is
-	// one that a wrong value in r would cause.
+	// What is sent must differ in a field that r sends or feeds, so the
+	// difference is one that a wrong value in r would cause.
 	fa, fb := Observed(a.res), Observed(b.res)
 	desc := e.Graph.Descendants(r.ID)
 	for _, x := range e.Graph.Order {
-		if !desc[x.ID] {
+		if x.ID != r.ID && !desc[x.ID] {
 			continue
 		}
 		for _, k := range SendKeys(x) {
