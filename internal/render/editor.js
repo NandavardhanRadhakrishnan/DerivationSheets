@@ -264,6 +264,7 @@
   function changed() {
     sticky = refused = false;
     updateBar();
+    requirementsPending();
     clearTimeout(checkTimer);
     checkTimer = setTimeout(check, 400);
   }
@@ -1198,6 +1199,10 @@
   // While stale, the view is the last draft that could be checked, not this
   // one: the bar says "not checked" and the panel dims its statuses.
   var reqView = null, reqStale = "", reqError = "", reqSeq = 0;
+  // reqChecking: the draft changed and its answer has not come back; the
+  // view on hand is an older draft's. reqFetchError: the last Fetch again
+  // failed, and the view is of the change as last read.
+  var reqChecking = false, reqFetchError = "";
   // reqRefresh: Fetch again was asked and no answer to a refresh request has
   // come back; every request asks to refresh until one does.
   var reqRefresh = false;
@@ -1222,6 +1227,8 @@
         if (asked && selected === "#requirements") redrawReq(); // Fetch again is done
         return;
       }
+      reqChecking = false;
+      reqFetchError = res.refresh_error || "";
       if (res.view) {
         var done = nowDone(reqView, res.view);
         reqView = res.view;
@@ -1242,6 +1249,7 @@
     }, function (err) {
       if (seq !== reqSeq) return;
       if (asked) reqRefresh = false; // let Fetch again be asked anew
+      reqChecking = false;
       reqError = err.message;
       clearReqNotice();
       settleRequirements();
@@ -1253,10 +1261,21 @@
   function staleRequirements(reason) {
     if (!S.requirements) return;
     reqSeq++;
+    reqChecking = false;
     reqStale = reason;
     reqError = "";
     clearReqNotice();
     settleRequirements();
+  }
+
+  // requirementsPending marks the view as an older draft's until the
+  // answer for this one: answers to requests already sent are dropped.
+  function requirementsPending() {
+    if (!S.requirements) return;
+    reqSeq++;
+    reqChecking = true;
+    clearReqNotice();
+    updateReqButton();
   }
 
   // clearReqNotice takes a "done with this draft" message off the bar once
@@ -1284,11 +1303,33 @@
 
   function updateReqButton() {
     if (!reqBtn) return;
-    var n = reqView && !reqError && !reqStale ? reqView.items.filter(function (it) { return it.mine && it.status === "open"; }).length : -1;
-    reqBtn.textContent = reqStale && !reqError ? "Requirements · not checked" : n < 0 ? "Requirements" : "Requirements · " + n + " open";
-    reqBtn.title = reqStale && !reqError ? "This draft was not checked against the requirements: " + reqStale : "";
-    reqBtn.classList.toggle("ed-req-has-open", n > 0);
-    reqBtn.classList.toggle("ed-req-not-checked", !!reqStale && !reqError);
+    var text = "Requirements", title = "", cls = "";
+    if (reqError) {
+      // the panel says why
+    } else if (reqChecking) {
+      text = "Requirements · checking…";
+      title = "Checking this draft against the requirements";
+      cls = "ed-req-checking";
+    } else if (reqStale) {
+      text = "Requirements · not checked";
+      title = "This draft was not checked against the requirements: " + reqStale;
+      cls = "ed-req-not-checked";
+    } else if (reqView && !(reqView.teams || []).length) {
+      // Without this repository's team no item is its own: "0 open" would
+      // claim nothing is left to do.
+      text = "Requirements · team unknown";
+      title = reqView.why || "This repository's team in the flow cannot be told.";
+      cls = "ed-req-team-unknown";
+    } else if (reqView) {
+      var n = reqView.items.filter(function (it) { return it.mine && it.status === "open"; }).length;
+      text = "Requirements · " + n + " open";
+      if (n > 0) cls = "ed-req-has-open";
+    }
+    reqBtn.textContent = text;
+    reqBtn.title = title;
+    ["ed-req-has-open", "ed-req-not-checked", "ed-req-checking", "ed-req-team-unknown"].forEach(function (c) {
+      reqBtn.classList.toggle(c, c === cls);
+    });
   }
 
   // reqRows are the rows of the expanded item, marked on the grid while the
@@ -1330,6 +1371,10 @@
         { "aria-busy": reqRefresh ? "true" : null, "data-key": "#fetch", title: "Read the PM's change again" })
     ]));
     var v = reqView;
+    if (reqFetchError && !reqError) {
+      panel.appendChild(h("p", { "class": "ed-req-error", role: "alert",
+        text: "Fetch again failed: " + reqFetchError.replace(/\.$/, "") + ". The items are from the change as last read." }));
+    }
     if (reqError) {
       panel.appendChild(h("p", { "class": "ed-req-error", role: "alert", text: "The requirements cannot be read: " + reqError }));
       return;

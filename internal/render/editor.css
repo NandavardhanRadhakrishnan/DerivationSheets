@@ -223,6 +223,8 @@ tr.ed-req-row > td { background: var(--down); }
 /* A draft that could not be checked: the bar says so, and the panel's
    statuses, from an earlier draft, lose their colour. */
 .ed-btn.ed-req-btn.ed-req-not-checked { border-color: var(--warn); border-style: dashed; color: var(--warn); }
+.ed-btn.ed-req-btn.ed-req-team-unknown { border-color: var(--warn); color: var(--warn); }
+.ed-btn.ed-req-btn.ed-req-checking { color: var(--muted); }
 .ed-req-stale-note {
   margin: 4px 0 8px; padding: 6px 8px; border-left: 3px solid var(--warn); background: var(--down);
   font-size: 12.5px; overflow-wrap: anywhere;
