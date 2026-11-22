@@ -3,6 +3,7 @@ package sources
 import (
 	"crypto/sha1"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -220,7 +221,14 @@ type Change struct {
 	Head string // the commit of the branch (full hash)
 }
 
-// changeFile marks a change clone whose first fetch finished.
+// branchNotFound is a fetch that failed because the remote lacks the branch,
+// which says nothing about the cached clone.
+type branchNotFound struct{ msg string }
+
+func (e *branchNotFound) Error() string { return e.msg }
+
+// changeFile marks a change clone whose first fetch finished; it holds the
+// name of the branch the clone is at.
 const changeFile = "dsheets-change"
 
 // FetchChange fetches branch of src with its history (no --depth), so the
@@ -231,10 +239,14 @@ func (f *Fetcher) FetchChange(src Source, branch string) (*Change, error) {
 	src.Dir = CleanDir(src.Dir)
 	sum := sha1.Sum([]byte(src.Git + "#" + src.Dir))
 	dir := filepath.Join(f.Cache, src.Alias+"-change-"+hex.EncodeToString(sum[:])[:10])
-	_, statErr := os.Stat(filepath.Join(dir, ".git", changeFile))
+	data, statErr := os.ReadFile(filepath.Join(dir, ".git", changeFile))
 	cached := statErr == nil
+	cachedBranch := strings.TrimSpace(string(data))
 	if !cached && f.Offline {
 		return nil, fmt.Errorf("not fetched yet and --offline is set; run fetch first")
+	}
+	if f.Offline && cachedBranch != branch {
+		return nil, fmt.Errorf("branch %s not fetched yet and --offline is set; run fetch first", branch)
 	}
 	followed := "HEAD"
 	if !f.Offline && src.Ref != "" {
@@ -248,17 +260,18 @@ func (f *Fetcher) FetchChange(src Source, branch string) (*Change, error) {
 	}
 	f.s.mu.Lock()
 	defer f.s.mu.Unlock()
-	key := dir + "@" + branch
-	last, fetched := f.s.at[key]
+	last, fetched := f.s.at[dir]
 	fresh := fetched && (f.MaxAge == 0 || time.Since(last) < f.MaxAge)
-	if !f.Offline && !(cached && fresh) {
+	// The clone holds one branch (named in its marker): another one is fetched.
+	if !f.Offline && !(cached && fresh && cachedBranch == branch) {
 		if err := fetchChange(dir, src, followed, branch); err != nil {
-			if cached {
+			var nf *branchNotFound
+			if cached && !errors.As(err, &nf) {
 				err = fmt.Errorf("%v (the cached copy may be damaged; delete %s to fetch it again)", err, dir)
 			}
 			return nil, err
 		}
-		f.s.at[key] = time.Now()
+		f.s.at[dir] = time.Now()
 	}
 	base, err := git(dir, "merge-base", "refs/dsheets/followed", "refs/dsheets/change")
 	if err != nil {
@@ -303,12 +316,12 @@ func fetchChange(dir string, src Source, followed, branch string) error {
 	if _, err := git(dir, "fetch", "--quiet", "--filter=blob:none", "origin",
 		"+"+followed+":refs/dsheets/followed", "+refs/heads/"+branch+":refs/dsheets/change"); err != nil {
 		if out, lsErr := git("", "ls-remote", "--heads", src.Git, "refs/heads/"+branch); lsErr == nil && out == "" {
-			return fmt.Errorf("branch %s not found in %s", branch, src.Git)
+			return &branchNotFound{fmt.Sprintf("branch %s not found in %s", branch, src.Git)}
 		}
 		return err
 	}
 	if _, err := git(dir, "-c", "advice.detachedHead=false", "checkout", "--quiet", "--force", "--detach", "refs/dsheets/change"); err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(dir, ".git", changeFile), []byte("ok\n"), 0o644)
+	return os.WriteFile(filepath.Join(dir, ".git", changeFile), []byte(branch+"\n"), 0o644)
 }
