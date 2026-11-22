@@ -12,8 +12,9 @@ a recommendation, not a commitment.
 1. ~~**Calls in cases and verify.**~~ Done 3 November 2026: each case
    lists the request expected for every call (`expected_calls`), `verify`
    compares it with captured requests (`calls` in results.json), and rows
-   sent to a call are checked directly instead of through isolation pairs.
-   Call responses stay ordinary inputs that the test stubs.
+   sent to a call are checked directly instead of through isolation pairs
+   (reversed 22 November 2026, T-36: sent rows get a pair too, or a formula
+   branch can go unexercised). Call responses stay ordinary inputs that the test stubs.
 2. **Evidence per piece in a flow.** Evidence is recorded per sheet.
    There is no view of evidence per piece or per team inside a flow, or in
    the combined grid.

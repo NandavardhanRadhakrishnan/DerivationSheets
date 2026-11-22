@@ -423,6 +423,30 @@
       "decided_at": "2026-11-21T18:11:34.8841929Z",
       "source_session": "20261121T173432Z-095336",
       "recorded_by": "claude-code"
+    },
+    {
+      "id": "D-27",
+      "title": "Next build: design section 6 (Requirements panel) before T-34",
+      "status": "decided",
+      "context": "Concierge, 2026-11-21, after T-35 merged. T-34 (test middleware) had been the developer's pick right after T-32. Section 6 was in the T-32 design's delivery order but had no backlog task.",
+      "decision": "Build section 6 next as T-37, starting with the T-36 fix in the same session. T-31 is folded into T-37. T-34 moves to after T-37.",
+      "rationale": "Section 6 is already designed (needs a plan, not a brainstorm), reuses T-35's code while it is fresh, finishes the owner-facing loop of boundary agreement, and removes T-31. T-34 opens a new area (driving team code through adapters) and needs a full brainstorm. T-36 goes first because the panel turns cases green and a missing generated branch would make all green misleading.",
+      "created_at": "2026-11-21T18:23:48.9878069Z",
+      "decided_at": "2026-11-21T18:23:48.9878069Z",
+      "source_session": "20261121T181752Z-630cb7",
+      "recorded_by": "claude-code"
+    },
+    {
+      "id": "D-28",
+      "title": "T-37 plan calls beyond design section 6",
+      "status": "decided",
+      "context": "Plan docs/superpowers/plans/2026-11-22-requirements-panel.md; developer approved 2026-11-22.",
+      "decision": "(1) --flow needs alias and @branch. (2) The PM's repository is fetched with full commit history, blob-less and sparse, so the change is compared with the merge-base. (3) Neighbour items show only through calls: a callee sees the caller's Compute/Send items whose row depends on a row carried by that call; handoff neighbours are not shown. (4) Single save is always on in serve --edit on a sheet; a save that still leaves a new flow error after unpinning is refused. (5) Reruns go in a separate /edit/requirements request after each check. (6) Rows producing fields: sending rows plus derived ancestors, inputs left out. (7) The PM change is read once at start and on Fetch again.",
+      "rationale": "Developer: fine. Execution: subagent-driven.",
+      "created_at": "2026-11-22T07:52:15.6215563Z",
+      "decided_at": "2026-11-22T07:52:15.6215563Z",
+      "source_session": "20261122T072935Z-2b0873",
+      "recorded_by": "claude-code"
     }
   ]
 }

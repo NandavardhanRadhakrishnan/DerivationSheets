@@ -177,12 +177,10 @@ func TestCallsInCases(t *testing.T) {
 	if len(res.Uncovered) > 0 {
 		t.Fatalf("uncovered targets: %+v", res.Uncovered)
 	}
-	// zone is sent to the call, so it is checked directly, not through an
-	// isolation pair.
-	for _, r := range IsolationRows(e) {
-		if r.ID == "zone" {
-			t.Error("zone is an isolation row although it is sent to shipping-quote")
-		}
+	// zone is sent to the call, and still needs a pair of cases that changes
+	// it: a send shows a wrong value only at the values the cases reach.
+	if !slices.ContainsFunc(IsolationRows(e), func(r *sheet.Row) bool { return r.ID == "zone" }) {
+		t.Error("zone is not an isolation row although it is sent to shipping-quote")
 	}
 	for _, c := range res.Cases {
 		if c.ExpectedReject != "" {
@@ -253,8 +251,12 @@ func TestSituationalCallSend(t *testing.T) {
 			t.Errorf("target %s missing from %v", k, keys)
 		}
 	}
-	if len(res.Uncovered) > 0 {
-		t.Fatalf("uncovered targets: %+v", res.Uncovered)
+	// total adds two numbers no rule constrains, so each gets one value and
+	// no pair can change total: that target is honestly uncovered.
+	for _, u := range res.Uncovered {
+		if u.Key != "total:isolation" {
+			t.Fatalf("uncovered targets: %+v", res.Uncovered)
+		}
 	}
 	ids := map[string]Case{}
 	for _, c := range res.Cases {
@@ -335,5 +337,68 @@ func TestReadFilled(t *testing.T) {
 	}
 	if f, why := ReadFilled(dir); f != nil || !strings.Contains(why, "cases.toml could not be read") {
 		t.Errorf("a broken cases.toml gives a reason: %v, %q", f, why)
+	}
+}
+
+const sentTier = `
+sheet   = "sent-tier"
+version = 1
+
+[[row]]
+id     = "member"
+source = "request.member"
+type   = "boolean"
+
+[[row]]
+id     = "weight"
+source = "request.weight"
+type   = "number"
+
+[[row]]
+id      = "tier"
+uses    = ["member"]
+formula = "member ? \"Silver\" : \"Standard\""
+
+  [row.send]
+  field = "tier"
+  usage = "R"
+  map   = { Silver = "SLV", Standard = "STD" }
+
+[[row]]
+id      = "shipping_cost"
+uses    = ["tier", "weight"]
+formula = "tier == \"Silver\" ? weight : weight * 2"
+
+  [row.send]
+  field = "shippingCost"
+  usage = "R"
+`
+
+// TestSentRowVaries checks that a sent formula row still gets a pair of
+// cases that change its value (T-36): sending a row's value shows a wrong
+// value only for the values the cases reach, so a branch such as
+// member = true must not be dropped because tier is sent.
+func TestSentRowVaries(t *testing.T) {
+	e := parsed(t, sentTier)
+	ref, _ := time.Parse(time.RFC3339, DefaultReferenceTime)
+	res := Generate(e, ref)
+	if len(res.Uncovered) > 0 {
+		t.Errorf("uncovered targets: %+v", res.Uncovered)
+	}
+	tiers := map[any]bool{}
+	covered := map[string]bool{}
+	for _, c := range res.Cases {
+		tiers[c.Input["member"]] = true
+		for _, k := range c.Covers {
+			covered[k] = true
+		}
+	}
+	if !tiers[true] || !tiers[false] {
+		t.Errorf("cases reach member = %v, want both true and false", tiers)
+	}
+	for _, k := range []string{"tier:isolation", "shipping_cost:isolation"} {
+		if !covered[k] {
+			t.Errorf("%s not covered", k)
+		}
 	}
 }

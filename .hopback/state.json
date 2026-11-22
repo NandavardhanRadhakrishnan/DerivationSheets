@@ -1,28 +1,26 @@
 {
   "schema_version": 1,
-  "revision": 43,
-  "updated_at": "2026-11-21T18:08:09.3136773Z",
+  "revision": 47,
+  "updated_at": "2026-11-21T18:23:48.9878069Z",
   "updated_by": {
-    "session": "20261121T173432Z-095336",
+    "session": "20261121T181752Z-630cb7",
     "agent": "claude-code"
   },
   "project_status": "active",
-  "mode": "mid_feature",
-  "bottom_line": "T-35 (boundary agreement) is built, reviewed and verified: slice --cases and the case-based done-check in requirements pass the full suite and the Acme replay (all items close by cases before the flow merges). It awaits the developer's merge or PR choice on branch boundary-agreement; nothing is pushed.",
-  "current_feature": {
-    "task_id": "T-35",
-    "why": "Implement the T-32 boundary-agreement design, steps 1 to 3",
-    "stopped_at": "Six plan tasks plus a final-review fix wave committed (735305a..8fc0da1); suite green; Acme replay matches the plan at steps 6, 15 and 22.",
-    "next_step": "Developer picks: merge to main locally, push and open a PR, or keep the branch. Then confirm two rulings: a callee with no flow leaves the caller's Compute items undocumented; a structurally done Send stays done when its cases cannot tell."
-  },
+  "mode": "between_features",
+  "bottom_line": "Boundary agreement (T-35) is merged: dsheets checks team sheets against the PM's by running the PM's cases. Next is T-37, the editor's Requirements panel (design section 6), starting with the T-36 case-generation fix; T-34 (test middleware) follows.",
   "recommended_next": {
-    "task_id": "T-35",
-    "reason": "Integrate the finished branch."
+    "task_id": "T-37",
+    "reason": "Already designed; brings the case-based checks into the editor with live reruns and one save for sheet and flow (absorbs T-31). Start the session by fixing T-36, then write the plan for section 6."
   },
   "alternatives": [
     {
       "task_id": "T-34",
-      "reason": "test middleware, the next pick after the implementation"
+      "reason": "Test middleware: dsheets drives the team's code through an adapter. Needs a brainstorm first."
+    },
+    {
+      "task_id": "T-28",
+      "reason": "Typed derived rows, so a differing case such as \"False\" vs false gets a clear reason."
     }
   ]
 }

@@ -222,7 +222,7 @@ Coverage keys, which are also the branch keys used for evidence:
 | `row:send.STAGE.when:true` / `:false` | Both sides of a situational send to a call |
 | `row:when:true` / `:false` | Both sides of a situational input |
 | `row:KEY` | An inline lookup value, such as `discount_rate:Gold` |
-| `row:isolation` | A pair of cases that differ only in inputs feeding this unsent row, so a wrong value in it would show in the payload or in a call. Rows sent to a call are checked directly and need no pair. |
+| `row:isolation` | A pair of cases that differ only in inputs feeding this derived row and give it different values, so a wrong value in it would show in the payload or in a call. Sent rows need a pair too: their send shows a wrong value only at the values the cases reach, so a formula branch such as `member ? "Silver" : "Standard"` would otherwise go unexercised. |
 
 Dates are placed relative to `reference_time`, which is fixed so the output
 stays stable from run to run.
