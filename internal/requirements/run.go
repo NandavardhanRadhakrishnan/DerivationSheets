@@ -53,6 +53,10 @@ type Result struct {
 	// Editor is the command that opens each team's sheet in the editor on this
 	// change, by team. A team with nothing to show has no line.
 	Editor map[string]string `json:"editor,omitempty"`
+	// Pinned are this repository's registry sources pinned to a tag or
+	// commit that the check read: they were read from that tag or commit,
+	// not from the working tree that stands in for the repository.
+	Pinned []sources.Source `json:"-"`
 }
 
 // Counts is how many requirements are done, and how many there are.
@@ -80,6 +84,8 @@ type Prepared struct {
 	branch  string // the PM's branch, "" when unknown
 	flowRel string // the flow's folder relative to the self alias root, "" when unknown
 	aliasAs string // this repository's registry alias, "" when unknown
+	// substituted: fe reads this repository from its working tree (OpenChange).
+	substituted bool
 }
 
 // Analysis is the PM's flow at head.
@@ -213,14 +219,22 @@ func (p *Prepared) Decide(ov flow.Overlay) *Result {
 	if p.noCheck {
 		return &res
 	}
-	Check(rs, p.reg, p.fe, p.self, ov)
+	// A fetcher of its own per call, so the pinned sources it meets are this
+	// call's; it shares p.fe's cache and fetch state.
+	fe := p.fe.WithSubstitute(p.fe.Sub)
+	Check(rs, p.reg, fe, p.self, ov)
 	if byCases(rs) && p.headA.Engine != nil {
-		rep := agree.Run(p.headA, agree.RegistryTeams(p.reg, p.fe, p.self, ov), agree.Options{Mode: agree.Isolated, Filled: p.filled})
+		rep := agree.Run(p.headA, agree.RegistryTeams(p.reg, fe, p.self, ov), agree.Options{Mode: agree.Isolated, Filled: p.filled})
 		applyCases(rs, p.headA, rep)
 		explainCases(rs, rep, p.why)
 		res.Report = rep
 	}
 	res.Editor = p.editorLines(rs, res.Report)
+	for _, src := range fe.PinnedHits() {
+		if !slices.ContainsFunc(res.Pinned, func(s sources.Source) bool { return s.Alias == src.Alias }) {
+			res.Pinned = append(res.Pinned, src)
+		}
+	}
 	return &res
 }
 
