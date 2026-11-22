@@ -16,7 +16,7 @@ import (
 
 // Shop is the shop fixture as four git repositories on main. In each, the
 // team's folder of the fixture is sheets/ and the shared interfaces are
-// interfaces/, so the fixture's ../../../interfaces/... paths resolve.
+// sheets/interfaces/, so a sparse fetch of sheets/ reaches them (flow.toml references are rewritten to ../../interfaces/).
 // Product also holds the registry: dsheets.toml and .gitmodules.
 type Shop struct{ Product, Cart, Orders, Ship string }
 
@@ -61,7 +61,7 @@ func NewShop(t testing.TB) *Shop {
 		Git(t, dir, "init", "--quiet", "-b", "main")
 		Git(t, dir, "config", "core.autocrlf", "false")
 		copyTree(t, filepath.Join(fixture, tm.folder), filepath.Join(dir, "sheets"))
-		copyTree(t, filepath.Join(fixture, "interfaces"), filepath.Join(dir, "interfaces"))
+		copyTree(t, filepath.Join(fixture, "interfaces"), filepath.Join(dir, "sheets", "interfaces"))
 		toml := fmt.Sprintf("registry = { git = %q }\n", filepath.ToSlash(paths["product"]))
 		if tm.repo == "product" {
 			toml = "registry = { path = \".\" }\n"
@@ -129,6 +129,10 @@ func copyTree(t testing.TB, from, to string) {
 		data, err := os.ReadFile(p)
 		if err != nil {
 			return err
+		}
+		if d.Name() == "flow.toml" {
+			// The shared interfaces sit inside the team folder, so a sparse fetch reaches them.
+			data = []byte(strings.ReplaceAll(string(data), "../../../interfaces/", "../../interfaces/"))
 		}
 		return os.WriteFile(dst, data, 0o644)
 	})

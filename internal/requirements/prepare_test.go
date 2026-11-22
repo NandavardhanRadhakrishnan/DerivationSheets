@@ -27,15 +27,6 @@ func shopChange(t *testing.T) (s *testrepo.Shop, ordersWork string, o Options) {
 	s.Change(t, s.Product, "quarter", [3]string{"sheets/specs/shop/sheet.toml", "shipping_fee / 2", "shipping_fee / 4"})
 	ordersWork = testrepo.Clone(t, s.Orders)
 	fe := sources.NewFetcher(t.TempDir()).WithSubstitute(&sources.Substitute{URL: filepath.ToSlash(s.Orders), Root: ordersWork})
-	// A registry source is fetched sparse, only its sheets folder, which leaves the
-	// interfaces beside it behind: fetch Cart and Ship first and add them.
-	for alias, repo := range map[string]string{"cart": s.Cart, "ship": s.Ship} {
-		root, _, err := fe.Fetch(sources.Source{Alias: alias, Git: filepath.ToSlash(repo), Ref: "main", Dir: "sheets"})
-		if err != nil {
-			t.Fatal(err)
-		}
-		copyDir(t, filepath.Join(repo, "interfaces"), filepath.Join(filepath.Dir(root), "interfaces"))
-	}
 	return s, ordersWork, Options{Flow: filepath.Join(s.Product, "sheets", "flows", "shop"), Dir: s.Product, Base: "main", Fetcher: fe}
 }
 
@@ -81,21 +72,5 @@ func TestRunEqualsPrepareDecide(t *testing.T) {
 	}
 	if p.Analysis() == nil {
 		t.Fatal("no analysis")
-	}
-}
-
-func copyDir(t *testing.T, from, to string) {
-	t.Helper()
-	if err := os.MkdirAll(to, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	ents, err := os.ReadDir(from)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, e := range ents {
-		if err := os.WriteFile(filepath.Join(to, e.Name()), []byte(read(t, filepath.Join(from, e.Name()))), 0o644); err != nil {
-			t.Fatal(err)
-		}
 	}
 }
