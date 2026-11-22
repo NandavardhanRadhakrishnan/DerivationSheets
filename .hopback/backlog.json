@@ -68,16 +68,17 @@
     {
       "id": "T-31",
       "title": "Flow and sheet editors: editing the sheet first leaves a flow the editor cannot open, with no hint about order",
-      "description": "Found in the T-27 Acme walkthrough, 2026-11-14. In the Orders repo, turning free_shipping into an input in the sheet editor first made flow.toml invalid (computes names an input row), so the flow editor refused to draw it with 'fix it by hand first' and the unpin it was needed for could not be done there. The working order is flow editor first (unpin), then sheet editor. Developer, 2026-11-21: folded into T-37. Design section 6's single save of sheet and flow is the fix; do not build a separate warning. Close T-31 when T-37 ships, after checking the Acme free_shipping case in the editor.",
+      "description": "Found in the T-27 Acme walkthrough, 2026-11-14: editing the sheet first left flow.toml naming an input in computes, and the flow editor refused to open it. Fixed by T-37's single save (branch requirements-panel): saving a sheet also unpins rows the draft no longer derives from this repository's flows, in one write, and refuses a save that leaves a new flow error. Verified 2026-11-22 in the Acme replay: Orders turned free_shipping into an input in the sheet editor first; the save unpinned it from flows/orders-checkout (version 2), validate 0 errors, slice --strict 0 missing, and the flow editor opened with no problems.",
       "type": "improvement",
       "priority": "low",
-      "status": "idea",
+      "status": "completed",
       "rank": 5,
       "depends_on": [
         "T-37"
       ],
       "created_at": "2026-11-14T12:34:46.8412593Z",
-      "updated_at": "2026-11-21T18:23:48.9878069Z",
+      "updated_at": "2026-11-22T11:04:39.2347102Z",
+      "completed_at": "2026-11-22T11:04:39.2347102Z",
       "source_session": "20261114T085751Z-e9b048",
       "recorded_by": "claude-code",
       "origin": "user_requested"
