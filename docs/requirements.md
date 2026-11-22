@@ -161,22 +161,31 @@ carry the `cases` behind them: for each, the case id (`case`), the boundary
 ## Opening the change in the editor
 
 Under each team's header, `requirements` prints how that team opens the
-change in the editor:
+change in the editor. From the shop fixture, run in a clone of the product
+repository on branch `quarter`, where Silver's shipping fee is quartered
+instead of halved:
 
 ```
-Orders team: shop (base 7c3ac06)
-  open in the editor: dsheets serve --edit sheets/specs/orders --flow product:shop@quarter
+Orders team: shop (base cfa11ff)
+  open in the editor: dsheets serve --edit sheets/specs/orders --flow product:flows/shop@quarter
+ R-8544b6  Compute  shipping_cost: tier == "Silver" ? shipping_fee / 2 : shipping_fee -> tier == "Silver" ? shipping_fee / 4 : shipping_fee   open: 1 of 3 cases differ
+            formula: tier == "Silver" ? shipping_fee / 4 : shipping_fee
+           case isolate-tier   shippingCost  expected 1, got 2
 ```
 
-Run it in the team's repository. `<sheet>` is the team's sheet path there;
-it reads literally `<sheet>` when no team flow matched. `--flow` takes
-`<alias>:<path>@<branch>`: the alias is `--as` or the one found from the
-origin remote, and the branch is the working tree's branch, or the head
-argument when it names a branch. There is no line on a detached head or with
-`--no-check`. `--json` carries the lines as `editor: {team: line}`, and the
-`--apply` record file and pull request description add
-``- Open in the editor: `<line>` ``. See "The Requirements panel" in
-`editor.md`.
+Run the line in the team's repository. There is one line per team with
+items. `sheets/specs/orders` is the sheet of the team's first matched flow,
+relative to its repository; the line reads literally `<sheet>` when no flow
+of the team matched. `--flow` takes `<alias>:<path>@<branch>`: `<path>` is
+the flow's folder inside the alias's folder, and the alias is `--as` when
+that is a registered alias, and otherwise the one found from the origin
+remote. The branch is the working tree's branch, or the head argument when it
+names a branch. There is no line on a detached head, with `--no-check`, when
+the repository has no registered alias, or when the flow is outside the
+alias's folder. `--json` carries the lines as
+`editor: {team: line}`. The `--apply` record file and pull request
+description add ``- Open in the editor: `<line>` `` for the teams of that
+repository's items only. See "The Requirements panel" in `editor.md`.
 
 ## Workflow
 

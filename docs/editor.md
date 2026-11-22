@@ -61,7 +61,9 @@ The bar button `Requirements · N open` opens the panel. It lists this
 repository's team's items: open, then cannot tell, then done (folded). Other
 teams' Compute and Send items that pass through a call this team answers show
 under "Other teams' items through your calls". When the repository's team
-cannot be told, every item shows under "Other teams' items", with the reason.
+cannot be told, the button says `Requirements · team unknown` and every item
+shows under "Other teams' items", with the reason. The team is found from the
+origin remote: every registry alias of that repository counts.
 
 An expanded item shows the product manager's rule, the note, the failing
 cases (Case, Field, Expected, Got, Input) and chips for the rows of this sheet
@@ -69,17 +71,33 @@ that produce the fields. A row chip opens the row, and the row has a
 `← Requirements` link back.
 
 As you edit, the product manager's cases rerun against the draft through the
-teams' sheets, in a separate request after each check. Items turn done
-without saving, and the bar says `R-xxxxxx is done with this draft`. When the
-draft cannot be checked, the bar shows `Requirements · not checked` and the
-panel dims the last result with the reason. Fetch again re-reads the product
-manager's branch.
+teams' sheets, in a separate request after each check. Until the answer for
+the latest edit comes back, the button says `Requirements · checking…`.
+Items turn done without saving, and the bar says `R-xxxxxx is done with this
+draft`.
+
+An item is never shown done on a guess. When the cases cannot run on the
+draft, the button says `Requirements · not checked` and the panel dims the
+last result with the reason. That happens when:
+
+- the draft, or the sheet as saved, has an error: a sheet with errors leaves
+  the team's flow out of the cases;
+- the sheet changed on disk since the draft was started, or does not parse;
+- no flow of this repository's team was matched with the sheet being edited;
+- the repository has no origin remote, or the registry pins it to a tag or
+  commit: the cases then read the registry's copy, not your working tree.
+
+Fetch again re-reads the product manager's branch. If that fails after the
+change was read once, the panel keeps the items as last read and says that
+Fetch again failed.
 
 Example, from the shop fixture: the product manager changes `shipping_cost`
 from halving to quartering Silver's fee on branch `quarter`. In Orders, the
-panel lists the open Compute item for `shipping_cost`, with the failing cases,
-and the call `shipping-quote` to Shipping is where Shipping's items appear.
-Change the formula in the editor and the item turns done before you save.
+panel lists the open Compute item for `shipping_cost`, with the failing cases.
+Change the formula in the editor and the item turns done before you save. In
+Shipping, the same Orders item shows under "Other teams' items through your
+calls", marked "Orders team, through the call to shipping-quote": a draft of
+Shipping's `fee` changes what the item's cases get.
 
 ## One save for the sheet and the flows
 
