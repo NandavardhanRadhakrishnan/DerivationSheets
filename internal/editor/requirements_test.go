@@ -121,3 +121,26 @@ func TestRequirementsViewUnknownTeam(t *testing.T) {
 		}
 	}
 }
+
+// A draft of the callee's sheet reaches the caller's items through the
+// call: Shipping's fee changes what Orders' shipping_cost gives.
+func TestRequirementsViewNeighbourDraft(t *testing.T) {
+	got := func(v *ReqView) map[string]string {
+		out := map[string]string{}
+		for _, c := range item(t, v, "Compute", "shipping_cost").Cases {
+			out[c.Case] = c.Actual
+		}
+		return out
+	}
+	was := got(view(t, "ship", nil))
+	now := got(view(t, "ship", [][2]string{{"weight * 2", "weight * 3"}}))
+	t.Logf("without the draft %v; with it %v", was, now)
+	if len(was) == 0 || len(now) == 0 {
+		t.Fatalf("no cases: %v %v", was, now)
+	}
+	for id, a := range now {
+		if b, ok := was[id]; ok && a == b {
+			t.Errorf("case %s gives %s with and without the draft", id, a)
+		}
+	}
+}

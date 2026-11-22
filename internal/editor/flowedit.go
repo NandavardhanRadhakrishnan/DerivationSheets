@@ -165,6 +165,7 @@ func (ed *Editor) flowRun(d FlowDraft, write bool) (*FlowResult, error) {
 	if err != nil {
 		return nil, err
 	}
+	ed.forgetFlowDirs()
 	res.Saved = true
 	res.Tokens = map[string]string{}
 	for i, w := range ws {

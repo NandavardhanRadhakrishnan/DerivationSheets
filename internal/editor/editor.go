@@ -7,6 +7,8 @@ import (
 	"io/fs"
 	"path"
 	"path/filepath"
+	"sync"
+	"time"
 
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/cases"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/eval"
@@ -26,6 +28,12 @@ type Editor struct {
 	// Fetcher fetches the git sources a flow names; nil makes one that
 	// caches in the repository holding Root.
 	Fetcher *sources.Fetcher
+
+	// dirs are the folders under Root holding a flow.toml, walked at dirsAt;
+	// see flowDirs.
+	dirsMu sync.Mutex
+	dirs   []string
+	dirsAt time.Time
 }
 
 // Problem is a diagnostic, marked when the edit introduces it.
@@ -111,6 +119,7 @@ func (ed *Editor) sheet(d SheetDraft, write bool) (*SheetResult, error) {
 	if err != nil {
 		return nil, err
 	}
+	ed.forgetFlowDirs()
 	p.res.Saved = true
 	p.res.Tokens = map[string]string{}
 	for i, w := range ws {

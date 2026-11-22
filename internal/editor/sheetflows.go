@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"time"
 
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/eval"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/flow"
@@ -27,6 +28,29 @@ type FlowFix struct {
 	token   string // the version of flow.toml it replaces
 }
 
+// flowDirsMaxAge is how long the list of this repository's flow folders is
+// used before the repository is walked again.
+const flowDirsMaxAge = 10 * time.Second
+
+// flowDirs are the folders under Root holding a flow.toml. The walk is
+// kept for flowDirsMaxAge, and forgotten after a save; the flows themselves
+// are read through Store every time.
+func (ed *Editor) flowDirs() []string {
+	ed.dirsMu.Lock()
+	defer ed.dirsMu.Unlock()
+	if ed.dirsAt.IsZero() || time.Since(ed.dirsAt) >= flowDirsMaxAge {
+		ed.dirs, ed.dirsAt = flow.FindDirs(ed.Root), time.Now()
+	}
+	return ed.dirs
+}
+
+// forgetFlowDirs makes the next flowDirs walk the repository again.
+func (ed *Editor) forgetFlowDirs() {
+	ed.dirsMu.Lock()
+	defer ed.dirsMu.Unlock()
+	ed.dirs, ed.dirsAt = nil, time.Time{}
+}
+
 // sheetFlow is a flow of this repository whose end-to-end sheet is the
 // sheet being edited.
 type sheetFlow struct {
@@ -45,7 +69,7 @@ func (ed *Editor) sheetFlows(sheetFile string) ([]sheetFlow, error) {
 		return nil, err
 	}
 	var out []sheetFlow
-	for _, dir := range flow.FindDirs(ed.Root) {
+	for _, dir := range ed.flowDirs() {
 		abs := filepath.Join(dir, flow.FileName)
 		rel, err := filepath.Rel(ed.Root, abs)
 		if err != nil {

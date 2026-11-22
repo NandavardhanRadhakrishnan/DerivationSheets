@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/flow"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sources"
@@ -128,5 +129,41 @@ func TestDraftOverlayHoldsSheetAndFlowFix(t *testing.T) {
 	}
 	if len(ov) != 2 {
 		t.Errorf("overlay has %d files; want the sheet and one flow", len(ov))
+	}
+}
+
+// The walk for this repository's flows is cached: a flow added to the
+// repository is found once the list is older than flowDirsMaxAge, or after
+// a save.
+func TestSheetFlowsCachesTheWalk(t *testing.T) {
+	dir, ed := flowWorkspace(t)
+	count := func() int {
+		t.Helper()
+		fs, err := ed.sheetFlows(sheetPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return len(fs)
+	}
+	n := count()
+	if n == 0 {
+		t.Fatal("no flow of the sheet")
+	}
+	from := filepath.Join(dir, "flows", "checkout-to-payment")
+	copyDir(t, from, filepath.Join(dir, "flows", "copy-one"))
+	if got := count(); got != n {
+		t.Fatalf("a fresh list was walked again: %d flows, want %d", got, n)
+	}
+	ed.dirsAt = ed.dirsAt.Add(-flowDirsMaxAge - time.Second)
+	if got := count(); got != n+1 {
+		t.Fatalf("after the list aged: %d flows, want %d", got, n+1)
+	}
+	copyDir(t, from, filepath.Join(dir, "flows", "copy-two"))
+	res, err := ed.SaveSheet(formulaDraft(t, ed, "round(subtotal * discount_rate * 2)"))
+	if err != nil || !res.Saved {
+		t.Fatalf("%v %+v", err, res)
+	}
+	if got := count(); got != n+2 {
+		t.Fatalf("after a save: %d flows, want %d", got, n+2)
 	}
 }
