@@ -158,6 +158,26 @@ carry the `cases` behind them: for each, the case id (`case`), the boundary
 `expected`, `actual` and `note`.
 `--no-check` skips all of this, and `--offline` uses only what is fetched.
 
+## Opening the change in the editor
+
+Under each team's header, `requirements` prints how that team opens the
+change in the editor:
+
+```
+Orders team: shop (base 7c3ac06)
+  open in the editor: dsheets serve --edit sheets/specs/orders --flow product:shop@quarter
+```
+
+Run it in the team's repository. `<sheet>` is the team's sheet path there;
+it reads literally `<sheet>` when no team flow matched. `--flow` takes
+`<alias>:<path>@<branch>`: the alias is `--as` or the one found from the
+origin remote, and the branch is the working tree's branch, or the head
+argument when it names a branch. There is no line on a detached head or with
+`--no-check`. `--json` carries the lines as `editor: {team: line}`, and the
+`--apply` record file and pull request description add
+``- Open in the editor: `<line>` ``. See "The Requirements panel" in
+`editor.md`.
+
 ## Workflow
 
 1. The teams and the product manager agree a change in a meeting, using
