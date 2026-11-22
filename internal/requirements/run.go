@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/agree"
@@ -42,6 +43,8 @@ type Result struct {
 	Requirements []Requirement `json:"requirements"`
 	// ShowDone lists done requirements too, when printing.
 	ShowDone bool `json:"-"`
+	// Report is the run of the PM's cases behind the cases of the items, or nil.
+	Report *agree.Report `json:"-"`
 }
 
 // Counts is how many requirements are done, and how many there are.
@@ -54,9 +57,38 @@ func (r *Result) Counts() (done, total int) {
 	return done, len(r.Requirements)
 }
 
+// Prepared is a flow change read from git once: the requirements, all open,
+// and what is needed to decide them. Nothing in it points into the temporary
+// exports, which are gone by the time Prepare returns.
+type Prepared struct {
+	res     Result // the template: every item open
+	headA   *flow.Analysis
+	reg     map[string]sources.Source
+	self    string
+	fe      *sources.Fetcher
+	filled  *cases.File // the PM's cases.toml, read at Prepare
+	why     string      // why filled is missing
+	noCheck bool
+	branch  string
+	flowRel string // the flow's folder relative to the self alias root
+}
+
+// Analysis is the PM's flow at head.
+func (p *Prepared) Analysis() *flow.Analysis { return p.headA }
+
 // Run compares the flow at the base revision with the flow at head, which is
 // the working tree unless o.Head names a revision.
 func Run(o Options) (*Result, error) {
+	p, err := Prepare(o)
+	if err != nil {
+		return nil, err
+	}
+	return p.Decide(nil), nil
+}
+
+// Prepare reads the change: it compares the flow at the base with the flow at
+// head and locates the items, leaving them all open.
+func Prepare(o Options) (*Prepared, error) {
 	dir := o.Dir
 	if dir == "" {
 		dir = o.Flow
@@ -120,19 +152,48 @@ func Run(o Options) (*Result, error) {
 	for i := range rs {
 		rs[i].Status = StatusOpen
 	}
+	p := &Prepared{
+		res:     Result{Flow: headA.Flow.Slug, Base: short(base), Head: short(head), Requirements: rs},
+		headA:   headA,
+		fe:      fe,
+		noCheck: o.NoCheck,
+		branch:  o.Base,
+		flowRel: filepath.ToSlash(rel),
+	}
 	if !o.NoCheck {
-		reg, _ := sources.NewResolver(top, nil, fe).Registered() // no registry: nothing to check against
+		p.reg, _ = sources.NewResolver(top, nil, fe).Registered() // no registry: nothing to check against
 		// This repository's own sheets at the followed branch are the flow's base, so they cannot show owners have acted.
-		self := sources.SelfAlias(reg, origin)
-		Check(rs, reg, fe, self, nil)
+		p.self = sources.SelfAlias(p.reg, origin)
 		if byCases(rs) && headA.Engine != nil {
-			filled, why := cases.ReadFilled(headA.SheetDir)
-			rep := agree.Run(headA, agree.RegistryTeams(reg, fe, self, nil), agree.Options{Mode: agree.Isolated, Filled: filled})
-			applyCases(rs, headA, rep)
-			explainCases(rs, rep, why)
+			p.filled, p.why = cases.ReadFilled(headA.SheetDir)
 		}
 	}
-	return &Result{Flow: headA.Flow.Slug, Base: short(base), Head: short(head), Requirements: rs}, nil
+	return p, nil
+}
+
+// Decide checks the items against the owners' sheets, reading unsaved sheets
+// and flows from ov (which may be nil). It never changes p, so it can be
+// called again with another overlay.
+func (p *Prepared) Decide(ov flow.Overlay) *Result {
+	res := p.res
+	rs := make([]Requirement, len(p.res.Requirements))
+	copy(rs, p.res.Requirements)
+	for i := range rs {
+		rs[i].Needs = slices.Clone(rs[i].Needs)
+		rs[i].Cases = nil
+	}
+	res.Requirements = rs
+	if p.noCheck {
+		return &res
+	}
+	Check(rs, p.reg, p.fe, p.self, ov)
+	if byCases(rs) && p.headA.Engine != nil {
+		rep := agree.Run(p.headA, agree.RegistryTeams(p.reg, p.fe, p.self, ov), agree.Options{Mode: agree.Isolated, Filled: p.filled})
+		applyCases(rs, p.headA, rep)
+		explainCases(rs, rep, p.why)
+		res.Report = rep
+	}
+	return &res
 }
 
 // byCases says some item is one the PM's cases may decide: a Compute or Send
