@@ -174,7 +174,7 @@ Orders team: shop (base cfa11ff)
 ```
 
 Run the line in the team's repository. There is one line per team with
-items. `sheets/specs/orders` is the sheet of the team's first matched flow,
+items. `sheets/specs/orders` is the sheet of the first, in path order, of the team's matched flows,
 relative to its repository; the line reads literally `<sheet>` when no flow
 of the team matched. `--flow` takes `<alias>:<path>@<branch>`: `<path>` is
 the flow's folder inside the alias's folder, and the alias is `--as` when

@@ -61,6 +61,15 @@ func (f *Fetcher) WithSubstitute(s *Substitute) *Fetcher {
 	return &g
 }
 
+// Refetching returns a fetcher sharing f's cache and fetch state that
+// fetches every followed source again on its next use, whatever MaxAge says.
+// Offline stays as it is: an offline fetcher still never fetches.
+func (f *Fetcher) Refetching() *Fetcher {
+	g := *f
+	g.MaxAge = time.Nanosecond
+	return &g
+}
+
 // PinnedHits lists sources of the substituted repository that were pinned
 // to a tag or commit, so were fetched as usual instead of substituted.
 func (f *Fetcher) PinnedHits() []Source { return *f.pinned }

@@ -336,7 +336,7 @@ func TestEditRequirementsNoOriginIsStale(t *testing.T) {
 func TestEditRequirementsRefreshFailureKeepsView(t *testing.T) {
 	var shop *testrepo.Shop
 	fe := sources.NewFetcher(t.TempDir())
-	fe.MaxAge = time.Nanosecond // Fetch again fetches
+	fe.MaxAge = time.Minute // as serve has it: Fetch again must still fetch
 	h := reqHandlerWith(t, "", fe, func(s *testrepo.Shop, _ string) { shop = s })
 	if a := postReqs(t, h, reqDraft(t, h, "")); a.View == nil {
 		t.Fatalf("%+v", a)
@@ -386,5 +386,62 @@ func TestEditRequirementsUnparsedSheetIsStale(t *testing.T) {
 	a := postReqs(t, h, d)
 	if a.View != nil || !strings.Contains(a.Stale, "sheet.toml cannot be read") || !strings.Contains(a.Stale, "close array") {
 		t.Fatalf("%+v", a)
+	}
+}
+
+// A branch updated after the change was first read is seen by Fetch again
+// at once, though serve's MaxAge has not passed.
+func TestEditRequirementsRefreshSeesNewCommit(t *testing.T) {
+	var shop *testrepo.Shop
+	fe := sources.NewFetcher(t.TempDir())
+	fe.MaxAge = time.Minute
+	h := reqHandlerWith(t, "", fe, func(s *testrepo.Shop, _ string) { shop = s })
+	const fixed = `tier == "Silver" ? fee / 4 : fee`
+	a := postReqs(t, h, reqDraft(t, h, fixed))
+	if a.View == nil || statusOf(t, a.View, "shipping_cost") != "done" {
+		t.Fatalf("before: %+v", a)
+	}
+	f := filepath.Join(shop.Product, "sheets", "specs", "shop", "sheet.toml")
+	data, err := os.ReadFile(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(f, []byte(strings.Replace(string(data), "shipping_fee / 4", "shipping_fee / 8", 1)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	testrepo.Git(t, shop.Product, "commit", "--quiet", "-am", "eighth")
+	rec := request(h, "POST", "/edit/requirements", map[string]any{"draft": reqDraft(t, h, fixed), "refresh": true}, nil)
+	var b reqAnswer
+	if err := json.Unmarshal(rec.Body.Bytes(), &b); err != nil || b.View == nil {
+		t.Fatalf("%d %s", rec.Code, rec.Body)
+	}
+	if s := statusOf(t, b.View, "shipping_cost"); s == "done" {
+		t.Errorf("after refresh: shipping_cost still %s, the cached branch was read", s)
+	}
+}
+
+// A repository whose team has no flow of its own is decided by the rule
+// text read through the draft (D-25(a)): a view, not "not checked".
+func TestEditRequirementsSheetOnlyTeamIsView(t *testing.T) {
+	const fixed = `tier == "Silver" ? shipping_fee / 4 : shipping_fee`
+	h := reqHandlerWith(t, "", nil, func(_ *testrepo.Shop, work string) {
+		doublingOrders(t, work, "") // the rule text names shipping_fee
+		if err := os.RemoveAll(filepath.Join(work, "sheets", "flows", "orders")); err != nil {
+			t.Fatal(err)
+		}
+	})
+	a := postReqs(t, h, reqDraft(t, h, ""))
+	if a.View == nil {
+		t.Fatalf("unchanged: %+v", a)
+	}
+	if s := statusOf(t, a.View, "shipping_cost"); s == "done" {
+		t.Errorf("unchanged: shipping_cost %s", s)
+	}
+	a = postReqs(t, h, reqDraft(t, h, fixed))
+	if a.View == nil {
+		t.Fatalf("a team with no flow of its own got %q", a.Stale)
+	}
+	if s := statusOf(t, a.View, "shipping_cost"); s != "done" {
+		t.Errorf("fixing draft: shipping_cost %s, want done by rule text", s)
 	}
 }

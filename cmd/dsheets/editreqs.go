@@ -42,14 +42,19 @@ func (es *editServer) openRequirements(ref string, fe *sources.Fetcher) {
 	}
 	es.reqs.mu.Lock()
 	defer es.reqs.mu.Unlock()
-	es.reqs.open()
+	es.reqs.open(false)
 }
 
-// open opens the change again; the caller holds mu. When it fails after
+// open opens the change again, fetching the branch afresh when refresh is
+// set; the caller holds mu. When it fails after
 // an earlier read succeeded, that read is kept and the failure is kept in
 // refreshErr: a failed Fetch again does not drop the change.
-func (rs *reqState) open() {
-	prep, err := requirements.OpenChange(rs.top, rs.ref, rs.fe)
+func (rs *reqState) open(refresh bool) {
+	fe := rs.fe
+	if refresh {
+		fe = fe.Refetching()
+	}
+	prep, err := requirements.OpenChange(rs.top, rs.ref, fe)
 	if err != nil {
 		if rs.prep != nil {
 			rs.refreshErr = err
@@ -94,7 +99,7 @@ func (es *editServer) requirementsEndpoint(w http.ResponseWriter, r *http.Reques
 	rs.mu.Lock()
 	defer rs.mu.Unlock()
 	if req.Refresh {
-		rs.open()
+		rs.open(true)
 	}
 	if rs.prep == nil {
 		msg := "no change is open"
@@ -169,7 +174,8 @@ func (es *editServer) uncheckable(rs *reqState, d editor.SheetDraft) string {
 
 // notRunOn says why the result of Decide does not reflect the draft, ""
 // when it does: this repository was read from a pinned tag or commit, or
-// the cases ran for one of its teams without the sheet being edited.
+// the cases ran for its teams but not on the sheet being edited, or a flow
+// of its teams was left out.
 func (es *editServer) notRunOn(rs *reqState, res *requirements.Result) string {
 	if len(res.Pinned) > 0 {
 		src := res.Pinned[0]
@@ -178,25 +184,33 @@ func (es *editServer) notRunOn(rs *reqState, res *requirements.Result) string {
 	if res.Report == nil {
 		return "" // no cases ran: Check read the draft's rule text through the overlay
 	}
+	// A flow of this repository's left out leaves its items to the rule
+	// text over a broken flow: never done on that guess (D-22).
+	for _, team := range rs.teams {
+		for _, n := range res.Report.TeamNotes[team] {
+			if strings.Contains(n, "left out") {
+				return fmt.Sprintf("the PM's cases did not run on this draft for %s: %s", team, n)
+			}
+		}
+	}
+	// A team with no flow of its own is decided by the rule text read
+	// through the draft (D-25(a)); only when cases ran for this repository
+	// without this sheet is the draft unchecked.
+	ran := false
 	here, err := os.Stat(es.dir)
 	if err != nil {
 		return err.Error()
 	}
 	for _, team := range rs.teams {
-		ran := false
 		for _, dir := range res.Report.Sheets[team] {
+			ran = true
 			if fi, err := os.Stat(dir); err == nil && os.SameFile(fi, here) {
-				ran = true
+				return ""
 			}
 		}
-		if ran {
-			continue
-		}
-		why := fmt.Sprintf("no flow of %s in this repository was matched with this sheet", team)
-		if notes := res.Report.TeamNotes[team]; len(notes) > 0 {
-			why = strings.Join(notes, "; ")
-		}
-		return fmt.Sprintf("the PM's cases did not run on this draft for %s: %s", team, why)
+	}
+	if ran {
+		return fmt.Sprintf("the PM's cases ran for %s, but not on this sheet: no flow of this repository was matched with it", strings.Join(rs.teams, ", "))
 	}
 	return ""
 }

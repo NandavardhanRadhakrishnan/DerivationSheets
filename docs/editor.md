@@ -83,11 +83,19 @@ last result with the reason. That happens when:
 - the draft, or the sheet as saved, has an error: a sheet with errors leaves
   the team's flow out of the cases;
 - the sheet changed on disk since the draft was started, or does not parse;
-- no flow of this repository's team was matched with the sheet being edited;
+- the cases ran for this repository's teams, but on no flow that uses the sheet
+  being edited;
+- a flow of this repository's team was left out of the cases (for example it
+  does not load): its items would otherwise fall back to the rule text over a
+  broken flow;
 - the repository has no origin remote, or the registry pins it to a tag or
   commit: the cases then read the registry's copy, not your working tree.
 
-Fetch again re-reads the product manager's branch. If that fails after the
+A team with no flow of its own in this repository is not in that list: its
+items are decided by the rule text, read through the draft.
+
+Fetch again re-reads the product manager's branch from the remote, even within a
+minute of the last read. If that fails after the
 change was read once, the panel keeps the items as last read and says that
 Fetch again failed.
 
