@@ -3,6 +3,7 @@ package requirements
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -31,6 +32,10 @@ type Options struct {
 	// All includes label and formatting changes.
 	All     bool
 	Fetcher *sources.Fetcher
+	// Branch is the PM's branch the editor lines name. When empty and Head is
+	// empty it is the current branch, and when Head names a branch, that one;
+	// with a detached head there are no lines.
+	Branch string
 	// NoCheck skips reading the owners' sheets: every requirement stays open.
 	NoCheck bool
 }
@@ -45,6 +50,9 @@ type Result struct {
 	ShowDone bool `json:"-"`
 	// Report is the run of the PM's cases behind the cases of the items, or nil.
 	Report *agree.Report `json:"-"`
+	// Editor is the command that opens each team's sheet in the editor on this
+	// change, by team. A team with nothing to show has no line.
+	Editor map[string]string `json:"editor,omitempty"`
 }
 
 // Counts is how many requirements are done, and how many there are.
@@ -69,8 +77,9 @@ type Prepared struct {
 	filled  *cases.File // the PM's cases.toml, read at Prepare
 	why     string      // why filled is missing
 	noCheck bool
-	branch  string
-	flowRel string // the flow's folder relative to the self alias root
+	branch  string // the PM's branch, "" when unknown
+	flowRel string // the flow's folder relative to the self alias root, "" when unknown
+	aliasAs string // this repository's registry alias, "" when unknown
 }
 
 // Analysis is the PM's flow at head.
@@ -152,18 +161,37 @@ func Prepare(o Options) (*Prepared, error) {
 	for i := range rs {
 		rs[i].Status = StatusOpen
 	}
+	branch := o.Branch
+	if branch == "" {
+		if o.Head == "" {
+			branch = currentBranch(top)
+		} else if _, err := revs.Resolve("refs/heads/" + o.Head); err == nil {
+			branch = o.Head
+		}
+	}
 	p := &Prepared{
 		res:     Result{Flow: headA.Flow.Slug, Base: short(base), Head: short(head), Requirements: rs},
 		headA:   headA,
 		fe:      fe,
 		noCheck: o.NoCheck,
-		branch:  o.Base,
-		flowRel: filepath.ToSlash(rel),
+		branch:  branch,
 	}
 	if !o.NoCheck {
 		p.reg, _ = sources.NewResolver(top, nil, fe).Registered() // no registry: nothing to check against
 		// This repository's own sheets at the followed branch are the flow's base, so they cannot show owners have acted.
 		p.self = sources.SelfAlias(p.reg, origin)
+		// The alias the editor lines name: the one given, or found from the
+		// origin, or from this folder when the registry points at it.
+		if _, ok := p.reg[o.As]; ok {
+			p.aliasAs = o.As
+		} else if p.aliasAs = p.self; p.aliasAs == "" {
+			p.aliasAs = sources.SelfAlias(p.reg, filepath.ToSlash(top))
+		}
+		if src, ok := p.reg[p.aliasAs]; ok {
+			if in, err := filepath.Rel(filepath.Join(top, filepath.FromSlash(sources.CleanDir(src.Dir))), flowAbs); err == nil && !strings.HasPrefix(in, "..") {
+				p.flowRel = filepath.ToSlash(in)
+			}
+		}
 		if byCases(rs) && headA.Engine != nil {
 			p.filled, p.why = cases.ReadFilled(headA.SheetDir)
 		}
@@ -193,7 +221,49 @@ func (p *Prepared) Decide(ov flow.Overlay) *Result {
 		explainCases(rs, rep, p.why)
 		res.Report = rep
 	}
+	res.Editor = p.editorLines(rs, res.Report)
 	return &res
+}
+
+// editorLines is the command that opens each team's sheet in the editor on
+// the PM's change. The sheet is the team's first matched one, relative to its
+// repository, or the literal <sheet> when none was found.
+func (p *Prepared) editorLines(rs []Requirement, rep *agree.Report) map[string]string {
+	if p.branch == "" || p.aliasAs == "" || p.flowRel == "" {
+		return nil
+	}
+	out := map[string]string{}
+	for _, q := range rs {
+		if _, ok := out[q.Team]; ok {
+			continue
+		}
+		sheet := "<sheet>"
+		var dirs []string
+		if rep != nil {
+			dirs = rep.Sheets[q.Team]
+		}
+		if len(dirs) > 0 {
+			if r, err := filepath.Rel(sources.RepoRoot(dirs[0]), dirs[0]); err == nil && !strings.HasPrefix(r, "..") {
+				sheet = filepath.ToSlash(r)
+			}
+		}
+		out[q.Team] = fmt.Sprintf("dsheets serve --edit %s --flow %s:%s@%s", sheet, p.aliasAs, p.flowRel, p.branch)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// currentBranch is the branch checked out in dir, "" on a detached head.
+func currentBranch(dir string) string {
+	cmd := exec.Command("git", "symbolic-ref", "--short", "-q", "HEAD")
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
 }
 
 // byCases says some item is one the PM's cases may decide: a Compute or Send

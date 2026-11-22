@@ -74,3 +74,30 @@ func TestRunEqualsPrepareDecide(t *testing.T) {
 		t.Fatal("no analysis")
 	}
 }
+
+func TestEditorLines(t *testing.T) {
+	s, _, o := shopChange(t) // product is on branch quarter
+	o.Base = "main"
+	res, err := Run(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "dsheets serve --edit sheets/specs/orders --flow product:flows/shop@quarter"
+	if res.Editor["Orders team"] != want {
+		t.Fatalf("got %q", res.Editor["Orders team"])
+	}
+	var b strings.Builder
+	res.WriteMarkdown(&b)
+	if !strings.Contains(b.String(), "open in the editor: "+want) {
+		t.Fatal(b.String())
+	}
+	var j strings.Builder
+	res.WriteJSON(&j)
+	if !strings.Contains(j.String(), `"editor"`) {
+		t.Fatal(j.String())
+	}
+	testrepo.Git(t, s.Product, "switch", "--detach")
+	if res, _ := Run(o); len(res.Editor) != 0 {
+		t.Fatalf("detached head gave %v", res.Editor)
+	}
+}

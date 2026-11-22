@@ -100,11 +100,18 @@ func Run(pm *flow.Analysis, teams TeamFlows, o Options) *Report {
 			}
 		}
 		ru.found[i], ru.notFound[i], ru.noFlow[i] = findFlow(pm, sg, flows)
-		if m := ru.found[i]; m != nil && m.A.Engine == nil {
-			ru.found[i], ru.notFound[i] = nil, fmt.Sprintf("the sheet of %s cannot be evaluated", m.A.Flow.Dir)
-		}
 		if m := ru.found[i]; m != nil && !slices.Contains(r.Sheets[sg.Team], m.A.SheetDir) {
 			r.Sheets[sg.Team] = append(r.Sheets[sg.Team], m.A.SheetDir)
+		}
+		// A flow whose sheet cannot be read has no boundaries, so it cannot be
+		// matched; its sheet is still the one to fix, so it is named too.
+		for _, a := range flows {
+			if a != nil && a.Engine == nil && a.SheetDir != "" && !slices.Contains(r.Sheets[sg.Team], a.SheetDir) {
+				r.Sheets[sg.Team] = append(r.Sheets[sg.Team], a.SheetDir)
+			}
+		}
+		if m := ru.found[i]; m != nil && m.A.Engine == nil {
+			ru.found[i], ru.notFound[i] = nil, fmt.Sprintf("the sheet of %s cannot be evaluated", m.A.Flow.Dir)
 		}
 	}
 	for _, d := range r.Sheets {

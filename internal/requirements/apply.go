@@ -275,7 +275,7 @@ func commitJob(j *job, r *Result, change string, o ApplyOptions) (Applied, error
 		ids = append(ids, q.ID)
 		lines = append(lines, fmt.Sprintf("- %s  %s", q.ID, q.What))
 	}
-	body := fmt.Sprintf("# %s\n\n- Flow: %s\n- Compared with: %s\n- Requirements this commit satisfies:\n\n%s\n", change, r.Flow, r.Base, strings.Join(lines, "\n"))
+	body := fmt.Sprintf("# %s\n\n- Flow: %s\n- Compared with: %s\n%s- Requirements this commit satisfies:\n\n%s\n", change, r.Flow, r.Base, editorBullets(j, r), strings.Join(lines, "\n"))
 	if err := os.WriteFile(filepath.Join(j.dir, filepath.FromSlash(record)), []byte(body), 0o644); err != nil {
 		return Applied{}, err
 	}
@@ -314,6 +314,7 @@ func description(j *job, r *Result, change string) string {
 			fmt.Fprintf(&b, "  (%s is imported from %s: make the same change there, or importing again undoes this)\n", path.Base(q.File), j.imported[q.File])
 		}
 	}
+	b.WriteString(editorBullets(j, r))
 	var rest []string
 	for _, q := range r.Requirements {
 		if q.Kind != Schema && teams[q.Team] {
@@ -324,6 +325,25 @@ func description(j *job, r *Result, change string) string {
 		b.WriteString("\nStill to do in this pull request:\n\n" + strings.Join(rest, "\n") + "\n")
 	}
 	return b.String()
+}
+
+// editorBullets is a bullet for each team of the repository's items that has
+// an editor line, in team order.
+func editorBullets(j *job, r *Result) string {
+	seen := map[string]bool{}
+	var teams []string
+	for _, q := range j.done {
+		if !seen[q.Team] && r.Editor[q.Team] != "" {
+			seen[q.Team] = true
+			teams = append(teams, q.Team)
+		}
+	}
+	sort.Strings(teams)
+	out := ""
+	for _, t := range teams {
+		out += fmt.Sprintf("- Open in the editor: `%s`\n", r.Editor[t])
+	}
+	return out
 }
 
 func gitRun(dir string, args ...string) (string, error) {

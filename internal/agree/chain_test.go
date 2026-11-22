@@ -809,3 +809,11 @@ func TestReportInputsAndSheets(t *testing.T) {
 		t.Fatalf("%v", r.Sheets)
 	}
 }
+
+func TestReportSheetsIncludeUnevaluableSheet(t *testing.T) {
+	pm, teams := shop(t, map[string]string{ordersSheet: "this is not a sheet [["})
+	r := Run(pm, teams, Options{Mode: Isolated})
+	if len(r.Sheets["Orders team"]) != 1 || !strings.HasSuffix(filepath.ToSlash(r.Sheets["Orders team"][0]), "orders/specs/orders") {
+		t.Fatalf("a broken sheet must still be named: %v (notes %v)", r.Sheets, r.TeamNotes)
+	}
+}

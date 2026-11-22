@@ -215,3 +215,19 @@ func TestApplyRefusesAnUnknownType(t *testing.T) {
 		t.Errorf("nothing should be pushed, remote has %q", out)
 	}
 }
+
+func TestApplyRecordsEditorLine(t *testing.T) {
+	bare := seedRemote(t, paymentsOriginal(t))
+	r := schemaResult("handlingFee")
+	line := "dsheets serve --edit sheets/specs/pay --flow product:flows/x@b"
+	r.Editor = map[string]string{"Payments team": line}
+	got, err := Apply(r, applyOpts(t, bare))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "Open in the editor: `" + line + "`"
+	record := git(t, bare, "show", "dsheets/checkout:interfaces/changes/add-handling-fee.md")
+	if !strings.Contains(record, want) || !strings.Contains(got[0].Description, want) {
+		t.Fatalf("record:\n%s\ndescription:\n%s", record, got[0].Description)
+	}
+}

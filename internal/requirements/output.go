@@ -99,6 +99,11 @@ func (r *Result) writeTeam(w io.Writer, team string, qs []Requirement) error {
 	if _, err := fmt.Fprintf(w, "%s: %s (base %s)\n", team, r.Flow, r.Base); err != nil {
 		return err
 	}
+	if line := r.Editor[team]; line != "" {
+		if _, err := fmt.Fprintf(w, "  open in the editor: %s\n", line); err != nil {
+			return err
+		}
+	}
 	for _, q := range qs {
 		if _, err := io.WriteString(w, r.line(q)); err != nil {
 			return err
