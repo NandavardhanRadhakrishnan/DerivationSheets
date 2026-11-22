@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/editor"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sources"
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/store"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/testrepo"
 )
 
@@ -20,9 +22,20 @@ const shopRef = "product:flows/shop@quarter"
 // from ref ("" opens the shop's change on branch quarter).
 func reqHandler(t *testing.T, ref string) http.Handler {
 	t.Helper()
+	return reqHandlerWith(t, ref, nil, nil)
+}
+
+// reqHandlerWith is reqHandler with setup run on the shop and the clone
+// before the server starts, and the change read through fe (nil: a new
+// fetcher).
+func reqHandlerWith(t *testing.T, ref string, fe *sources.Fetcher, setup func(s *testrepo.Shop, work string)) http.Handler {
+	t.Helper()
 	s := testrepo.NewShop(t)
 	s.Change(t, s.Product, "quarter", [3]string{"sheets/specs/shop/sheet.toml", "shipping_fee / 2", "shipping_fee / 4"})
 	work := testrepo.Clone(t, s.Orders)
+	if setup != nil {
+		setup(s, work)
+	}
 	es, err := newEditServer(filepath.Join(work, "sheets", "specs", "orders"))
 	if err != nil {
 		t.Fatal(err)
@@ -30,7 +43,10 @@ func reqHandler(t *testing.T, ref string) http.Handler {
 	if ref == "" {
 		ref = shopRef
 	}
-	es.openRequirements(ref, sources.NewFetcher(t.TempDir()))
+	if fe == nil {
+		fe = sources.NewFetcher(t.TempDir())
+	}
+	es.openRequirements(ref, fe)
 	return serveHandler([]string{es.dir}, serveOptions{Edit: es}, newFetcher(true), io.Discard)
 }
 
@@ -153,5 +169,222 @@ func TestEditRequirementsRefusesCrossSite(t *testing.T) {
 	})
 	if rec.Code != 403 {
 		t.Errorf("%d %s", rec.Code, rec.Body)
+	}
+}
+
+// doublingOrders is the reviewer's Orders sheet for the false "done": fee
+// is renamed shipping_fee, so the rule text of the draft below matches the
+// PM's, but Orders sends Shipping twice the weight, so every case differs.
+// extra is appended to the sheet.
+func doublingOrders(t *testing.T, work, extra string) {
+	t.Helper()
+	text := `sheet   = "orders"
+version = 1
+title   = "Orders"
+
+[[row]]
+id     = "tier"
+name   = "Tier"
+source = "request.tier"
+type   = "string"
+
+[[row]]
+id     = "weight"
+name   = "Weight"
+source = "request.weight"
+type   = "number"
+
+[[row]]
+id      = "sent_weight"
+name    = "Sent weight"
+uses    = ["weight"]
+formula = "weight * 2"
+
+  [[row.send]]
+  target = "quote"
+  field  = "weight"
+  usage  = "R"
+
+[[row]]
+id     = "shipping_fee"
+name   = "Shipping fee"
+source = "call.quote.fee"
+type   = "number"
+
+[[row]]
+id      = "shipping_cost"
+name    = "Shipping cost"
+uses    = ["tier", "shipping_fee"]
+formula = "tier == \"Silver\" ? shipping_fee / 2 : shipping_fee"
+
+  [row.send]
+  field = "shippingCost"
+  usage = "R"
+` + extra
+	if err := os.WriteFile(filepath.Join(work, "sheets", "specs", "orders", "sheet.toml"), []byte(text), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// An error already in the saved sheet leaves the Orders flow out of the
+// PM's cases; the draft must then answer stale, never an item done by its
+// rule text alone (D-22).
+func TestEditRequirementsOldErrorIsStale(t *testing.T) {
+	const fixed = `tier == "Silver" ? shipping_fee / 4 : shipping_fee`
+	h := reqHandlerWith(t, "", nil, func(_ *testrepo.Shop, work string) { doublingOrders(t, work, "") })
+	a := postReqs(t, h, reqDraft(t, h, fixed))
+	if a.View == nil {
+		t.Fatalf("valid sheet: %+v", a)
+	}
+	if s := statusOf(t, a.View, "shipping_cost"); s != "open" {
+		t.Fatalf("valid sheet: shipping_cost %s, want open on the cases", s)
+	}
+
+	unused := `
+[[row]]
+id      = "spare"
+name    = "Spare"
+uses    = ["weight"]
+formula = "weight + 1"
+`
+	h = reqHandlerWith(t, "", nil, func(_ *testrepo.Shop, work string) { doublingOrders(t, work, unused) })
+	a = postReqs(t, h, reqDraft(t, h, fixed))
+	if a.View != nil {
+		for _, it := range a.View.Items {
+			t.Logf("%s %s: %s (%s)", it.Kind, it.What, it.Status, it.Note)
+		}
+		t.Fatalf("sheet with an old error got a view: shipping_cost %s", statusOf(t, a.View, "shipping_cost"))
+	}
+	t.Logf("stale: %s", a.Stale)
+	if !strings.Contains(a.Stale, "the sheet has errors") || !strings.Contains(a.Stale, "nothing uses this row") {
+		t.Errorf("stale: %q", a.Stale)
+	}
+}
+
+// The team's flow names another sheet, so the PM's cases never run on the
+// one being edited: the draft was not checked.
+func TestEditRequirementsOtherSheetIsStale(t *testing.T) {
+	h := reqHandlerWith(t, "", nil, func(_ *testrepo.Shop, work string) {
+		specs := filepath.Join(work, "sheets", "specs")
+		data, err := os.ReadFile(filepath.Join(specs, "orders", "sheet.toml"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(filepath.Join(specs, "other"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(specs, "other", "sheet.toml"), data, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		fl := filepath.Join(work, "sheets", "flows", "orders", "flow.toml")
+		text, err := os.ReadFile(fl)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(fl, []byte(strings.Replace(string(text), "../../specs/orders", "../../specs/other", 1)), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	})
+	a := postReqs(t, h, reqDraft(t, h, `tier == "Silver" ? fee / 4 : fee`))
+	if a.View != nil {
+		t.Fatalf("a draft the cases never ran on got a view: shipping_cost %s", statusOf(t, a.View, "shipping_cost"))
+	}
+	t.Logf("stale: %s", a.Stale)
+	if !strings.Contains(a.Stale, "Orders team") {
+		t.Errorf("stale: %q", a.Stale)
+	}
+}
+
+// This repository pinned to a tag in the registry is read from the tag,
+// not the working tree: the draft cannot be checked.
+func TestEditRequirementsPinnedIsStale(t *testing.T) {
+	h := reqHandlerWith(t, "", nil, func(s *testrepo.Shop, _ string) {
+		testrepo.Git(t, s.Orders, "tag", "v1")
+		mods := filepath.Join(s.Product, ".gitmodules")
+		text, err := os.ReadFile(mods)
+		if err != nil {
+			t.Fatal(err)
+		}
+		head, rest, _ := strings.Cut(string(text), `[submodule "orders"]`)
+		rest = strings.Replace(rest, "branch = main", "branch = v1", 1)
+		if err := os.WriteFile(mods, []byte(head+`[submodule "orders"]`+rest), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		testrepo.Git(t, s.Product, "commit", "--quiet", "-am", "pin orders")
+	})
+	a := postReqs(t, h, reqDraft(t, h, `tier == "Silver" ? fee / 4 : fee`))
+	t.Logf("stale: %s", a.Stale)
+	if a.View != nil || !strings.Contains(a.Stale, "pinned to v1") {
+		t.Fatalf("%+v", a)
+	}
+}
+
+// Without an origin remote the working tree stands in for nothing: the
+// cases run on the registry's copy, so the draft is not checked.
+func TestEditRequirementsNoOriginIsStale(t *testing.T) {
+	h := reqHandlerWith(t, "", nil, func(_ *testrepo.Shop, work string) {
+		testrepo.Git(t, work, "remote", "remove", "origin")
+	})
+	a := postReqs(t, h, reqDraft(t, h, `tier == "Silver" ? fee / 4 : fee`))
+	t.Logf("stale: %s", a.Stale)
+	if a.View != nil || !strings.Contains(a.Stale, "no origin remote") {
+		t.Fatalf("%+v", a)
+	}
+}
+
+// A Fetch again that fails keeps the change last read, and says why.
+func TestEditRequirementsRefreshFailureKeepsView(t *testing.T) {
+	var shop *testrepo.Shop
+	fe := sources.NewFetcher(t.TempDir())
+	fe.MaxAge = time.Nanosecond // Fetch again fetches
+	h := reqHandlerWith(t, "", fe, func(s *testrepo.Shop, _ string) { shop = s })
+	if a := postReqs(t, h, reqDraft(t, h, "")); a.View == nil {
+		t.Fatalf("%+v", a)
+	}
+	testrepo.Git(t, shop.Product, "switch", "--quiet", "main")
+	testrepo.Git(t, shop.Product, "branch", "--quiet", "-D", "quarter")
+	rec := request(h, "POST", "/edit/requirements", map[string]any{"draft": reqDraft(t, h, ""), "refresh": true}, nil)
+	var a struct {
+		reqAnswer
+		RefreshError string `json:"refresh_error"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &a); err != nil || rec.Code != 200 {
+		t.Fatalf("%d %s", rec.Code, rec.Body)
+	}
+	if a.View == nil || a.RefreshError == "" || a.Error != "" {
+		t.Fatalf("refresh to a missing branch: %s", rec.Body)
+	}
+	if s := statusOf(t, a.View, "shipping_cost"); s != "open" {
+		t.Errorf("kept view: shipping_cost %s", s)
+	}
+	// Later answers still say the last Fetch again failed.
+	rec = request(h, "POST", "/edit/requirements", map[string]any{"draft": reqDraft(t, h, "")}, nil)
+	if !strings.Contains(rec.Body.String(), "refresh_error") {
+		t.Errorf("next answer: %s", rec.Body)
+	}
+}
+
+// A sheet on disk that does not parse is a reason the draft is not
+// checked, not a failed request.
+func TestEditRequirementsUnparsedSheetIsStale(t *testing.T) {
+	var work string
+	h := reqHandlerWith(t, "", nil, func(_ *testrepo.Shop, w string) { work = w })
+	d := reqDraft(t, h, "")
+	file := filepath.Join(work, "sheets", "specs", "orders", "sheet.toml")
+	if err := os.WriteFile(file, []byte("sheet = \"orders\"\n[[row]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	st, err := store.NewLocal(work)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, err := st.Load(d.File)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.Token = f.Token
+	a := postReqs(t, h, d)
+	if a.View != nil || !strings.Contains(a.Stale, "sheet.toml cannot be read") || !strings.Contains(a.Stale, "close array") {
+		t.Fatalf("%+v", a)
 	}
 }
