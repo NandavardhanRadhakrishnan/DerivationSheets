@@ -153,9 +153,11 @@
   var staleEl = h("span", { "class": "ed-stale", hidden: true });
   var discardBtn = button("Discard", discard);
   var saveBtn = button("Save", save, "ed-primary");
+  // With serve --flow, the Requirements panel: see checkRequirements.
+  var reqBtn = S.requirements ? button("Requirements", function () { open("#requirements"); }, "ed-req-btn") : null;
   var bar = h("div", { "class": "ed-bar" }, [
     h("div", { "class": "ed-bar-left" }, [countEl, newRowsEl, msgEl, staleEl]),
-    h("div", { "class": "ed-bar-right" }, [discardBtn, saveBtn])
+    h("div", { "class": "ed-bar-right" }, [reqBtn, discardBtn, saveBtn])
   ]);
   var detailsEl = h("div", { "class": "ed-details", hidden: true });
   bar.appendChild(detailsEl);
@@ -197,10 +199,12 @@
     var changed = {};
     changedIds().forEach(function (id) { changed[id] = true; });
     var byRow = problemsByRow();
+    var reqR = reqRows();
     document.querySelectorAll("tr.row").forEach(function (tr) {
       var id = tr.getAttribute("data-id");
       var ps = byRow[id] || [];
       tr.classList.toggle("ed-selected", id === selected);
+      tr.classList.toggle("ed-req-row", !!reqR[id]);
       tr.classList.toggle("ed-changed", !!changed[id]);
       tr.classList.toggle("ed-deleted", !!deleted[id]);
       tr.classList.toggle("ed-problem", ps.some(function (p) { return p.severity === "error" && !p.new; }));
@@ -235,9 +239,23 @@
     if (sticky && !problems.some(function (p) { return p.new; })) return;
     var fresh = problems.filter(function (p) { return p.new; }).length;
     var old = problems.filter(function (p) { return p.severity === "error" && !p.new; }).length;
-    if (fresh) return say(fresh === 1 ? "1 error this edit introduces; it cannot be saved yet." : fresh + " errors this edit introduces; it cannot be saved yet.", "danger");
+    if (fresh) return say(fresh === 1 ? "1 error this edit introduces; it cannot be saved yet." : fresh + " errors this edit introduces; it cannot be saved yet.", "danger", flowProblemLines(problems));
     if (old) return say(old === 1 ? "1 error was already in the sheet; it does not block saving." : old + " errors were already in the sheet; they do not block saving.", "muted");
     say("");
+  }
+
+  // Flow problems name a flow.toml, not a row, so the bar lists them.
+  function flowProblemLines(ps) {
+    return ps.filter(function (p) { return p.code === "flow" && p.new; }).map(function (p) {
+      return p.file + (p.line ? ":" + p.line : "") + ": " + p.message;
+    });
+  }
+
+  // flowFixLines are the flows a save rewrote with the sheet.
+  function flowFixLines(fixes) {
+    return (fixes || []).map(function (f) {
+      return "Also saved " + f.file + ": removed " + (f.removed || []).join(", ") + " from computes";
+    });
   }
 
   // ---------- Checking and saving ----------
@@ -285,7 +303,8 @@
       updateBar();
       summarize();
       refreshPanelStatus();
-      if (again) changed();
+      if (again) changed(); // its check asks for the requirements
+      else checkRequirements(false);
     }).catch(function (err) {
       if (seq === checking) say("Checking failed: " + err.message, "danger");
     });
@@ -367,11 +386,15 @@
         refreshPanelStatus();
         check(); // the save cancelled the pending check; refresh uses and unknown names
         var fresh = problems.filter(function (p) { return p.new; }).length;
+        var flowPs = flowProblemLines(problems);
         refused = true;
-        return say("Not saved: this edit introduces " + (fresh === 1 ? "1 error" : fresh + " errors") + ". Fix the rows marked in red.", "danger");
+        return say("Not saved: this edit introduces " + (fresh === 1 ? "1 error" : fresh + " errors") + "." +
+          (fresh > flowPs.length ? " Fix the rows marked in red." : "") +
+          (flowPs.length ? " The flow problems are listed below." : ""), "danger", flowPs);
       }
       var text = res.version_raised ? "Saved. Version raised to " + res.version + "." : "Saved.";
-      try { sessionStorage.setItem(FLASH_KEY, JSON.stringify({ text: text, details: res.cases || [] })); } catch (e) { /* the message is lost, the save is not */ }
+      var details = flowFixLines(res.flows).concat(res.cases || []);
+      try { sessionStorage.setItem(FLASH_KEY, JSON.stringify({ text: text, details: details })); } catch (e) { /* the message is lost, the save is not */ }
       leaving = true;
       location.reload();
     }).catch(function (err) {
@@ -462,7 +485,10 @@
 
   // ---------- Panel ----------
 
-  function open(id) {
+  // open shows id in the panel; fromReq says a requirement's row chip
+  // opened it, so the row panel links back to the Requirements panel.
+  function open(id, fromReq) {
+    reqBack = !!fromReq;
     selected = id;
     panel.hidden = false;
     document.body.classList.add("panel-open");
@@ -502,6 +528,7 @@
 
   function close() {
     selected = null;
+    reqBack = false;
     panel.hidden = true;
     document.body.classList.remove("panel-open", "panel-wide");
     markRows();
@@ -535,9 +562,12 @@
     var wide = selected !== "#title" && kinds[selected] === "table" && !deleted[selected];
     panel.classList.toggle("ed-wide", wide);
     document.body.classList.toggle("panel-wide", wide);
+    panel.setAttribute("aria-label", selected === "#requirements" ? "Requirements" : selected === "#title" ? "Sheet title" : "Edit row");
     if (selected === "#title") return renderTitle();
+    if (selected === "#requirements") return renderRequirements();
     var id = selected, r = rows[id];
     if (!r) return close();
+    if (reqBack) panel.appendChild(button("← Requirements", function () { open("#requirements"); }, "ed-quiet ed-req-back"));
     var num = document.querySelector('tr.row[data-id="' + id + '"] td.num');
     headEl = h("h2", { text: (added[id] ? "New row" : "Row " + (num ? num.textContent : "")) });
     panel.appendChild(h("div", { "class": "ed-panel-head" }, [
@@ -1152,9 +1182,219 @@
     panel.appendChild(listSection("Open questions", "Add question", function () { r.open_questions.push(""); render(); changed(); }, kids));
   }
 
+  // ---------- Requirements ----------
+
+  // With serve --flow, the server reruns the PM's cases on the draft after
+  // each check: this team's items, and other teams' items through the calls
+  // this team serves. An answer is a view, a stale reason (the draft cannot
+  // be decided on; the last view stays), or an error (the change cannot be
+  // read; Fetch again reads it again). An item is done only when the server
+  // says "done"; "undocumented" shows as cannot tell.
+  var reqView = null, reqStale = "", reqError = "", reqSeq = 0, reqFetching = false;
+  var reqOpen = null;   // the expanded item's key
+  var reqDoneOpen = {}; // the "N done" folds opened, by group
+  var reqBack = false;  // the row panel was opened from a requirement
+
+  function reqKey(it) { return it.team + "|" + it.id; }
+
+  function checkRequirements(refresh) {
+    if (!S.requirements) return;
+    var seq = ++reqSeq;
+    if (refresh) {
+      reqFetching = true;
+      if (selected === "#requirements") redrawReq();
+    }
+    post("/edit/requirements", { draft: draft(), refresh: !!refresh }).then(function (res) {
+      if (seq !== reqSeq) return;
+      if (res.view) {
+        var done = nowDone(reqView, res.view);
+        reqView = res.view;
+        reqStale = reqError = "";
+        if (done.length) say(done.join(", ") + (done.length === 1 ? " is" : " are") + " done with this draft", "muted");
+      } else if (res.stale) {
+        reqStale = res.stale;
+        reqError = "";
+      } else {
+        reqError = res.error || "the server gave no answer";
+      }
+      settleRequirements();
+    }, function (err) {
+      if (seq !== reqSeq) return;
+      reqError = err.message;
+      settleRequirements();
+    });
+  }
+
+  function settleRequirements() {
+    reqFetching = false;
+    updateReqButton();
+    if (selected === "#requirements") redrawReq();
+    markRows();
+  }
+
+  // nowDone are the IDs of this team's items open in the last view and
+  // done in the new one.
+  function nowDone(was, now) {
+    if (!was) return [];
+    var open = {};
+    was.items.forEach(function (it) { if (it.mine && it.status === "open") open[reqKey(it)] = true; });
+    return now.items.filter(function (it) { return it.mine && it.status === "done" && open[reqKey(it)]; })
+      .map(function (it) { return it.id; });
+  }
+
+  function updateReqButton() {
+    if (!reqBtn) return;
+    var n = reqView && !reqError ? reqView.items.filter(function (it) { return it.mine && it.status === "open"; }).length : -1;
+    reqBtn.textContent = n < 0 ? "Requirements" : "Requirements · " + n + " open";
+    reqBtn.classList.toggle("ed-req-has-open", n > 0);
+  }
+
+  // reqRows are the rows of the expanded item, marked on the grid while the
+  // panel shows the requirements or a row opened from one.
+  function reqRows() {
+    var out = {};
+    if (!reqView || reqError || !reqOpen || (selected !== "#requirements" && !reqBack)) return out;
+    reqView.items.forEach(function (it) {
+      if (reqKey(it) === reqOpen) (it.rows || []).forEach(function (r) { out[r] = true; });
+    });
+    return out;
+  }
+
+  // redrawReq redraws the Requirements panel where the person left it.
+  function redrawReq() {
+    var top = panel.scrollTop, ae = document.activeElement;
+    var key = ae && panel.contains(ae) ? ae.getAttribute("data-key") : null;
+    render();
+    panel.scrollTop = top;
+    if (key) {
+      var el = panel.querySelector('[data-key="' + (window.CSS && CSS.escape ? CSS.escape(key) : key) + '"]');
+      if (el) el.focus();
+    }
+  }
+
+  // codeText turns `name` spans in a requirement's text into code.
+  function codeText(s) {
+    return String(s || "").split("`").map(function (part, i) { return i % 2 ? h("code", { text: part }) : part; });
+  }
+
+  function renderRequirements() {
+    panel.appendChild(h("div", { "class": "ed-panel-head" }, [
+      h("h2", { text: "Requirements" }),
+      button("Close", close, "ed-quiet", { "aria-label": "Close the panel" })
+    ]));
+    panel.appendChild(h("div", { "class": "ed-req-ref" }, [
+      h("code", { text: S.requirements.flow }),
+      button(reqFetching ? "Fetching…" : "Fetch again", function () { checkRequirements(true); }, "ed-quiet",
+        { "aria-busy": reqFetching ? "true" : null, "data-key": "#fetch", title: "Read the PM's change again" })
+    ]));
+    var v = reqView;
+    if (reqError) {
+      panel.appendChild(h("p", { "class": "ed-req-error", role: "alert", text: "The requirements cannot be read: " + reqError }));
+      return;
+    }
+    if (v) panel.appendChild(h("p", { "class": "ed-hint ed-req-revs" }, ["Base ", h("code", { text: v.base || "—" }), " · head ", h("code", { text: v.head || "—" })]));
+    if (reqStale) {
+      var why = reqStale.replace(/\.$/, "") + ".";
+      panel.appendChild(h("p", { "class": "ed-hint ed-warn", text: v
+        ? "Showing the last draft that could be checked: " + why
+        : "The requirements cannot be checked on this draft: " + why }));
+    }
+    if (!v) {
+      if (!reqStale) panel.appendChild(h("p", { "class": "ed-hint", text: "Reading the PM's change…" }));
+      return;
+    }
+    var teams = v.teams || [];
+    var mine = v.items.filter(function (it) { return it.mine; });
+    var others = v.items.filter(function (it) { return !it.mine; });
+    if (teams.length) {
+      panel.appendChild(reqGroup("mine", "Your items", teams.join(", "), mine, "No items for " + teams.join(", ") + " in this change."));
+      panel.appendChild(reqGroup("others", "Other teams' items through your calls", "", others, "None."));
+    } else {
+      panel.appendChild(h("section", { "class": "ed-list" }, [
+        h("div", { "class": "ed-list-head" }, [h("h3", { text: "Your items" })]),
+        h("p", { "class": "ed-hint ed-warn", text: v.why || "This repository's team in the flow cannot be told." })
+      ]));
+      panel.appendChild(reqGroup("others", "Other teams' items", "", others, "None."));
+    }
+  }
+
+  // reqGroup lists items not done, then the done ones folded.
+  function reqGroup(group, titleText, sub, items, empty) {
+    var done = items.filter(function (it) { return it.status === "done"; });
+    var kids = [h("div", { "class": "ed-list-head" }, [h("h3", {}, [titleText, sub ? h("span", { "class": "ed-req-teams", text: " · " + sub }) : null])])];
+    if (!items.length) kids.push(h("p", { "class": "ed-hint", text: empty }));
+    items.forEach(function (it) { if (it.status !== "done") kids.push(reqItem(it)); });
+    if (done.length) {
+      var holds = done.some(function (it) { return reqKey(it) === reqOpen; });
+      var fold = h("details", { "class": "ed-req-done", open: !!reqDoneOpen[group] || holds }, [
+        h("summary", { "data-key": "#done-" + group, text: done.length + " done" })
+      ].concat(done.map(reqItem)));
+      fold.addEventListener("toggle", function () { reqDoneOpen[group] = fold.open; });
+      kids.push(fold);
+    }
+    return h("section", { "class": "ed-list ed-req-group" }, kids);
+  }
+
+  var REQ_STATUS = { open: ["open", "warn"], undocumented: ["cannot tell", ""], done: ["done", "done"] };
+
+  function reqItem(it) {
+    var key = reqKey(it), isOpen = key === reqOpen;
+    var st = REQ_STATUS[it.status] || [it.status, ""];
+    var kids = [h("button", {
+      type: "button", "class": "ed-req-head", "aria-expanded": isOpen ? "true" : "false", "data-key": key,
+      onclick: function () { reqOpen = isOpen ? null : key; redrawReq(); markRows(); }
+    }, [
+      h("span", { "class": "ed-req-line" }, [
+        h("code", { "class": "ed-req-id", text: it.id }),
+        h("span", { "class": "ed-req-kind", text: it.kind }),
+        h("span", { "class": "tag ed-req-status " + st[1], text: st[0] })
+      ]),
+      h("span", { "class": "ed-req-what" }, codeText(it.what)),
+      it.via ? h("span", { "class": "ed-req-via", text: it.team + ", through " + it.via }) : null
+    ])];
+    if (isOpen) kids.push(reqBody(it));
+    return h("div", { "class": "ed-req-item" + (isOpen ? " open" : "") }, kids);
+  }
+
+  function reqBody(it) {
+    var kids = [];
+    if (it.rule) kids.push(h("pre", { "class": "ed-req-rule", text: it.rule }));
+    if (it.note) kids.push(h("p", { "class": "ed-hint", text: it.note }));
+    var cs = it.cases || [];
+    if (cs.length) {
+      var body = [];
+      cs.forEach(function (c) {
+        var got = c.actual || (c.status === "cannot-tell" ? "cannot tell" : "—");
+        body.push(h("tr", { "class": c.note ? "ed-req-has-note" : null }, [
+          h("td", {}, [h("code", { text: c.case })]),
+          h("td", { "class": "ed-req-in mono", text: c.input || "—" }),
+          h("td", {}, [h("code", { text: c.field })]),
+          h("td", { "class": "mono", text: c.expected || "—" }),
+          h("td", { "class": "mono ed-req-got " + (c.status || ""), text: got })
+        ]));
+        if (c.note) body.push(h("tr", { "class": "ed-req-note" }, [h("td", { colspan: "5", text: c.note })]));
+      });
+      kids.push(h("div", { "class": "ed-dt-wrap ed-req-cases" }, [h("table", { "class": "ed-dt" }, [
+        h("thead", {}, [h("tr", {}, ["Case", "Input", "Field", "Expected", "Got"].map(function (t) { return h("th", { scope: "col", text: t }); }))]),
+        h("tbody", {}, body)
+      ])]));
+    }
+    var rs = it.rows || [];
+    if (rs.length) {
+      kids.push(h("div", { "class": "ed-req-rows" }, [h("span", { "class": "ed-label", text: "Rows" })].concat(rs.map(function (r) {
+        return rows[r]
+          ? button(r, function () { open(r, true); var tr = sheetRow(r); if (tr) reveal(tr); }, "ed-chip", { title: "Open " + rowName(r) })
+          : h("code", { text: r });
+      }))));
+    }
+    return h("div", { "class": "ed-req-body" }, kids);
+  }
+
   // ---------- Start ----------
 
   updateBar();
+  updateReqButton();
   if (flash) { say(flash.text, "success", flash.details); sticky = true; }
   check();
+  checkRequirements(false);
 })();
