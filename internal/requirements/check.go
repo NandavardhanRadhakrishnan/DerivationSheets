@@ -211,13 +211,13 @@ func (t *teamSheets) evidence(q *Requirement) (status, note string) {
 func sends(r *sheet.Row, q *Requirement) bool {
 	if q.Role == flow.RoleRequest {
 		for _, s := range r.CallSends {
-			if s != nil && s.Target == q.Stage && sameField(s.Field, q.Field) {
+			if s != nil && s.Target == q.Stage && SameField(s.Field, q.Field) {
 				return true
 			}
 		}
 		return false
 	}
-	return r.Send != nil && sameField(r.Send.Field, q.Field)
+	return r.Send != nil && SameField(r.Send.Field, q.Field)
 }
 
 // reads reports whether the row is an input that reads the field the way the
@@ -230,9 +230,9 @@ func reads(r *sheet.Row, q *Requirement) bool {
 	}
 	if q.Role == flow.RoleResponse {
 		stage, field, ok := strings.Cut(r.SourcePath(), ".")
-		return r.SourceKind() == "call" && ok && stage == q.Stage && sameField(field, q.Field)
+		return r.SourceKind() == "call" && ok && stage == q.Stage && SameField(field, q.Field)
 	}
-	return r.SourceKind() == "request" && sameField(r.SourcePath(), q.Field)
+	return r.SourceKind() == "request" && SameField(r.SourcePath(), q.Field)
 }
 
 // sameRule compares two rule texts ignoring runs of whitespace.
@@ -240,10 +240,10 @@ func sameRule(a, b string) bool {
 	return strings.Join(strings.Fields(a), " ") == strings.Join(strings.Fields(b), " ")
 }
 
-// sameField matches interface fields by name, ignoring case and separators.
+// SameField matches interface fields by name, ignoring case and separators.
 // When only one of them is a dotted path, its last part may stand for the
 // whole (`country` and `shipping.country`); two paths must match whole.
-func sameField(a, b string) bool {
+func SameField(a, b string) bool {
 	if flow.Norm(a) == flow.Norm(b) {
 		return true
 	}
