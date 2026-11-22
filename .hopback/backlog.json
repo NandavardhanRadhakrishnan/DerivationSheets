@@ -4,13 +4,14 @@
     {
       "id": "T-36",
       "title": "cases.Generate drops a branch when a row has a mapped send",
-      "description": "Found while building T-35, 2026-11-21. In the agree shop fixture, giving the PM's tier row a send with map (Silver = SLV, Standard = STD) made the generator stop emitting a member=true case, so the generated cases covered only one tier. The case-based done-check (T-35) can only be as complete as the generated cases, so a missing branch means an item can close without that branch ever being checked, which weakens D-22 (never close on a guess). Investigate why the mapped send changes generation (internal/cases), and make both branches appear. Developer, 2026-11-21: raised to medium; do it first in the T-37 build session, before the Requirements panel, so the panel cannot show all green with a branch missing.",
+      "description": "Found while building T-35, 2026-11-21. Fixed 2026-11-22 on branch t36-mapped-send-cases (uncommitted at the time of writing). Root cause: the map was irrelevant; any send on a formula row dropped its row:isolation target (IsolationRows skipped sent rows, as 'checked directly'), and formula rows have no branch targets of their own, so nothing forced member = true. Fix: sent derived rows get an isolation pair too, and the pair may differ in the row's own send. Same cases for specs/order-checkout (only covers lists change). A sent row of unconstrained arithmetic (amount + fee) now reports row:isolation as not covered, as unsent rows already did.",
       "type": "bug",
       "priority": "medium",
-      "status": "planned",
+      "status": "completed",
       "rank": 1,
       "created_at": "2026-11-21T18:11:34.9884244Z",
-      "updated_at": "2026-11-21T18:23:48.9878069Z",
+      "updated_at": "2026-11-22T07:35:34.1122714Z",
+      "completed_at": "2026-11-22T07:35:34.1122714Z",
       "source_session": "20261121T173432Z-095336",
       "recorded_by": "claude-code",
       "origin": "agent_suggested"
@@ -21,14 +22,14 @@
       "description": "Design section 6 of docs/superpowers/specs/2026-11-21-boundary-agreement-design.md (step 4 of its delivery order; steps 1-3 shipped in T-35). The design exists, so start with a plan (superpowers:writing-plans), not a brainstorm. Scope: (1) serve --edit \u003csheet\u003e --flow \u003calias\u003e:\u003cflow path\u003e@\u003cbranch\u003e names the PM's change; requirements prints that line for each team and --apply writes it into the record file. (2) A Requirements panel lists the open items for this team; selecting one shows the PM's rule as a hint, the failing cases at this team's boundary (input, expected, got), and the rows of this sheet that produce those fields. (3) As the owner edits, the PM's cases rerun against the draft through the chain (reuse agree.Run and the requirements report) and turn green. (4) Saving writes the sheet and, when needed, the team flow in one save (e.g. drop a stale computes entry when a derived row becomes an input). This absorbs T-31. (5) A neighbour that does part of another team's work (Shipping in an I2 split) opens the same line and sees the items whose fields pass through its stage, marked as another team's. Left to the plan: panel layout within the editor, caching of fetched sheets for live reruns, how rejects and 'cannot tell' show. Developer, 2026-11-21: chosen ahead of T-34; fix T-36 first in the same session, so the panel cannot show all green with a generated branch missing.",
       "type": "feature",
       "priority": "high",
-      "status": "planned",
+      "status": "in_progress",
       "rank": 2,
       "depends_on": [
         "T-35",
         "T-36"
       ],
       "created_at": "2026-11-21T18:23:06.0116296Z",
-      "updated_at": "2026-11-21T18:23:06.0116296Z",
+      "updated_at": "2026-11-22T07:35:34.1878567Z",
       "source_session": "20261121T181752Z-630cb7",
       "recorded_by": "claude-code",
       "origin": "user_requested"

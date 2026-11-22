@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "id": "20261121T182617Z-f2e6d0",
+  "project_id": "e790ba3d-ea34-4612-a843-85ab5e393eb0",
+  "role": "build",
+  "agent": "claude-code",
+  "native_session_id": "3f3d4be6-77dd-41f0-88f2-997b3449d00b",
+  "name": "hopback build: T-37 Requirements panel in the sheet editor (",
+  "objective_task_id": "T-37",
+  "status": "interrupted",
+  "launched": true,
+  "started_at": "2026-11-21T18:26:17.5078037Z",
+  "ended_at": "2026-11-22T07:29:32.4731616Z"
+}

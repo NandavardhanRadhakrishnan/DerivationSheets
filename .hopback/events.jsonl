@@ -280,3 +280,10 @@
 {"id":"20261121T182348Z-819bc7","ts":"2026-11-21T18:23:48.9878069Z","type":"decision_recorded","session":"20261121T181752Z-630cb7","agent":"claude-code","data":{"decision_id":"D-27","status":"decided","title":"Next build: design section 6 (Requirements panel) before T-34"}}
 {"id":"20261121T182348Z-b2d984","ts":"2026-11-21T18:23:48.9878069Z","type":"next_set","session":"20261121T181752Z-630cb7","agent":"claude-code","data":{"task_id":"T-37"}}
 {"id":"20261121T182348Z-5a9220","ts":"2026-11-21T18:23:48.9878069Z","type":"state_updated","session":"20261121T181752Z-630cb7","agent":"claude-code","data":{"revision":47}}
+{"id":"20261121T182615Z-0c12a0","ts":"2026-11-21T18:26:15.5869685Z","type":"session_completed","session":"20261121T181752Z-630cb7","agent":"claude-code"}
+{"id":"20261121T182617Z-25350f","ts":"2026-11-21T18:26:17.5127724Z","type":"session_started","session":"20261121T182617Z-f2e6d0","agent":"claude-code","data":{"launched":true,"role":"build","task_id":"T-37"}}
+{"id":"20261122T072932Z-32fef5","ts":"2026-11-22T07:29:32.478069Z","type":"session_ended_without_handoff","session":"20261121T182617Z-f2e6d0","agent":"claude-code"}
+{"id":"20261122T072935Z-6c38e3","ts":"2026-11-22T07:29:35.9102063Z","type":"session_started","session":"20261122T072935Z-2b0873","agent":"claude-code","data":{"launched":true,"role":"build","task_id":"T-37"}}
+{"id":"20261122T073534Z-5dc661","ts":"2026-11-22T07:35:34.1122714Z","type":"task_updated","session":"20261122T072935Z-2b0873","agent":"claude-code","data":{"changes":["description","status"],"task_id":"T-36"}}
+{"id":"20261122T073534Z-b09fab","ts":"2026-11-22T07:35:34.1878567Z","type":"task_updated","session":"20261122T072935Z-2b0873","agent":"claude-code","data":{"changes":["status"],"task_id":"T-37"}}
+{"id":"20261122T075215Z-a23c52","ts":"2026-11-22T07:52:15.6215563Z","type":"decision_recorded","session":"20261122T072935Z-2b0873","agent":"claude-code","data":{"decision_id":"D-28","status":"decided","title":"T-37 plan calls beyond design section 6"}}
