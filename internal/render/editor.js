@@ -286,7 +286,10 @@
     var seq = ++checking, clean = changeCount() === 0;
     return post("/edit/check", draft()).then(function (res) {
       if (seq !== checking) return;
-      if (res.conflict && res.conflict.length) return conflict(res.conflict);
+      if (res.conflict && res.conflict.length) {
+        staleRequirements(res.conflict.join(", ") + " changed on disk since this page loaded");
+        return conflict(res.conflict);
+      }
       showDraft(res.preview);
       takeCases(res.preview, clean);
       problems = res.problems || [];
@@ -306,7 +309,9 @@
       if (again) changed(); // its check asks for the requirements
       else checkRequirements(false);
     }).catch(function (err) {
-      if (seq === checking) say("Checking failed: " + err.message, "danger");
+      if (seq !== checking) return;
+      staleRequirements("checking failed: " + err.message);
+      say("Checking failed: " + err.message, "danger");
     });
   }
 
@@ -1190,43 +1195,78 @@
   // be decided on; the last view stays), or an error (the change cannot be
   // read; Fetch again reads it again). An item is done only when the server
   // says "done"; "undocumented" shows as cannot tell.
-  var reqView = null, reqStale = "", reqError = "", reqSeq = 0, reqFetching = false;
+  // While stale, the view is the last draft that could be checked, not this
+  // one: the bar says "not checked" and the panel dims its statuses.
+  var reqView = null, reqStale = "", reqError = "", reqSeq = 0;
+  // reqRefresh: Fetch again was asked and no answer to a refresh request has
+  // come back; every request asks to refresh until one does.
+  var reqRefresh = false;
   var reqOpen = null;   // the expanded item's key
   var reqDoneOpen = {}; // the "N done" folds opened, by group
   var reqBack = false;  // the row panel was opened from a requirement
+  var reqNotice = "";   // the "done with this draft" message last put in the bar
 
   function reqKey(it) { return it.team + "|" + it.id; }
 
   function checkRequirements(refresh) {
     if (!S.requirements) return;
     var seq = ++reqSeq;
-    if (refresh) {
-      reqFetching = true;
+    if (refresh && !reqRefresh) {
+      reqRefresh = true;
       if (selected === "#requirements") redrawReq();
     }
-    post("/edit/requirements", { draft: draft(), refresh: !!refresh }).then(function (res) {
-      if (seq !== reqSeq) return;
+    var asked = reqRefresh;
+    post("/edit/requirements", { draft: draft(), refresh: asked }).then(function (res) {
+      if (asked) reqRefresh = false; // the server read the change again
+      if (seq !== reqSeq) {
+        if (asked && selected === "#requirements") redrawReq(); // Fetch again is done
+        return;
+      }
       if (res.view) {
         var done = nowDone(reqView, res.view);
         reqView = res.view;
         reqStale = reqError = "";
-        if (done.length) say(done.join(", ") + (done.length === 1 ? " is" : " are") + " done with this draft", "muted");
+        clearReqNotice();
+        if (done.length) {
+          reqNotice = done.join(", ") + (done.length === 1 ? " is" : " are") + " done with this draft";
+          say(reqNotice, "muted");
+        }
       } else if (res.stale) {
-        reqStale = res.stale;
-        reqError = "";
+        staleRequirements(res.stale);
+        return;
       } else {
         reqError = res.error || "the server gave no answer";
+        clearReqNotice();
       }
       settleRequirements();
     }, function (err) {
       if (seq !== reqSeq) return;
+      if (asked) reqRefresh = false; // let Fetch again be asked anew
       reqError = err.message;
+      clearReqNotice();
       settleRequirements();
     });
   }
 
+  // staleRequirements keeps the last view but marks it as not this draft's.
+  // Answers to requests already sent describe an older draft: dropped.
+  function staleRequirements(reason) {
+    if (!S.requirements) return;
+    reqSeq++;
+    reqStale = reason;
+    reqError = "";
+    clearReqNotice();
+    settleRequirements();
+  }
+
+  // clearReqNotice takes a "done with this draft" message off the bar once
+  // the answer behind it no longer holds.
+  function clearReqNotice() {
+    if (reqNotice && msgEl.textContent === reqNotice) say("");
+    reqNotice = "";
+  }
+
   function settleRequirements() {
-    reqFetching = false;
     updateReqButton();
     if (selected === "#requirements") redrawReq();
     markRows();
@@ -1244,9 +1284,11 @@
 
   function updateReqButton() {
     if (!reqBtn) return;
-    var n = reqView && !reqError ? reqView.items.filter(function (it) { return it.mine && it.status === "open"; }).length : -1;
-    reqBtn.textContent = n < 0 ? "Requirements" : "Requirements · " + n + " open";
+    var n = reqView && !reqError && !reqStale ? reqView.items.filter(function (it) { return it.mine && it.status === "open"; }).length : -1;
+    reqBtn.textContent = reqStale && !reqError ? "Requirements · not checked" : n < 0 ? "Requirements" : "Requirements · " + n + " open";
+    reqBtn.title = reqStale && !reqError ? "This draft was not checked against the requirements: " + reqStale : "";
     reqBtn.classList.toggle("ed-req-has-open", n > 0);
+    reqBtn.classList.toggle("ed-req-not-checked", !!reqStale && !reqError);
   }
 
   // reqRows are the rows of the expanded item, marked on the grid while the
@@ -1284,8 +1326,8 @@
     ]));
     panel.appendChild(h("div", { "class": "ed-req-ref" }, [
       h("code", { text: S.requirements.flow }),
-      button(reqFetching ? "Fetching…" : "Fetch again", function () { checkRequirements(true); }, "ed-quiet",
-        { "aria-busy": reqFetching ? "true" : null, "data-key": "#fetch", title: "Read the PM's change again" })
+      button(reqRefresh ? "Fetching…" : "Fetch again", function () { checkRequirements(true); }, "ed-quiet",
+        { "aria-busy": reqRefresh ? "true" : null, "data-key": "#fetch", title: "Read the PM's change again" })
     ]));
     var v = reqView;
     if (reqError) {
@@ -1295,27 +1337,30 @@
     if (v) panel.appendChild(h("p", { "class": "ed-hint ed-req-revs" }, ["Base ", h("code", { text: v.base || "—" }), " · head ", h("code", { text: v.head || "—" })]));
     if (reqStale) {
       var why = reqStale.replace(/\.$/, "") + ".";
-      panel.appendChild(h("p", { "class": "ed-hint ed-warn", text: v
-        ? "Showing the last draft that could be checked: " + why
-        : "The requirements cannot be checked on this draft: " + why }));
+      panel.appendChild(h("div", { "class": "ed-req-stale-note", role: "status" }, [
+        h("strong", { text: "This draft is not checked. " }), "The requirements cannot be checked on it: " + why,
+        v ? h("div", { text: "Below is the result for the last draft that could be checked; its statuses may not hold now." }) : null
+      ]));
     }
     if (!v) {
       if (!reqStale) panel.appendChild(h("p", { "class": "ed-hint", text: "Reading the PM's change…" }));
       return;
     }
+    var lists = h("div", { "class": "ed-req-lists" + (reqStale ? " ed-req-stale" : "") });
     var teams = v.teams || [];
     var mine = v.items.filter(function (it) { return it.mine; });
     var others = v.items.filter(function (it) { return !it.mine; });
     if (teams.length) {
-      panel.appendChild(reqGroup("mine", "Your items", teams.join(", "), mine, "No items for " + teams.join(", ") + " in this change."));
-      panel.appendChild(reqGroup("others", "Other teams' items through your calls", "", others, "None."));
+      lists.appendChild(reqGroup("mine", "Your items", teams.join(", "), mine, "No items for " + teams.join(", ") + " in this change."));
+      lists.appendChild(reqGroup("others", "Other teams' items through your calls", "", others, "None."));
     } else {
-      panel.appendChild(h("section", { "class": "ed-list" }, [
+      lists.appendChild(h("section", { "class": "ed-list" }, [
         h("div", { "class": "ed-list-head" }, [h("h3", { text: "Your items" })]),
         h("p", { "class": "ed-hint ed-warn", text: v.why || "This repository's team in the flow cannot be told." })
       ]));
-      panel.appendChild(reqGroup("others", "Other teams' items", "", others, "None."));
+      lists.appendChild(reqGroup("others", "Other teams' items", "", others, "None."));
     }
+    panel.appendChild(lists);
   }
 
   // reqGroup lists items not done, then the done ones folded.
@@ -1365,17 +1410,19 @@
       var body = [];
       cs.forEach(function (c) {
         var got = c.actual || (c.status === "cannot-tell" ? "cannot tell" : "—");
+        // Expected and Got sit together after Field; Input, the longest,
+        // comes last and wraps to the room left.
         body.push(h("tr", { "class": c.note ? "ed-req-has-note" : null }, [
-          h("td", {}, [h("code", { text: c.case })]),
-          h("td", { "class": "ed-req-in mono", text: c.input || "—" }),
-          h("td", {}, [h("code", { text: c.field })]),
-          h("td", { "class": "mono", text: c.expected || "—" }),
-          h("td", { "class": "mono ed-req-got " + (c.status || ""), text: got })
+          h("td", { "class": "ed-req-case" }, [h("code", { text: c.case })]),
+          h("td", { "class": "ed-req-field" }, [h("code", { text: c.field })]),
+          h("td", { "class": "mono ed-req-val", text: c.expected || "—" }),
+          h("td", { "class": "mono ed-req-val ed-req-got " + (c.status || ""), text: got }),
+          h("td", { "class": "ed-req-in mono", text: c.input || "—" })
         ]));
         if (c.note) body.push(h("tr", { "class": "ed-req-note" }, [h("td", { colspan: "5", text: c.note })]));
       });
       kids.push(h("div", { "class": "ed-dt-wrap ed-req-cases" }, [h("table", { "class": "ed-dt" }, [
-        h("thead", {}, [h("tr", {}, ["Case", "Input", "Field", "Expected", "Got"].map(function (t) { return h("th", { scope: "col", text: t }); }))]),
+        h("thead", {}, [h("tr", {}, ["Case", "Field", "Expected", "Got", "Input"].map(function (t) { return h("th", { scope: "col", text: t }); }))]),
         h("tbody", {}, body)
       ])]));
     }
