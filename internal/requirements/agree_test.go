@@ -177,7 +177,7 @@ func TestRunNotesReachTheItems(t *testing.T) {
 	reg := map[string]sources.Source{"orders": {Alias: "orders", Git: "https://example.invalid/orders.git", Team: "Orders team"}}
 	fe := sources.NewFetcher(t.TempDir())
 	fe.Offline = true
-	rep := agree.Run(pm, agree.RegistryTeams(reg, fe, ""), agree.Options{Mode: agree.Isolated})
+	rep := agree.Run(pm, agree.RegistryTeams(reg, fe, "", nil), agree.Options{Mode: agree.Isolated})
 	ordersNotes := rep.TeamNotes["Orders team"]
 	if len(ordersNotes) != 1 || !strings.HasPrefix(ordersNotes[0], "could not read orders: ") {
 		t.Fatalf("Orders' notes: %q", ordersNotes)

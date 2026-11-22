@@ -104,7 +104,7 @@ func sendByCases(q *Requirement, checks []agree.Check) {
 	}
 	var rel []agree.Check
 	for _, c := range checks {
-		if c.Role == q.Role && c.Stage == q.Stage && c.Field != "reject" && sameField(c.Field, q.Field) {
+		if c.Role == q.Role && c.Stage == q.Stage && c.Field != "reject" && SameField(c.Field, q.Field) {
 			rel = append(rel, c)
 		}
 	}

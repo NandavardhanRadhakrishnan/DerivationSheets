@@ -76,7 +76,7 @@ func failingCases(q Requirement) string {
 	pad := strings.Repeat(" ", len(q.ID)+3)
 	out := ""
 	for _, c := range cs {
-		out += fmt.Sprintf("%scase %-*s   %-*s  expected %s, got %s", pad, idW, c.Case, fieldW, c.Field, shown(c.Expected), shown(c.Actual))
+		out += fmt.Sprintf("%scase %-*s   %-*s  expected %s, got %s", pad, idW, c.Case, fieldW, c.Field, Shown(c.Expected), Shown(c.Actual))
 		if c.Note != "" {
 			out += " (" + c.Note + ")"
 		}
@@ -88,7 +88,8 @@ func failingCases(q Requirement) string {
 	return out
 }
 
-func shown(v any) string {
+// Shown is how a case value reads: "nothing" for no value.
+func Shown(v any) string {
 	if v == nil {
 		return "nothing"
 	}
@@ -98,6 +99,11 @@ func shown(v any) string {
 func (r *Result) writeTeam(w io.Writer, team string, qs []Requirement) error {
 	if _, err := fmt.Fprintf(w, "%s: %s (base %s)\n", team, r.Flow, r.Base); err != nil {
 		return err
+	}
+	if line := r.Editor[team]; line != "" {
+		if _, err := fmt.Fprintf(w, "  open in the editor: %s\n", line); err != nil {
+			return err
+		}
 	}
 	for _, q := range qs {
 		if _, err := io.WriteString(w, r.line(q)); err != nil {

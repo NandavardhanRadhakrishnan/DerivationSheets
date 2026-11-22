@@ -59,7 +59,7 @@ var commands = []struct {
 	{"render", "<workflow|flow> --out page.html", "write the calculation sheet, or a flow's horizontal view, as one self-contained HTML file", cmdRender},
 	{"verify", "<workflow> --actual results.json", "compare actual output payloads with cases.toml and record evidence", cmdVerify},
 	{"eval", "<workflow> (--case ID | --input in.json | --request req.json)", "evaluate one input and print the payload and full trace", cmdEval},
-	{"serve", "<workflow> [--addr localhost:8080] [--edit]", "serve the rendered sheet on localhost, re-rendered on each request; --edit lets you change it", cmdServe},
+	{"serve", "<workflow> [--addr localhost:8080] [--edit [--flow alias:path@branch]]", "serve the rendered sheet on localhost, re-rendered on each request; --edit lets you change it", cmdServe},
 	{"slice", "<flow> [--out flow.html]", "place each row in a team's step and report what every boundary must carry", cmdSlice},
 	{"interface", "import <schema> --out <file.toml>", "import an interface from OpenAPI, Avro or JSON Schema", cmdInterface},
 	{"fetch", "<flow>", "fetch or update the git sources a flow refers to", cmdFetch},
@@ -572,7 +572,7 @@ func printTrace(w io.Writer, e *eval.Engine, res *eval.Result) {
 }
 
 func cmdServe(args []string, out, errw io.Writer) error {
-	fs := newFlags("serve", "<workflow> [--addr localhost:8080] [--edit]", errw)
+	fs := newFlags("serve", "<workflow> [--addr localhost:8080] [--edit [--flow alias:path@branch]]", errw)
 	addr := fs.String("addr", "localhost:8080", "listen address; keep it on localhost")
 	edit := fs.Bool("edit", false, "edit in the page: a sheet's rows, or a flow's placements, interface fields and stages")
 	evDir := fs.String("evidence-dir", "", "evidence folder (default: .evidence at the repository root)")
@@ -581,6 +581,7 @@ func cmdServe(args []string, out, errw io.Writer) error {
 	check := fs.Bool("check", false, "flows only: mark missing and unfit fields, and list what each team has to agree")
 	title := fs.String("title", "", "with several flows: the title of the combined grid")
 	offline := fs.Bool("offline", false, "do not fetch git sources; use what is already fetched")
+	flowRef := fs.String("flow", "", "with --edit on a sheet: open a PM's change, alias:path@branch, and list what it needs of this repository's sheet")
 	pos, err := parse(fs, args)
 	if err != nil {
 		return err
@@ -589,6 +590,9 @@ func cmdServe(args []string, out, errw io.Writer) error {
 		if _, err := oneWorkflow(fs, pos, errw); err != nil {
 			return err
 		}
+	}
+	if *flowRef != "" && (!*edit || isFlow(pos[0])) {
+		return fmt.Errorf("--flow needs --edit on a sheet")
 	}
 	var es *editServer
 	if *edit {
@@ -603,6 +607,10 @@ func cmdServe(args []string, out, errw io.Writer) error {
 	// branches again only once their last fetch is a minute old.
 	fe := newFetcher(*offline)
 	fe.MaxAge = time.Minute
+	if *flowRef != "" {
+		es.msg = out
+		es.openRequirements(*flowRef, fe)
+	}
 	dirs, err := argPaths(pos, fe)
 	if err != nil {
 		return err

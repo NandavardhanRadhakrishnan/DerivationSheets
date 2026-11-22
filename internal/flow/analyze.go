@@ -74,12 +74,8 @@ func (a *Analysis) Pinned(row string) bool { return a.pinned[row] }
 
 // loadIface reads an interface file, from the overlay when it has it.
 func (a *Analysis) loadIface(path string) (*iface.Interface, error) {
-	if a.overlay != nil {
-		if abs, err := filepath.Abs(path); err == nil {
-			if data, ok := a.overlay[filepath.Clean(abs)]; ok {
-				return iface.Parse(path, data)
-			}
-		}
+	if data, ok := a.overlay[OverlayKey(path)]; ok {
+		return iface.Parse(path, data)
 	}
 	return iface.Load(path)
 }
@@ -148,17 +144,34 @@ type Step struct {
 	pinsAt    string // flow.toml location of the computes list
 }
 
-// Overlay holds the content of interface files not yet saved, by cleaned
-// absolute path. Analysis reads them instead of the files on disk.
+// Overlay holds the content of interface files, sheets and flow.toml not yet
+// saved, by OverlayKey. Analysis reads them instead of the files on disk.
 type Overlay map[string][]byte
+
+// OverlayKey is the key of a file in an Overlay: its cleaned absolute path.
+func OverlayKey(path string) string {
+	if abs, err := filepath.Abs(path); err == nil {
+		return filepath.Clean(abs)
+	}
+	return filepath.Clean(path)
+}
+
+// loadSheet reads dir's sheet, from the overlay when it has it.
+func loadSheet(dir string, ov Overlay) (*sheet.Sheet, error) {
+	file := filepath.Join(dir, sheet.FileName)
+	if data, ok := ov[OverlayKey(file)]; ok {
+		return sheet.Parse(dir, file, string(data))
+	}
+	return sheet.Load(dir)
+}
 
 // Analyze slices a flow. resolve fetches interfaces from declared sources.
 func Analyze(f *Flow, resolve *sources.Resolver) *Analysis {
 	return AnalyzeWith(f, resolve, nil)
 }
 
-// AnalyzeWith slices a flow, reading interface files from ov when it has
-// them. The end-to-end sheet is always read from disk.
+// AnalyzeWith slices a flow, reading interface files and the end-to-end sheet
+// from ov when it has them (unsaved edits).
 func AnalyzeWith(f *Flow, resolve *sources.Resolver, ov Overlay) *Analysis {
 	a := &Analysis{Flow: f, Place: map[string]int{}, Transit: map[int]map[string]string{}, overlay: ov}
 	a.Errors = append(a.Errors, f.Problems...)
@@ -175,7 +188,7 @@ func AnalyzeWith(f *Flow, resolve *sources.Resolver, ov Overlay) *Analysis {
 		return a
 	}
 	a.SheetDir, a.SheetRev = dir, rev
-	s, err := sheet.Load(dir)
+	s, err := loadSheet(dir, ov)
 	if err != nil {
 		a.fail(0, "end-to-end sheet: %v", err)
 		return a

@@ -287,3 +287,4 @@
 {"id":"20261122T073534Z-5dc661","ts":"2026-11-22T07:35:34.1122714Z","type":"task_updated","session":"20261122T072935Z-2b0873","agent":"claude-code","data":{"changes":["description","status"],"task_id":"T-36"}}
 {"id":"20261122T073534Z-b09fab","ts":"2026-11-22T07:35:34.1878567Z","type":"task_updated","session":"20261122T072935Z-2b0873","agent":"claude-code","data":{"changes":["status"],"task_id":"T-37"}}
 {"id":"20261122T075215Z-a23c52","ts":"2026-11-22T07:52:15.6215563Z","type":"decision_recorded","session":"20261122T072935Z-2b0873","agent":"claude-code","data":{"decision_id":"D-28","status":"decided","title":"T-37 plan calls beyond design section 6"}}
+{"id":"20261122T110439Z-eaf266","ts":"2026-11-22T11:04:39.2347102Z","type":"task_updated","session":"20261122T072935Z-2b0873","agent":"claude-code","data":{"changes":["description","status"],"task_id":"T-31"}}

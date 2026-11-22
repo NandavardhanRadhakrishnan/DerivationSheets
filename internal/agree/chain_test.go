@@ -1,6 +1,7 @@
 package agree
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -793,5 +794,18 @@ default = 3
 		if countBy(r, "Cart team", "tier", Agrees) == 0 || countBy(r, "Shipping team", "fee", Agrees) == 0 {
 			t.Errorf("mode %v: missing checks: %+v", mode, r.Checks)
 		}
+	}
+}
+
+func TestReportInputsAndSheets(t *testing.T) {
+	pm, teams := shop(t, nil)
+	r := Run(pm, teams, Options{Mode: Isolated})
+	for _, c := range r.Checks {
+		if _, ok := r.Inputs[c.Case]; !ok {
+			t.Fatalf("no input for %s", c.Case)
+		}
+	}
+	if len(r.Sheets["Orders team"]) != 1 || !strings.HasSuffix(filepath.ToSlash(r.Sheets["Orders team"][0]), "orders/specs/orders") {
+		t.Fatalf("%v", r.Sheets)
 	}
 }

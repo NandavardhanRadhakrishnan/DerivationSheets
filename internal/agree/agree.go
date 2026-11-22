@@ -55,6 +55,11 @@ type Report struct {
 	Notes  []string // what could not be read, once each
 	// TeamNotes are the notes on each team's flows, by team, once each.
 	TeamNotes map[string][]string
+	// Inputs are the PM's cases' inputs, by case id.
+	Inputs map[string]map[string]any
+	// Sheets are the sheet folders of each team's matched own flows, sorted,
+	// without duplicates.
+	Sheets map[string][]string
 }
 
 // TeamFlows returns the analysed own flows of a team, and notes on what
@@ -71,9 +76,12 @@ type Options struct {
 // Run runs the PM's generated cases through each team's own sheet along the
 // PM's flow and compares the values at every boundary that carries a PM row.
 func Run(pm *flow.Analysis, teams TeamFlows, o Options) *Report {
-	r := &Report{Flow: pm.Flow.Slug, Mode: o.Mode, TeamNotes: map[string][]string{}}
+	r := &Report{Flow: pm.Flow.Slug, Mode: o.Mode, TeamNotes: map[string][]string{}, Inputs: map[string]map[string]any{}, Sheets: map[string][]string{}}
 	cs := pmCases(pm, o)
 	r.Cases = len(cs)
+	for _, c := range cs {
+		r.Inputs[c.ID] = c.Input
+	}
 	ru := newRunner(pm, o.Mode, r)
 	seen := map[string]bool{}
 	for i, sg := range ru.segs {
@@ -95,6 +103,12 @@ func Run(pm *flow.Analysis, teams TeamFlows, o Options) *Report {
 		if m := ru.found[i]; m != nil && m.A.Engine == nil {
 			ru.found[i], ru.notFound[i] = nil, fmt.Sprintf("the sheet of %s cannot be evaluated", m.A.Flow.Dir)
 		}
+		if m := ru.found[i]; m != nil && !slices.Contains(r.Sheets[sg.Team], m.A.SheetDir) {
+			r.Sheets[sg.Team] = append(r.Sheets[sg.Team], m.A.SheetDir)
+		}
+	}
+	for _, d := range r.Sheets {
+		slices.Sort(d)
 	}
 	if o.Mode == EndToEnd {
 		for _, c := range cs {

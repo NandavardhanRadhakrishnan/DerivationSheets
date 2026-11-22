@@ -23,7 +23,7 @@ type fetcher interface {
 // registry, no sheets, a sheet it could not read, or the owner is the
 // repository the flow itself is in, self). Schema requirements are left as
 // they are: they close when the interface declares the field.
-func Check(rs []Requirement, reg map[string]sources.Source, fe fetcher, self string) {
+func Check(rs []Requirement, reg map[string]sources.Source, fe fetcher, self string, ov flow.Overlay) {
 	repos := map[string]*repoSheets{}
 	for i := range rs {
 		q := &rs[i]
@@ -43,7 +43,7 @@ func Check(rs []Requirement, reg map[string]sources.Source, fe fetcher, self str
 		for _, a := range aliases {
 			rp := repos[a]
 			if rp == nil {
-				rp = readRepo(a, reg[a], fe)
+				rp = readRepo(a, reg[a], fe, ov)
 				repos[a] = rp
 			}
 			t.add(rp)
@@ -70,7 +70,7 @@ type repoSheets struct {
 	err    error    // the repository could not be fetched
 }
 
-func readRepo(alias string, src sources.Source, fe fetcher) *repoSheets {
+func readRepo(alias string, src sources.Source, fe fetcher, ov flow.Overlay) *repoSheets {
 	o := &repoSheets{alias: alias}
 	root, _, err := fe.Fetch(src)
 	if err != nil {
@@ -87,7 +87,13 @@ func readRepo(alias string, src sources.Source, fe fetcher) *repoSheets {
 			return filepath.SkipDir
 		}
 		if !d.IsDir() && d.Name() == sheet.FileName {
-			s, err := sheet.Load(filepath.Dir(p))
+			var s *sheet.Sheet
+			var err error
+			if data, ok := ov[flow.OverlayKey(p)]; ok {
+				s, err = sheet.Parse(filepath.Dir(p), p, string(data))
+			} else {
+				s, err = sheet.Load(filepath.Dir(p))
+			}
 			if err != nil {
 				rel, _ := filepath.Rel(root, p)
 				o.failed = append(o.failed, filepath.ToSlash(rel)+": "+err.Error())
@@ -205,13 +211,13 @@ func (t *teamSheets) evidence(q *Requirement) (status, note string) {
 func sends(r *sheet.Row, q *Requirement) bool {
 	if q.Role == flow.RoleRequest {
 		for _, s := range r.CallSends {
-			if s != nil && s.Target == q.Stage && sameField(s.Field, q.Field) {
+			if s != nil && s.Target == q.Stage && SameField(s.Field, q.Field) {
 				return true
 			}
 		}
 		return false
 	}
-	return r.Send != nil && sameField(r.Send.Field, q.Field)
+	return r.Send != nil && SameField(r.Send.Field, q.Field)
 }
 
 // reads reports whether the row is an input that reads the field the way the
@@ -224,9 +230,9 @@ func reads(r *sheet.Row, q *Requirement) bool {
 	}
 	if q.Role == flow.RoleResponse {
 		stage, field, ok := strings.Cut(r.SourcePath(), ".")
-		return r.SourceKind() == "call" && ok && stage == q.Stage && sameField(field, q.Field)
+		return r.SourceKind() == "call" && ok && stage == q.Stage && SameField(field, q.Field)
 	}
-	return r.SourceKind() == "request" && sameField(r.SourcePath(), q.Field)
+	return r.SourceKind() == "request" && SameField(r.SourcePath(), q.Field)
 }
 
 // sameRule compares two rule texts ignoring runs of whitespace.
@@ -234,10 +240,10 @@ func sameRule(a, b string) bool {
 	return strings.Join(strings.Fields(a), " ") == strings.Join(strings.Fields(b), " ")
 }
 
-// sameField matches interface fields by name, ignoring case and separators.
+// SameField matches interface fields by name, ignoring case and separators.
 // When only one of them is a dotted path, its last part may stand for the
 // whole (`country` and `shipping.country`); two paths must match whole.
-func sameField(a, b string) bool {
+func SameField(a, b string) bool {
 	if flow.Norm(a) == flow.Norm(b) {
 		return true
 	}

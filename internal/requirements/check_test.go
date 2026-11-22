@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/flow"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/sources"
 )
 
@@ -60,7 +61,7 @@ var registry = map[string]sources.Source{
 func check(t *testing.T, q Requirement, dirs fakeFetcher) Requirement {
 	t.Helper()
 	rs := []Requirement{q}
-	Check(rs, registry, dirs, "")
+	Check(rs, registry, dirs, "", nil)
 	return rs[0]
 }
 
@@ -240,7 +241,7 @@ values_file = "data/z.csv"
 
 func TestCheckOwnRepositoryIsUndocumented(t *testing.T) {
 	rs := []Requirement{{Kind: Carry, Team: "Cart team", Row: "subtotal"}}
-	Check(rs, registry, fakeFetcher{"cart": owner(t, inputs)}, "cart")
+	Check(rs, registry, fakeFetcher{"cart": owner(t, inputs)}, "cart", nil)
 	if rs[0].Status != StatusUndocumented || !strings.Contains(rs[0].Note, "this repository") {
 		t.Errorf("got %+v", rs[0])
 	}
@@ -280,8 +281,31 @@ func TestCheckSharedTeamKeyReadsEveryRepository(t *testing.T) {
 	two := map[string]sources.Source{"cart": {Alias: "cart", Git: "x", Team: "Cart team"}, "cart-web": {Alias: "cart-web", Git: "x", Team: "Cart team"}}
 	rs := []Requirement{{Kind: Carry, Team: "Cart team", Row: "subtotal"}}
 	other := "\n[[row]]\nid = \"other\"\nsource = \"request.other\"\ntype = \"string\"\n"
-	Check(rs, two, fakeFetcher{"cart": owner(t, other), "cart-web": owner(t, inputs)}, "")
+	Check(rs, two, fakeFetcher{"cart": owner(t, other), "cart-web": owner(t, inputs)}, "", nil)
 	if rs[0].Status != StatusDone {
 		t.Errorf("evidence in either repository of the team counts: %+v", rs[0])
+	}
+}
+
+func TestCheckReadsOverlay(t *testing.T) {
+	fee := func(formula string) string {
+		return inputs + "\n[[row]]\nid = \"fee\"\nuses = [\"subtotal\"]\nformula = \"" + formula + "\"\n"
+	}
+	wanted := ruleOf(t, fee("subtotal * 2"), "fee")
+	dir := owner(t, fee("subtotal * 3"))
+	q := Requirement{Kind: Compute, Team: "Cart team", Row: "fee", Rule: wanted}
+	file := filepath.Join(dir, "specs", "a", "sheet.toml")
+	draft := "sheet = \"s\"\nversion = 1\n" + fee("subtotal * 2")
+
+	rs := []Requirement{q}
+	Check(rs, registry, fakeFetcher{"cart": dir}, "", nil)
+	if rs[0].Status != StatusOpen {
+		t.Fatalf("without the draft: %+v", rs[0])
+	}
+	ov := flow.Overlay{flow.OverlayKey(file): []byte(draft)}
+	rs = []Requirement{q}
+	Check(rs, registry, fakeFetcher{"cart": dir}, "", ov)
+	if rs[0].Status != StatusDone {
+		t.Fatalf("with the draft: %+v", rs[0])
 	}
 }

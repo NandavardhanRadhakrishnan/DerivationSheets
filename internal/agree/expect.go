@@ -8,8 +8,9 @@ import (
 
 // pmCase is one of the PM's generated cases, evaluated on the PM's sheet.
 type pmCase struct {
-	ID  string
-	Res *eval.Result
+	ID    string
+	Input map[string]any
+	Res   *eval.Result
 	// Filled holds field -> value pairs the PM committed for this case, for
 	// rows the engine cannot compute. "?" placeholders are left out.
 	Filled map[string]any
@@ -46,7 +47,7 @@ func pmCases(pm *flow.Analysis, o Options) []pmCase {
 	}
 	var out []pmCase
 	for _, c := range cases.Generate(pm.Engine, ref).Cases {
-		out = append(out, pmCase{ID: c.ID, Res: pm.Engine.Evaluate(eval.Input(c.Input)), Filled: filled[c.ID]})
+		out = append(out, pmCase{ID: c.ID, Input: c.Input, Res: pm.Engine.Evaluate(eval.Input(c.Input)), Filled: filled[c.ID]})
 	}
 	return out
 }

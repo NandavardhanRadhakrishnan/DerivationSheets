@@ -36,3 +36,84 @@ the files that would change and exits 1.
 A pre-commit hook in `.githooks/pre-commit` runs `dsheets fmt --check` on the
 staged `.toml` files. Turn it on once per clone with
 `git config core.hooksPath .githooks`.
+
+## Serving the editor
+
+`dsheets serve --edit <sheet>` opens the sheet in the browser editor, on
+localhost. Saving writes the sheet and, in the same save, the flows (below).
+
+```
+dsheets serve --edit sheets/specs/orders
+dsheets serve --edit sheets/specs/orders --flow product:flows/shop@quarter
+```
+
+`--flow <alias>:<path>@<branch>` opens the product manager's change. It
+fetches that repository with history, sparse to the alias folder, and compares
+the branch with its merge-base. The alias and the `@branch` are both
+required, and `--flow` needs `--edit` on a sheet; otherwise it is the usage
+error `--flow needs --edit on a sheet`. If the change cannot be read, serve
+still starts, and the panel shows the error with Fetch again. The line to run
+is printed by `dsheets requirements` (see `requirements.md`).
+
+## The Requirements panel
+
+The bar button `Requirements · N open` opens the panel. It lists this
+repository's team's items: open, then cannot tell, then done (folded). Other
+teams' Compute and Send items that pass through a call this team answers show
+under "Other teams' items through your calls". When the repository's team
+cannot be told, the button says `Requirements · team unknown` and every item
+shows under "Other teams' items", with the reason. The team is found from the
+origin remote: every registry alias of that repository counts.
+
+An expanded item shows the product manager's rule, the note, the failing
+cases (Case, Field, Expected, Got, Input) and chips for the rows of this sheet
+that produce the fields. A row chip opens the row, and the row has a
+`← Requirements` link back.
+
+As you edit, the product manager's cases rerun against the draft through the
+teams' sheets, in a separate request after each check. Until the answer for
+the latest edit comes back, the button says `Requirements · checking…`.
+Items turn done without saving, and the bar says `R-xxxxxx is done with this
+draft`.
+
+An item is never shown done on a guess. When the cases cannot run on the
+draft, the button says `Requirements · not checked` and the panel dims the
+last result with the reason. That happens when:
+
+- the draft, or the sheet as saved, has an error: a sheet with errors leaves
+  the team's flow out of the cases;
+- the sheet changed on disk since the draft was started, or does not parse;
+- the cases ran for this repository's teams, but on no flow that uses the sheet
+  being edited;
+- a flow of this repository's team was left out of the cases (for example it
+  does not load): its items would otherwise fall back to the rule text over a
+  broken flow;
+- the repository has no origin remote, or the registry pins it to a tag or
+  commit: the cases then read the registry's copy, not your working tree.
+
+A team with no flow of its own in this repository is not in that list: its
+items are decided by the rule text, read through the draft.
+
+Fetch again re-reads the product manager's branch from the remote, even within a
+minute of the last read. If that fails after the
+change was read once, the panel keeps the items as last read and says that
+Fetch again failed.
+
+Example, from the shop fixture: the product manager changes `shipping_cost`
+from halving to quartering Silver's fee on branch `quarter`. In Orders, the
+panel lists the open Compute item for `shipping_cost`, with the failing cases.
+Change the formula in the editor and the item turns done before you save. In
+Shipping, the same Orders item shows under "Other teams' items through your
+calls", marked "Orders team, through the call to shipping-quote": a draft of
+Shipping's `fee` changes what the item's cases get.
+
+## One save for the sheet and the flows
+
+Saving a sheet, with or without `--flow`, also removes the rows the draft no
+longer derives from `computes` and `callee_computes` in this repository's
+flows whose `sheet` is this sheet. Everything is written in one save, and the
+bar says `Also saved flows/shop/flow.toml: removed free_shipping from computes`.
+
+If a flow error the edit introduces is still left, the save is refused and
+the flow problems are listed. For example, deleting a row that a `carries`
+entry names.

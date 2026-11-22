@@ -158,6 +158,10 @@ same. `slice --cases` checks that (see "Checking the teams' sheets").
 `slice` reports an error when a row is placed after something that needs
 it.
 
+When you save a sheet in `dsheets serve --edit`, the editor also removes the
+rows the sheet no longer derives from `computes` and `callee_computes` in the
+flows that use it, so a pinned row does not outlive its formula.
+
 ## Other teams' repositories
 
 Each team keeps its interfaces, sheets and flows in its own repository. A

@@ -3,6 +3,7 @@ package sources
 import (
 	"crypto/sha1"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -57,6 +58,15 @@ func NewFetcher(cache string) *Fetcher {
 func (f *Fetcher) WithSubstitute(s *Substitute) *Fetcher {
 	g := *f
 	g.Sub, g.pinned = s, &[]Source{}
+	return &g
+}
+
+// Refetching returns a fetcher sharing f's cache and fetch state that
+// fetches every followed source again on its next use, whatever MaxAge says.
+// Offline stays as it is: an offline fetcher still never fetches.
+func (f *Fetcher) Refetching() *Fetcher {
+	g := *f
+	g.MaxAge = time.Nanosecond
 	return &g
 }
 
@@ -211,4 +221,116 @@ func fetchInto(dir string, src Source, followed bool) error {
 		kind = "followed"
 	}
 	return os.WriteFile(filepath.Join(dir, ".git", refFile), []byte(kind+"\n"), 0o644)
+}
+
+// Change is a branch fetched with its history.
+type Change struct {
+	Root string // the alias's folder in a sparse checkout of the branch
+	Base string // the merge-base commit with the followed branch (full hash)
+	Head string // the commit of the branch (full hash)
+}
+
+// branchNotFound is a fetch that failed because the remote lacks the branch,
+// which says nothing about the cached clone.
+type branchNotFound struct{ msg string }
+
+func (e *branchNotFound) Error() string { return e.msg }
+
+// changeFile marks a change clone whose first fetch finished; it holds the
+// name of the branch the clone is at.
+const changeFile = "dsheets-change"
+
+// FetchChange fetches branch of src with its history (no --depth), so the
+// branch can be compared with its merge-base with the followed branch; a
+// shallow clone could not find it. It keeps one clone per source in the
+// cache, and offline uses the clone that is there.
+func (f *Fetcher) FetchChange(src Source, branch string) (*Change, error) {
+	src.Dir = CleanDir(src.Dir)
+	sum := sha1.Sum([]byte(src.Git + "#" + src.Dir))
+	dir := filepath.Join(f.Cache, src.Alias+"-change-"+hex.EncodeToString(sum[:])[:10])
+	data, statErr := os.ReadFile(filepath.Join(dir, ".git", changeFile))
+	cached := statErr == nil
+	cachedBranch := strings.TrimSpace(string(data))
+	if !cached && f.Offline {
+		return nil, fmt.Errorf("not fetched yet and --offline is set; run fetch first")
+	}
+	if f.Offline && cachedBranch != branch {
+		return nil, fmt.Errorf("branch %s not fetched yet and --offline is set; run fetch first", branch)
+	}
+	followed := "HEAD"
+	if !f.Offline && src.Ref != "" {
+		isBranch, err := f.Followed(src) // takes f.s.mu itself
+		if err != nil {
+			return nil, err
+		}
+		if followed = src.Ref; isBranch {
+			followed = "refs/heads/" + src.Ref
+		}
+	}
+	f.s.mu.Lock()
+	defer f.s.mu.Unlock()
+	last, fetched := f.s.at[dir]
+	fresh := fetched && (f.MaxAge == 0 || time.Since(last) < f.MaxAge)
+	// The clone holds one branch (named in its marker): another one is fetched.
+	if !f.Offline && !(cached && fresh && cachedBranch == branch) {
+		if err := fetchChange(dir, src, followed, branch); err != nil {
+			var nf *branchNotFound
+			if cached && !errors.As(err, &nf) {
+				err = fmt.Errorf("%v (the cached copy may be damaged; delete %s to fetch it again)", err, dir)
+			}
+			return nil, err
+		}
+		f.s.at[dir] = time.Now()
+	}
+	base, err := git(dir, "merge-base", "refs/dsheets/followed", "refs/dsheets/change")
+	if err != nil {
+		return nil, err
+	}
+	head, err := git(dir, "rev-parse", "refs/dsheets/change")
+	if err != nil {
+		return nil, err
+	}
+	root, err := within(dir, src.Dir, src.Git)
+	if err != nil {
+		return nil, err
+	}
+	return &Change{Root: root, Base: base, Head: head}, nil
+}
+
+// fetchChange creates or updates the history-keeping sparse clone and checks
+// out the branch.
+func fetchChange(dir string, src Source, followed, branch string) error {
+	_, gitErr := os.Stat(filepath.Join(dir, ".git"))
+	if _, err := os.Stat(filepath.Join(dir, ".git", changeFile)); gitErr == nil && err != nil {
+		// A clone that never finished its first fetch: make it again.
+		if err := os.RemoveAll(dir); err != nil {
+			return err
+		}
+		gitErr = os.ErrNotExist
+	}
+	if gitErr != nil {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return err
+		}
+		steps := [][]string{{"init", "--quiet"}, {"remote", "add", "origin", src.Git}}
+		if src.Dir != "" {
+			steps = append(steps, []string{"sparse-checkout", "set", "--cone", src.Dir})
+		}
+		for _, args := range steps {
+			if _, err := git(dir, args...); err != nil {
+				return err
+			}
+		}
+	}
+	if _, err := git(dir, "fetch", "--quiet", "--filter=blob:none", "origin",
+		"+"+followed+":refs/dsheets/followed", "+refs/heads/"+branch+":refs/dsheets/change"); err != nil {
+		if out, lsErr := git("", "ls-remote", "--heads", src.Git, "refs/heads/"+branch); lsErr == nil && out == "" {
+			return &branchNotFound{fmt.Sprintf("branch %s not found in %s", branch, src.Git)}
+		}
+		return err
+	}
+	if _, err := git(dir, "-c", "advice.detachedHead=false", "checkout", "--quiet", "--force", "--detach", "refs/dsheets/change"); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(dir, ".git", changeFile), []byte(branch+"\n"), 0o644)
 }

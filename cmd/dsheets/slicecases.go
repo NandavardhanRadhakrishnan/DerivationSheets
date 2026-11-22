@@ -29,7 +29,7 @@ func sliceCases(out io.Writer, a *flow.Analysis, fe *sources.Fetcher) *agree.Rep
 	case reg == nil:
 		fmt.Fprintln(out, "\nno registry: team flows cannot be found")
 	default:
-		teams = agree.RegistryTeams(reg, fe, sources.SelfAlias(reg, sources.OriginURL(root)))
+		teams = agree.RegistryTeams(reg, fe, sources.SelfAlias(reg, sources.OriginURL(root)), nil)
 	}
 	opt := agree.Options{Mode: agree.EndToEnd}
 	var why string

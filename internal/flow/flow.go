@@ -309,3 +309,13 @@ func (f *Flow) Line(loc ...string) int {
 	}
 	return 0
 }
+
+// LoadWith is Load reading flow.toml from ov when it has it (an unsaved
+// edit), else from disk.
+func LoadWith(dir string, ov Overlay) (*Flow, error) {
+	file := filepath.Join(dir, FileName)
+	if data, ok := ov[OverlayKey(file)]; ok {
+		return Parse(dir, file, data)
+	}
+	return Load(dir)
+}

@@ -3,7 +3,9 @@ package requirements
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/agree"
@@ -30,6 +32,10 @@ type Options struct {
 	// All includes label and formatting changes.
 	All     bool
 	Fetcher *sources.Fetcher
+	// Branch is the PM's branch the editor lines name. When empty and Head is
+	// empty it is the current branch, and when Head names a branch, that one;
+	// with a detached head there are no lines.
+	Branch string
 	// NoCheck skips reading the owners' sheets: every requirement stays open.
 	NoCheck bool
 }
@@ -42,6 +48,15 @@ type Result struct {
 	Requirements []Requirement `json:"requirements"`
 	// ShowDone lists done requirements too, when printing.
 	ShowDone bool `json:"-"`
+	// Report is the run of the PM's cases behind the cases of the items, or nil.
+	Report *agree.Report `json:"-"`
+	// Editor is the command that opens each team's sheet in the editor on this
+	// change, by team. A team with nothing to show has no line.
+	Editor map[string]string `json:"editor,omitempty"`
+	// Pinned are this repository's registry sources pinned to a tag or
+	// commit that the check read: they were read from that tag or commit,
+	// not from the working tree that stands in for the repository.
+	Pinned []sources.Source `json:"-"`
 }
 
 // Counts is how many requirements are done, and how many there are.
@@ -54,9 +69,41 @@ func (r *Result) Counts() (done, total int) {
 	return done, len(r.Requirements)
 }
 
+// Prepared is a flow change read from git once: the requirements, all open,
+// and what is needed to decide them. Nothing in it points into the temporary
+// exports, which are gone by the time Prepare returns.
+type Prepared struct {
+	res     Result // the template: every item open
+	headA   *flow.Analysis
+	reg     map[string]sources.Source
+	self    string
+	fe      *sources.Fetcher
+	filled  *cases.File // the PM's cases.toml, read at Prepare
+	why     string      // why filled is missing
+	noCheck bool
+	branch  string // the PM's branch, "" when unknown
+	flowRel string // the flow's folder relative to the self alias root, "" when unknown
+	aliasAs string // this repository's registry alias, "" when unknown
+	// substituted: fe reads this repository from its working tree (OpenChange).
+	substituted bool
+}
+
+// Analysis is the PM's flow at head.
+func (p *Prepared) Analysis() *flow.Analysis { return p.headA }
+
 // Run compares the flow at the base revision with the flow at head, which is
 // the working tree unless o.Head names a revision.
 func Run(o Options) (*Result, error) {
+	p, err := Prepare(o)
+	if err != nil {
+		return nil, err
+	}
+	return p.Decide(nil), nil
+}
+
+// Prepare reads the change: it compares the flow at the base with the flow at
+// head and locates the items, leaving them all open.
+func Prepare(o Options) (*Prepared, error) {
 	dir := o.Dir
 	if dir == "" {
 		dir = o.Flow
@@ -120,19 +167,116 @@ func Run(o Options) (*Result, error) {
 	for i := range rs {
 		rs[i].Status = StatusOpen
 	}
-	if !o.NoCheck {
-		reg, _ := sources.NewResolver(top, nil, fe).Registered() // no registry: nothing to check against
-		// This repository's own sheets at the followed branch are the flow's base, so they cannot show owners have acted.
-		self := sources.SelfAlias(reg, origin)
-		Check(rs, reg, fe, self)
-		if byCases(rs) && headA.Engine != nil {
-			filled, why := cases.ReadFilled(headA.SheetDir)
-			rep := agree.Run(headA, agree.RegistryTeams(reg, fe, self), agree.Options{Mode: agree.Isolated, Filled: filled})
-			applyCases(rs, headA, rep)
-			explainCases(rs, rep, why)
+	branch := o.Branch
+	if branch == "" {
+		if o.Head == "" {
+			branch = currentBranch(top)
+		} else if _, err := revs.Resolve("refs/heads/" + o.Head); err == nil {
+			branch = o.Head
 		}
 	}
-	return &Result{Flow: headA.Flow.Slug, Base: short(base), Head: short(head), Requirements: rs}, nil
+	p := &Prepared{
+		res:     Result{Flow: headA.Flow.Slug, Base: short(base), Head: short(head), Requirements: rs},
+		headA:   headA,
+		fe:      fe,
+		noCheck: o.NoCheck,
+		branch:  branch,
+	}
+	if !o.NoCheck {
+		p.reg, _ = sources.NewResolver(top, nil, fe).Registered() // no registry: nothing to check against
+		// This repository's own sheets at the followed branch are the flow's base, so they cannot show owners have acted.
+		p.self = sources.SelfAlias(p.reg, origin)
+		// The alias the editor lines name: the one given, or found from the origin.
+		if _, ok := p.reg[o.As]; ok {
+			p.aliasAs = o.As
+		} else {
+			p.aliasAs = p.self
+		}
+		if src, ok := p.reg[p.aliasAs]; ok {
+			if in, err := filepath.Rel(filepath.Join(top, filepath.FromSlash(sources.CleanDir(src.Dir))), flowAbs); err == nil && !strings.HasPrefix(in, "..") {
+				p.flowRel = filepath.ToSlash(in)
+			}
+		}
+		if byCases(rs) && headA.Engine != nil {
+			p.filled, p.why = cases.ReadFilled(headA.SheetDir)
+		}
+	}
+	return p, nil
+}
+
+// Decide checks the items against the owners' sheets, reading unsaved sheets
+// and flows from ov (which may be nil). It never changes p, so it can be
+// called again with another overlay.
+func (p *Prepared) Decide(ov flow.Overlay) *Result {
+	res := p.res
+	rs := make([]Requirement, len(p.res.Requirements))
+	copy(rs, p.res.Requirements)
+	for i := range rs {
+		rs[i].Needs = slices.Clone(rs[i].Needs)
+		rs[i].Cases = nil
+	}
+	res.Requirements = rs
+	if p.noCheck {
+		return &res
+	}
+	// A fetcher of its own per call, so the pinned sources it meets are this
+	// call's; it shares p.fe's cache and fetch state.
+	fe := p.fe.WithSubstitute(p.fe.Sub)
+	Check(rs, p.reg, fe, p.self, ov)
+	if byCases(rs) && p.headA.Engine != nil {
+		rep := agree.Run(p.headA, agree.RegistryTeams(p.reg, fe, p.self, ov), agree.Options{Mode: agree.Isolated, Filled: p.filled})
+		applyCases(rs, p.headA, rep)
+		explainCases(rs, rep, p.why)
+		res.Report = rep
+	}
+	res.Editor = p.editorLines(rs, res.Report)
+	for _, src := range fe.PinnedHits() {
+		if !slices.ContainsFunc(res.Pinned, func(s sources.Source) bool { return s.Alias == src.Alias }) {
+			res.Pinned = append(res.Pinned, src)
+		}
+	}
+	return &res
+}
+
+// editorLines is the command that opens each team's sheet in the editor on
+// the PM's change. The sheet is the team's first matched one, relative to its
+// repository, or the literal <sheet> when none was found.
+func (p *Prepared) editorLines(rs []Requirement, rep *agree.Report) map[string]string {
+	if p.branch == "" || p.aliasAs == "" || p.flowRel == "" {
+		return nil
+	}
+	out := map[string]string{}
+	for _, q := range rs {
+		if _, ok := out[q.Team]; ok {
+			continue
+		}
+		sheet := "<sheet>"
+		var dirs []string
+		if rep != nil {
+			dirs = rep.Sheets[q.Team]
+		}
+		if len(dirs) > 0 {
+			if r, err := filepath.Rel(sources.RepoRoot(dirs[0]), dirs[0]); err == nil && !strings.HasPrefix(r, "..") {
+				sheet = filepath.ToSlash(r)
+			}
+		}
+		out[q.Team] = fmt.Sprintf("dsheets serve --edit %s --flow %s:%s@%s", sheet, p.aliasAs, p.flowRel, p.branch)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// currentBranch is the branch checked out in dir, "" on a detached head.
+func currentBranch(dir string) string {
+	cmd := exec.Command("git", "symbolic-ref", "--short", "-q", "HEAD")
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
 }
 
 // byCases says some item is one the PM's cases may decide: a Compute or Send

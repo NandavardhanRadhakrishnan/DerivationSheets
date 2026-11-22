@@ -122,20 +122,14 @@ func (ed *Editor) flowRun(d FlowDraft, write bool) (*FlowResult, error) {
 		res.Unchanged = true
 	}
 	if changed && parseErr == nil {
-		committed, ok, err := store.CommittedVersion(ed.Store, cur.Path)
+		raised, ok, err := ed.raiseVersion(cur.Path, before.Version, content, tomledit.Flow)
 		if err != nil {
 			return nil, err
 		}
-		if ok && before.Version == committed {
-			doc, err := tomledit.Parse(content, tomledit.Flow)
-			if err == nil {
-				doc.Set("version", int64(committed+1))
-				if content, err = doc.Bytes(); err != nil {
-					return nil, err
-				}
-				if after, parseErr = flow.Parse(dir, abs, content); parseErr == nil {
-					res.Version, res.VersionRaised = after.Version, true
-				}
+		if ok {
+			content = raised
+			if after, parseErr = flow.Parse(dir, abs, content); parseErr == nil {
+				res.Version, res.VersionRaised = after.Version, true
 			}
 		}
 	}
@@ -147,10 +141,7 @@ func (ed *Editor) flowRun(d FlowDraft, write bool) (*FlowResult, error) {
 	} else {
 		ov := flow.Overlay{}
 		for _, f := range ifaces {
-			p, err := filepath.Abs(filepath.Join(ed.Root, filepath.FromSlash(f.Path)))
-			if err == nil {
-				ov[filepath.Clean(p)] = f.Data
-			}
+			ov[flow.OverlayKey(filepath.Join(ed.Root, filepath.FromSlash(f.Path)))] = f.Data
 		}
 		res.Analysis = flow.AnalyzeWith(after, sources.NewResolver(after.Dir, after.Sources, ed.fetcher()), ov)
 		afterErrs, afterWarns = res.Analysis.Errors, res.Analysis.Warnings
@@ -174,6 +165,7 @@ func (ed *Editor) flowRun(d FlowDraft, write bool) (*FlowResult, error) {
 	if err != nil {
 		return nil, err
 	}
+	ed.forgetFlowDirs()
 	res.Saved = true
 	res.Tokens = map[string]string{}
 	for i, w := range ws {

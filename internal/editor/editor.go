@@ -7,6 +7,8 @@ import (
 	"io/fs"
 	"path"
 	"path/filepath"
+	"sync"
+	"time"
 
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/cases"
 	"github.com/NandavardhanRadhakrishnan/DerivationSheets/internal/eval"
@@ -26,6 +28,12 @@ type Editor struct {
 	// Fetcher fetches the git sources a flow names; nil makes one that
 	// caches in the repository holding Root.
 	Fetcher *sources.Fetcher
+
+	// dirs are the folders under Root holding a flow.toml, walked at dirsAt;
+	// see flowDirs.
+	dirsMu sync.Mutex
+	dirs   []string
+	dirsAt time.Time
 }
 
 // Problem is a diagnostic, marked when the edit introduces it.
@@ -44,21 +52,28 @@ type SheetResult struct {
 	Problems      []Problem         `json:"problems"`
 	Conflict      []string          `json:"conflict,omitempty"`
 	Cases         []string          `json:"cases,omitempty"` // what regenerating cases.toml reported
+	// Flows are this repository's flows the save rewrites, because the
+	// sheet no longer derives rows they compute.
+	Flows []FlowFix `json:"flows,omitempty"`
 }
 
 // CheckSheet does everything SaveSheet does except writing.
 func (ed *Editor) CheckSheet(d SheetDraft) (*SheetResult, error) { return ed.sheet(d, false) }
 
 // SaveSheet applies a draft, refuses it if it introduces errors, raises the
-// version once per commit, writes the sheet and regenerates its cases.
+// version once per commit, writes the sheet and regenerates its cases. It
+// also removes the rows the sheet no longer derives from the computes lists
+// of this repository's flows whose sheet it is, in the same write; a flow
+// error the edit introduces that this does not fix refuses the save.
 func (ed *Editor) SaveSheet(d SheetDraft) (*SheetResult, error) { return ed.sheet(d, true) }
 
 // prepared is a draft turned into new content.
 type prepared struct {
 	res     *SheetResult
 	content []byte
-	after   *sheet.Sheet // nil when the content does not parse
-	dir     string       // the sheet's folder, relative to the store root
+	after   *sheet.Sheet  // nil when the content does not parse
+	dir     string        // the sheet's folder, relative to the store root
+	flows   []store.Write // the flow.toml files the save fixes
 }
 
 func (ed *Editor) sheet(d SheetDraft, write bool) (*SheetResult, error) {
@@ -73,6 +88,17 @@ func (ed *Editor) sheet(d SheetDraft, write bool) (*SheetResult, error) {
 	if err != nil {
 		return nil, err
 	}
+	if p.after != nil {
+		fixes, problems, err := ed.flowFixes(cur.Path, p.content, p.after)
+		if err != nil {
+			return nil, err
+		}
+		for _, fx := range fixes {
+			p.flows = append(p.flows, store.Write{Path: fx.File, Data: fx.content, Token: fx.token})
+			p.res.Flows = append(p.res.Flows, FlowFix{File: fx.File, Removed: fx.Removed})
+		}
+		p.res.Problems = append(p.res.Problems, problems...)
+	}
 	if !write || p.res.Unchanged || hasNew(p.res.Problems) {
 		return p.res, nil
 	}
@@ -83,6 +109,7 @@ func (ed *Editor) sheet(d SheetDraft, write bool) (*SheetResult, error) {
 	if ok {
 		ws = append(ws, store.Write{Path: casesFile, Data: casesData, Token: casesToken})
 	}
+	ws = append(ws, p.flows...)
 	tokens, err := ed.Store.Save(ws...)
 	var ce *store.ConflictError
 	if errors.As(err, &ce) {
@@ -92,6 +119,7 @@ func (ed *Editor) sheet(d SheetDraft, write bool) (*SheetResult, error) {
 	if err != nil {
 		return nil, err
 	}
+	ed.forgetFlowDirs()
 	p.res.Saved = true
 	p.res.Tokens = map[string]string{}
 	for i, w := range ws {
@@ -131,19 +159,8 @@ func (ed *Editor) prepare(cur store.File, d SheetDraft) (*prepared, error) {
 		return p, nil
 	}
 
-	committed, ok, err := store.CommittedVersion(ed.Store, cur.Path)
-	if err != nil {
+	if content, p.res.VersionRaised, err = ed.raiseVersion(cur.Path, before.Version, content, tomledit.Sheet); err != nil {
 		return nil, err
-	}
-	if ok && before.Version == committed {
-		doc, err := tomledit.Parse(content, tomledit.Sheet)
-		if err == nil {
-			doc.Set("version", int64(committed+1))
-			if content, err = doc.Bytes(); err != nil {
-				return nil, err
-			}
-			p.res.VersionRaised = true
-		}
 	}
 	p.content = content
 
